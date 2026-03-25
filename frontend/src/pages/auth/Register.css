@@ -1,0 +1,360 @@
+/* Trang đăng ký SEIMS — class register-* riêng, không dùng chung login-* */
+.register-page {
+  --seims-teal: #0f766e;
+  --seims-teal-dark: #0d5c56;
+  --seims-mint: #ccfbf1;
+  --seims-ink: #134e4a;
+  --seims-muted: #5b7573;
+  --seims-card: #ffffff;
+  --seims-border: #d1e7e4;
+  --seims-error: #b91c1c;
+  --seims-error-bg: #fef2f2;
+
+  height: 100svh;
+  display: flex;
+  flex-direction: column;
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  color: var(--seims-ink);
+  background: linear-gradient(160deg, #ecfdf5 0%, #f0fdfa 45%, #e6fffa 100%);
+  overflow-x: hidden;
+  overflow-y: hidden; /* không tạo scrollbar toàn trang */
+}
+
+.register-page a {
+  color: var(--seims-teal);
+  font-weight: 500;
+}
+
+.register-page a:focus-visible {
+  outline: 2px solid var(--seims-teal);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.register-shell {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  max-width: 960px;
+  width: 100%;
+  margin: 0 auto;
+  align-items: stretch;
+  min-height: 0; /* cho phép layout co/thu gọn */
+  box-sizing: border-box;
+  padding: 0 1rem;
+}
+
+@media (max-width: 800px) {
+  .register-shell {
+    grid-template-columns: 1fr;
+    max-width: 440px;
+  }
+}
+
+.register-brand {
+  padding: clamp(1.5rem, 4vh, 2.5rem) clamp(1.25rem, 2.5vw, 2rem);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1rem;
+  text-align: left;
+}
+
+@media (max-width: 800px) {
+  .register-brand {
+    text-align: center;
+    padding: 1.75rem 1.25rem 0.5rem;
+  }
+}
+
+.register-brand-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--seims-teal);
+  background: rgba(15, 118, 110, 0.12);
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  width: fit-content;
+}
+
+@media (max-width: 800px) {
+  .register-brand-badge {
+    margin: 0 auto;
+  }
+}
+
+.register-brand h1 {
+  margin: 0;
+  font-size: clamp(1.65rem, 4vw, 2.1rem);
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--seims-ink);
+  letter-spacing: -0.02em;
+}
+
+.register-brand p {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: var(--seims-muted);
+  max-width: 28ch;
+}
+
+@media (max-width: 800px) {
+  .register-brand p {
+    max-width: none;
+  }
+}
+
+.register-brand-list {
+  margin: 0.5rem 0 0;
+  padding-left: 1.15rem;
+  font-size: 0.875rem;
+  color: var(--seims-muted);
+  line-height: 1.6;
+}
+
+.register-panel {
+  padding: clamp(1.15rem, 3.5vh, 2rem) 1.25rem
+    clamp(1.4rem, 4vh, 2.5rem);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.register-card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--seims-card);
+  border-radius: 16px;
+  padding: 1.75rem 1.5rem 1.5rem;
+  box-shadow:
+    0 4px 6px -1px rgba(15, 118, 110, 0.08),
+    0 12px 24px -4px rgba(15, 118, 110, 0.12);
+  border: 1px solid var(--seims-border);
+  box-sizing: border-box;
+  /* nếu màn hình thấp: vẫn truy cập form nhưng không tạo scrollbar toàn trang */
+  max-height: calc(100svh - 9rem);
+  overflow-y: auto;
+  scrollbar-width: none; /* Firefox */
+}
+
+.register-card::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.register-card-header {
+  margin-bottom: 1.35rem;
+}
+
+.register-card-header h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: var(--seims-ink);
+}
+
+.register-card-header span {
+  font-size: 0.875rem;
+  color: var(--seims-muted);
+}
+
+.register-field {
+  margin-bottom: 1rem;
+  text-align: left;
+}
+
+.register-field label {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+  color: var(--seims-ink);
+}
+
+.register-field input[type='text'],
+.register-field input[type='password'],
+.register-field input[type='email'],
+.register-field input[type='tel'] {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.65rem 0.75rem;
+  font-size: 1rem;
+  border: 1px solid var(--seims-border);
+  border-radius: 10px;
+  background: #fafefd;
+  color: var(--seims-ink);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.register-field input:focus {
+  outline: none;
+  border-color: var(--seims-teal);
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.2);
+  background: #fff;
+}
+
+.register-field-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.75rem;
+  color: var(--seims-muted);
+  line-height: 1.4;
+}
+
+.register-field--checkbox {
+  margin-bottom: 0.5rem;
+}
+
+.register-terms-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-weight: 500;
+  font-size: 0.8125rem;
+  color: var(--seims-muted);
+  cursor: pointer;
+  line-height: 1.45;
+}
+
+.register-terms-label input[type='checkbox'] {
+  margin-top: 0.2rem;
+  flex-shrink: 0;
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--seims-teal);
+}
+
+.register-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.15rem;
+  font-size: 0.8125rem;
+}
+
+.register-row label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  color: var(--seims-muted);
+  font-weight: 500;
+}
+
+.register-row input[type='checkbox'] {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--seims-teal);
+}
+
+.register-submit {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #fff;
+  background: linear-gradient(180deg, var(--seims-teal) 0%, var(--seims-teal-dark) 100%);
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: transform 0.08s, box-shadow 0.15s;
+  box-shadow: 0 2px 8px rgba(15, 118, 110, 0.35);
+}
+
+.register-submit:hover {
+  box-shadow: 0 4px 14px rgba(15, 118, 110, 0.4);
+}
+
+.register-submit:active {
+  transform: translateY(1px);
+}
+
+.register-submit:focus-visible {
+  outline: 2px solid var(--seims-teal-dark);
+  outline-offset: 2px;
+}
+
+.register-submit:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.register-message {
+  margin-top: 0.85rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 8px;
+  font-size: 0.8125rem;
+  text-align: left;
+}
+
+.register-message.register-message--info {
+  background: var(--seims-mint);
+  color: var(--seims-teal-dark);
+}
+
+.register-message.register-message--error {
+  background: var(--seims-error-bg);
+  color: var(--seims-error);
+}
+
+.register-footer {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--seims-border);
+  font-size: 0.8125rem;
+  color: var(--seims-muted);
+  line-height: 1.5;
+  text-align: center;
+}
+
+.register-top-nav {
+  padding: 1rem 1.25rem;
+  text-align: left;
+}
+
+.register-top-nav a {
+  text-decoration: none;
+  font-size: 0.875rem;
+}
+
+.register-top-nav a:hover {
+  text-decoration: underline;
+}
+
+@media (max-height: 720px) {
+  .register-brand {
+    gap: 0.75rem;
+  }
+
+  .register-card {
+    padding: 1.25rem 1.1rem 1.1rem;
+    border-radius: 14px;
+    max-height: calc(100svh - 7.5rem);
+  }
+
+  .register-card-header {
+    margin-bottom: 1rem;
+  }
+
+  .register-field {
+    margin-bottom: 0.75rem;
+  }
+
+  .register-row {
+    margin-bottom: 0.85rem;
+  }
+
+  .register-footer {
+    margin-top: 1rem;
+    padding-top: 0.85rem;
+  }
+}
