@@ -354,7 +354,7 @@
   flex: 1;
   overflow-y: auto;
   padding: 0;
-  background-color: var(--seims-bg);
+  background-color: #fff;
 }
 
 @media (max-width: 768px) {

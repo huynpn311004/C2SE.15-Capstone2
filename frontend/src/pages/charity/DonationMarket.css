@@ -1,0 +1,60 @@
+:root {
+  --seims-teal: #0f766e;
+  --seims-teal-dark: #0d5c56;
+  --seims-mint: #ccfbf1;
+  --seims-ink: #134e4a;
+  --seims-muted: #5b7573;
+  --seims-card: #ffffff;
+  --seims-border: #d1e7e4;
+  --seims-error: #b91c1c;
+  --seims-error-bg: #fef2f2;
+  --seims-teal: #0f766e;
+  --seims-mint: #ccfbf1;
+  --seims-ink: #134e4a;
+  --seims-muted: #5b7573;
+  --seims-muted-light: #8b9b99;
+  --seims-card: #ffffff;
+  --seims-border: #d1e7e4;
+  --seims-bg: #f8fffe;
+  --seims-success: #10b981;
+  --seims-warning: #f59e0b;
+  --seims-error: #b91c1c;
+  --seims-error-bg: #fef2f2;
+}
+.donation-card {
+  background: var(--seims-card);
+  border: 1px solid var(--seims-border);
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+
+.donation-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 20px rgba(15, 118, 110, 0.1);
+  border-color: var(--seims-teal-light);
+}
+
+.badge-available {
+  background-color: var(--seims-mint);
+  color: var(--seims-teal-dark);
+  border: 1px solid var(--seims-border);
+}
+
+.btn-request {
+  background: linear-gradient(
+    135deg,
+    var(--seims-teal),
+    var(--seims-teal-light)
+  );
+  color: white;
+  border: none;
+  box-shadow: 0 4px 6px rgba(15, 118, 110, 0.2);
+}
+
+.flex-col {
+  box-shadow: 0 0 5px;
+}
+
+.btn-request:hover {
+  opacity: 0.9;
+}

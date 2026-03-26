@@ -1,0 +1,48 @@
+:root {
+  --seims-teal: #0f766e;
+  --seims-teal-dark: #0d5c56;
+  --seims-mint: #ccfbf1;
+  --seims-ink: #134e4a;
+  --seims-muted: #5b7573;
+  --seims-card: #ffffff;
+  --seims-border: #d1e7e4;
+  --seims-error: #b91c1c;
+  --seims-error-bg: #fef2f2;
+  --seims-teal: #0f766e;
+  --seims-mint: #ccfbf1;
+  --seims-ink: #134e4a;
+  --seims-muted: #5b7573;
+  --seims-muted-light: #8b9b99;
+  --seims-card: #ffffff;
+  --seims-border: #d1e7e4;
+  --seims-bg: #f8fffe;
+  --seims-success: #10b981;
+  --seims-warning: #f59e0b;
+  --seims-error: #b91c1c;
+  --seims-error-bg: #fef2f2;
+}
+.status-pill {
+  padding: 4px 12px;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+.status-pending {
+  background-color: #fef3c7; /* Vàng nhạt */
+  color: #92400e;
+  border-color: #fde68a;
+}
+
+.status-received {
+  background-color: #d1fae5; /* Xanh lá nhạt */
+  color: #065f46;
+  border-color: #a7f3d0;
+}
+
+.status-rejected {
+  background-color: var(--seims-error-bg);
+  color: var(--seims-error);
+  border-color: #fecaca;
+}
