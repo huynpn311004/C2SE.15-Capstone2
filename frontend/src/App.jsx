@@ -19,6 +19,10 @@ import OrdersManagement from './pages/staff/OrdersManagement.jsx'
 import DonationManagement from './pages/staff/DonationManagement.jsx'
 import Notifications from './pages/staff/Notifications.jsx'
 import Profile from './pages/staff/Profile.jsx'
+import CharityRegister from './pages/charity/CharityRegister.jsx'
+import DonationHistory from './pages/charity/DonationHistory.jsx'
+import DonationMarket from './pages/charity/DonationMarket.jsx'
+import CharityLayout from './pages/charity/CharityLayout.jsx'
 import './App.css'
 
 function App() {
@@ -50,6 +54,15 @@ function App() {
           <Route path="notifications" element={<Notifications />} />
           <Route path="profile" element={<Profile />} />
         </Route>
+
+        {/* Charity Routes */}
+        <Route path="/charity" element={<CharityLayout />}>
+          <Route path="register" element={<CharityRegister />} />
+          <Route path="market" element={<DonationMarket />} />
+          <Route path="history" element={<DonationHistory />} />
+        </Route>
+
+        
       </Routes>
     </BrowserRouter>
   )
