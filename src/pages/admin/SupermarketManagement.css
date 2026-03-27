@@ -1,0 +1,884 @@
+/* Supermarket Management CSS */
+.supermarkets-page {
+  --seims-teal: #0f766e;
+  --seims-teal-dark: #0d5c56;
+  --seims-teal-light: #14b8a6;
+  --seims-mint: #ccfbf1;
+  --seims-ink: #134e4a;
+  --seims-muted: #5b7573;
+  --seims-muted-light: #8b9b99;
+  --seims-card: #ffffff;
+  --seims-border: #d1e7e4;
+  --seims-bg: #f8fffe;
+  --seims-success: #10b981;
+  --seims-warning: #f59e0b;
+  --seims-error: #b91c1c;
+
+  max-width: 100%;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  height: calc(100vh - 64px);
+  overflow: hidden;
+}
+
+/* HEADER */
+.supermarkets-header {
+  background: linear-gradient(135deg, var(--seims-teal) 0%, var(--seims-teal-dark) 100%);
+  color: white;
+  padding: 1rem 1.1rem;
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(15, 118, 110, 0.15);
+  flex-shrink: 0;
+}
+
+.supermarkets-header h2 {
+  margin: 0 0 0.25rem 0;
+  font-size: 1.12rem;
+  font-weight: 700;
+}
+
+.supermarkets-header p {
+  margin: 0;
+  opacity: 0.95;
+  font-size: 0.8rem;
+}
+
+/* TOOLBAR */
+.supermarkets-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.6rem 0.7rem;
+  background: var(--seims-card);
+  border: 1px solid var(--seims-border);
+  border-radius: 9px;
+  box-shadow: 0 2px 8px rgba(15, 118, 110, 0.06);
+  flex-shrink: 0;
+}
+
+.supermarkets-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.supermarkets-filter-group label {
+  font-weight: 700;
+  color: var(--seims-ink);
+  white-space: nowrap;
+  font-size: 0.76rem;
+}
+
+.supermarkets-filter-select {
+  min-height: 32px;
+  padding: 0.34rem 0.72rem;
+  border: 1px solid var(--seims-border);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--seims-ink);
+  font-size: 0.76rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.supermarkets-filter-select:hover,
+.supermarkets-filter-select:focus {
+  border-color: var(--seims-teal);
+  box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.1);
+}
+
+.supermarkets-filter-info {
+  margin-left: auto;
+  font-size: 0.76rem;
+  color: var(--seims-muted);
+  white-space: nowrap;
+}
+
+.supermarkets-toolbar-info {
+  font-size: 0.76rem;
+  color: var(--seims-muted);
+  white-space: nowrap;
+}
+
+.supermarkets-toolbar-btn {
+  min-height: 32px;
+  padding: 0.38rem 0.85rem;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
+.supermarkets-btn-create {
+  background: linear-gradient(135deg, #0f766e 0%, #0d9488 100%);
+  color: #ffffff;
+  border: 1px solid #0f766e;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  box-shadow: 0 6px 14px rgba(15, 118, 110, 0.22);
+  transition: transform 0.16s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+
+.supermarkets-btn-create:hover {
+  filter: brightness(1.04);
+  transform: translateY(-1px);
+  box-shadow: 0 9px 18px rgba(15, 118, 110, 0.28);
+}
+
+.supermarkets-btn-create:active {
+  transform: translateY(0);
+  box-shadow: 0 4px 10px rgba(15, 118, 110, 0.24);
+}
+
+.supermarkets-btn-create:focus-visible {
+  outline: 2px solid rgba(20, 184, 166, 0.7);
+  outline-offset: 2px;
+}
+
+.supermarkets-btn-create:disabled {
+  opacity: 0.62;
+  filter: grayscale(0.1);
+  box-shadow: none;
+  transform: none;
+  cursor: not-allowed;
+}
+
+/* CARD */
+.supermarkets-card {
+  background: var(--seims-card);
+  border: 1px solid var(--seims-border);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(15, 118, 110, 0.06);
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* TABLE */
+.table-responsive {
+  overflow-x: auto;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.supermarkets-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.supermarkets-table thead {
+  background: var(--seims-bg);
+  border-bottom: 2px solid var(--seims-border);
+}
+
+.supermarkets-table th {
+  padding: 0.52rem 0.56rem;
+  text-align: left;
+  font-weight: 600;
+  color: var(--seims-ink);
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.supermarkets-table td {
+  padding: 0.46rem 0.56rem;
+  border-bottom: 1px solid var(--seims-border);
+  color: var(--seims-ink);
+  font-size: 0.81rem;
+}
+
+.supermarkets-table tbody tr:hover {
+  background: rgba(15, 118, 110, 0.03);
+}
+
+.supermarkets-table a {
+  color: var(--seims-teal);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.supermarkets-table a:hover {
+  text-decoration: underline;
+}
+
+/* SM Name */
+.supermarkets-name {
+  display: flex;
+  justify-content: flex-start;
+  width: 100%;
+}
+
+/* BADGES */
+.badge {
+  display: inline-block;
+  padding: 0.24rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge-warning {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--seims-warning);
+  border: 1px solid var(--seims-warning);
+}
+
+.badge-success {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--seims-success);
+  border: 1px solid var(--seims-success);
+}
+
+.badge-error {
+  background: rgba(185, 28, 28, 0.15);
+  color: var(--seims-error);
+  border: 1px solid var(--seims-error);
+}
+
+.badge-muted {
+  background: rgba(91, 117, 115, 0.15);
+  color: var(--seims-muted);
+  border: 1px solid var(--seims-muted);
+}
+
+/* ACTION BUTTONS */
+.action-group {
+  display: flex;
+  gap: 0.28rem;
+}
+
+.action-btn {
+  min-width: 40px;
+  padding: 0.26rem 0.48rem;
+  background: none;
+  border: 1px solid var(--seims-border);
+  border-radius: 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  height: auto;
+}
+
+.action-btn:hover {
+  transform: translateY(-1px);
+}
+
+.icon-action-btn {
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  padding: 0;
+}
+
+.icon-action-btn svg {
+  width: 15px;
+  height: 15px;
+  fill: currentColor;
+}
+
+.btn-lock-small {
+  color: #9a3412;
+  border-color: #d97706;
+}
+
+.btn-lock-small:hover {
+  background: #d97706;
+  border-color: #d97706;
+  color: #ffffff;
+}
+
+.btn-unlock-small {
+  color: #065f46;
+  border-color: #0f766e;
+}
+
+.btn-unlock-small:hover {
+  background: #0f766e;
+  border-color: #0f766e;
+  color: #ffffff;
+}
+
+.btn-delete-small {
+  color: #b91c1c;
+  border-color: #b91c1c;
+}
+
+.btn-delete-small:hover {
+  background: #b91c1c;
+  border-color: #b91c1c;
+  color: #ffffff;
+}
+
+.btn-view {
+  color: var(--seims-teal);
+  border-color: rgba(15, 118, 110, 0.45);
+  background: rgba(15, 118, 110, 0.06);
+}
+
+.btn-view:hover {
+  background: var(--seims-teal);
+  color: white;
+}
+
+.btn-edit {
+  color: var(--seims-teal);
+  border-color: rgba(15, 118, 110, 0.45);
+  background: rgba(15, 118, 110, 0.06);
+}
+
+.btn-edit:hover {
+  background: var(--seims-teal);
+  color: white;
+}
+
+.empty-cell {
+  text-align: center;
+  padding: 1rem !important;
+  color: var(--seims-muted);
+}
+
+/* MODAL */
+.supermarkets-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.supermarkets-modal {
+  background: var(--seims-card);
+  border-radius: 12px;
+  width: min(90vw, 760px);
+  max-width: 760px;
+  max-height: 92vh;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(15, 118, 110, 0.2);
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  padding: 0.82rem 1rem;
+  border-bottom: 1px solid var(--seims-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 1.03rem;
+  font-weight: 700;
+  color: var(--seims-ink);
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: var(--seims-muted);
+  transition: all 0.2s ease;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-close:hover {
+  color: var(--seims-error);
+}
+
+.modal-body {
+  padding: 0.82rem 1rem 0.72rem;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.modal-footer {
+  padding: 0.72rem 1rem;
+  border-top: 1px solid var(--seims-border);
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+
+/* CREATE MODAL - 2 COLUMN LAYOUT */
+.supermarkets-create-modal {
+  width: min(calc(100vw - 2rem), 900px);
+  max-width: 900px;
+  max-height: 96vh;
+  box-sizing: border-box;
+  overflow: hidden;
+  border-radius: 14px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.18), 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+.supermarkets-create-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: auto;
+  box-sizing: border-box;
+  min-width: 0;
+  height: 100%;
+}
+
+.supermarkets-create-modal .modal-header {
+  padding: 1rem 1.5rem;
+  background: linear-gradient(135deg, #0f766e 0%, #0d9488 100%);
+  border-radius: 14px 14px 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.supermarkets-create-modal .modal-header h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0;
+  letter-spacing: 0.02em;
+}
+
+.supermarkets-create-modal .modal-close {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  font-size: 0.85rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.supermarkets-create-modal .modal-close:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.supermarkets-create-modal .modal-body {
+  padding: 1.5rem;
+  background: #ffffff;
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 2 COLUMN GRID */
+.create-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  flex: 1;
+}
+
+.create-form-column {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.create-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.create-form-field label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #374151;
+  letter-spacing: 0.01em;
+}
+
+/* INPUT STYLES */
+.supermarkets-input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 40px;
+  padding: 0.5rem 0.85rem;
+  border: 1.5px solid #d1d5db;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #111827;
+  font-size: 0.82rem;
+  line-height: 1.3;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.supermarkets-input::placeholder {
+  color: #9ca3af;
+}
+
+.supermarkets-create-modal select.supermarkets-input {
+  padding: 0.5rem 2.5rem 0.5rem 0.85rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.85rem center;
+  background-size: 12px;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+
+.supermarkets-create-modal input[type='date'].supermarkets-input {
+  padding: 0.5rem 0.85rem;
+}
+
+.supermarkets-input:focus {
+  outline: none;
+  border-color: #0d9488;
+  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.12);
+}
+
+/* ERROR & SUCCESS MESSAGES */
+.supermarkets-error,
+.supermarkets-success {
+  margin: 1rem 0 0 0;
+  padding: 0.6rem 0.85rem;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.supermarkets-error {
+  color: #b91c1c;
+  background: rgba(185, 28, 28, 0.07);
+  border: 1px solid rgba(185, 28, 28, 0.18);
+}
+
+.supermarkets-success {
+  color: #0f766e;
+  background: rgba(15, 118, 110, 0.07);
+  border: 1px solid rgba(15, 118, 110, 0.2);
+}
+
+/* FOOTER - BUTTONS ALIGNED WITH COLUMN 2 */
+.create-form-footer {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.create-form-actions {
+  display: flex;
+  gap: 0.75rem;
+  width: calc(50% - 0.75rem);
+  justify-content: flex-end;
+}
+
+.supermarkets-create-modal .btn-large {
+  min-width: 110px;
+  height: 38px;
+  padding: 0.4rem 1.25rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border-radius: 8px;
+  border: 1.5px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  letter-spacing: 0.01em;
+}
+
+.supermarkets-edit-modal {
+  width: min(calc(100vw - 2rem), 900px);
+  max-width: 900px;
+  max-height: 96vh;
+  box-sizing: border-box;
+  overflow: hidden;
+  border-radius: 14px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.18), 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+.supermarkets-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: auto;
+  box-sizing: border-box;
+  min-width: 0;
+  height: 100%;
+}
+
+.supermarkets-edit-modal .modal-header {
+  padding: 1rem 1.5rem;
+  background: linear-gradient(135deg, #0f766e 0%, #0d9488 100%);
+  border-radius: 14px 14px 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.supermarkets-edit-modal .modal-header h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0;
+  letter-spacing: 0.02em;
+}
+
+.supermarkets-edit-modal .modal-close {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  font-size: 0.85rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.supermarkets-edit-modal .modal-close:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.supermarkets-edit-modal .modal-body {
+  padding: 1.5rem;
+  background: #ffffff;
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.supermarkets-edit-form .supermarkets-error,
+.supermarkets-edit-form .supermarkets-success {
+  margin-top: 1rem;
+}
+
+/* DETAIL GRID */
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.72rem;
+}
+
+.detail-field label {
+  display: block;
+  font-weight: 600;
+  color: var(--seims-ink);
+  margin-bottom: 0.3rem;
+  font-size: 0.78rem;
+}
+
+.detail-value {
+  padding: 0.56rem 0.7rem;
+  background: var(--seims-bg);
+  border: 1px solid var(--seims-border);
+  border-radius: 8px;
+  color: var(--seims-ink);
+  font-size: 0.82rem;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.detail-value a {
+  color: var(--seims-teal);
+  text-decoration: none;
+}
+
+.detail-value a:hover {
+  text-decoration: underline;
+}
+
+/* BUTTONS LARGE */
+.btn-large {
+  padding: 0.52rem 0.95rem;
+  border-radius: 8px;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.84rem;
+  flex: 0 0 auto;
+  min-width: 108px;
+}
+
+.btn-approve {
+  background: var(--seims-success);
+  color: white;
+  border: 1px solid var(--seims-success);
+}
+
+.btn-approve:hover {
+  background: #059669;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.btn-reject {
+  background: var(--seims-error);
+  color: white;
+  border: 1px solid var(--seims-error);
+}
+
+.btn-reject:hover {
+  background: #991b1b;
+  box-shadow: 0 4px 12px rgba(185, 28, 28, 0.3);
+}
+
+.btn-close {
+  background: transparent;
+  color: var(--seims-muted);
+  border: 1px solid var(--seims-border);
+}
+
+.btn-close:hover {
+  background: var(--seims-bg);
+  color: var(--seims-ink);
+}
+
+/* RESPONSIVE */
+@media (max-width: 768px) {
+  .supermarkets-page {
+    gap: 0.8rem;
+    overflow-y: auto;
+  }
+
+  .supermarkets-header {
+    padding: 1rem;
+  }
+
+  .supermarkets-header h2 {
+    font-size: 1.05rem;
+  }
+
+  .supermarkets-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .supermarkets-toolbar-btn {
+    width: 100%;
+  }
+
+  .supermarkets-filter-group {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.35rem;
+  }
+
+  .supermarkets-filter-select {
+    width: 100%;
+  }
+
+  .supermarkets-filter-info,
+  .supermarkets-toolbar-info {
+    margin-left: 0;
+  }
+
+  .supermarkets-table {
+    font-size: 0.8rem;
+  }
+
+  .supermarkets-table th,
+  .supermarkets-table td {
+    padding: 0.75rem 0.5rem;
+  }
+
+  .action-btn {
+    width: auto;
+    height: auto;
+  }
+
+  .icon-action-btn {
+    width: 28px;
+    min-width: 28px;
+    height: 28px;
+  }
+
+  .supermarkets-modal {
+    width: 95%;
+    max-height: 93vh;
+  }
+
+  .supermarkets-create-modal {
+    width: calc(100vw - 1.2rem);
+    max-height: 95vh;
+  }
+
+  .supermarkets-create-modal .modal-header {
+    padding: 0.9rem 1rem;
+  }
+
+  .supermarkets-create-modal .modal-body {
+    padding: 1rem;
+  }
+
+  /* Stack to 1 column on mobile */
+  .create-form-grid {
+    grid-template-columns: 1fr;
+    gap: 0.85rem;
+  }
+
+  /* Buttons full width on mobile */
+  .create-form-footer {
+    margin-top: 1rem;
+    padding-top: 1rem;
+  }
+
+  .create-form-actions {
+    width: 100%;
+    gap: 0.6rem;
+  }
+
+  .create-form-actions .btn-large {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .supermarkets-edit-modal {
+    width: calc(100vw - 1.2rem);
+    max-height: 95vh;
+  }
+
+  .supermarkets-edit-modal .modal-header {
+    padding: 0.9rem 1rem;
+  }
+
+  .supermarkets-edit-modal .modal-body {
+    padding: 1rem;
+  }
+}

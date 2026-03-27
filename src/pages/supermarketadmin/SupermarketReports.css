@@ -1,0 +1,276 @@
+/* Supermarket Reports — CSS */
+.sareport-page {
+  --sa-teal: #0f766e;
+  --sa-teal-dark: #0d5c56;
+  --sa-ink: #134e4a;
+  --sa-muted: #5b7573;
+  --sa-card: #ffffff;
+  --sa-border: #d1e7e4;
+  --sa-bg: #f8fffe;
+  --sa-success: #10b981;
+  --sa-warning: #f59e0b;
+  --sa-error: #b91c1c;
+
+  max-width: 100%;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  height: calc(100vh - 64px);
+  overflow-y: auto;
+}
+
+/* TOOLBAR */
+.sareport-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.6rem 0.7rem;
+  background: var(--sa-card);
+  border: 1px solid var(--sa-border);
+  border-radius: 9px;
+  box-shadow: 0 2px 8px rgba(15, 118, 110, 0.06);
+  flex-shrink: 0;
+}
+
+.sareport-toolbar-info { font-size: 0.76rem; color: var(--sa-muted); white-space: nowrap; }
+
+/* STATS */
+.sareport-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.7rem;
+  flex-shrink: 0;
+}
+
+.sareport-stat-card {
+  background: var(--sa-card);
+  padding: 0.8rem;
+  border-radius: 10px;
+  border: 1px solid var(--sa-border);
+  box-shadow: 0 2px 8px rgba(15, 118, 110, 0.06);
+  text-align: center;
+}
+
+.sareport-stat-success {
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.sareport-stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--sa-teal);
+  margin-bottom: 0.2rem;
+}
+
+.sareport-stat-success .sareport-stat-value {
+  color: var(--sa-success);
+}
+
+.sareport-stat-label {
+  font-size: 0.78rem;
+  color: var(--sa-muted);
+  font-weight: 500;
+}
+
+/* CHARTS GRID */
+.sareport-charts-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.85rem;
+  flex-shrink: 0;
+}
+
+@media (max-width: 1024px) {
+  .sareport-charts-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* CARDS */
+.sareport-card {
+  background: var(--sa-card);
+  border: 1px solid var(--sa-border);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(15, 118, 110, 0.06);
+  display: flex;
+  flex-direction: column;
+}
+
+.sareport-card-title {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--sa-ink);
+  margin: 0;
+  padding: 0.75rem 1rem;
+  background: var(--sa-bg);
+  border-bottom: 1px solid var(--sa-border);
+}
+
+/* CHART */
+.sareport-chart-area {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-around;
+  gap: 0.5rem;
+  padding: 1rem;
+  height: 140px;
+}
+
+.sareport-chart-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 1;
+}
+
+.sareport-chart-bar-group {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 100%;
+  width: 100%;
+}
+
+.sareport-chart-bar {
+  flex: 1;
+  background: rgba(15, 118, 110, 0.5);
+  border-radius: 4px 4px 0 0;
+  transition: height 0.3s ease;
+  min-height: 4px;
+}
+
+.sareport-chart-bar-recovered {
+  flex: 1;
+  background: rgba(16, 185, 129, 0.7);
+  border-radius: 4px 4px 0 0;
+  transition: height 0.3s ease;
+  min-height: 4px;
+}
+
+.sareport-chart-label {
+  font-size: 0.72rem;
+  color: var(--sa-muted);
+  font-weight: 600;
+}
+
+.sareport-chart-legend {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  padding: 0.5rem 1rem;
+  border-top: 1px solid var(--sa-border);
+}
+
+.sareport-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  color: var(--sa-muted);
+  font-weight: 500;
+}
+
+.sareport-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.sareport-legend-revenue { background: rgba(15, 118, 110, 0.5); }
+.sareport-legend-recovered { background: rgba(16, 185, 129, 0.7); }
+
+/* TRACK LIST */
+.sareport-track-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.sareport-track-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid var(--sa-border);
+  transition: background 0.2s;
+}
+
+.sareport-track-item:last-child { border-bottom: none; }
+.sareport-track-item:hover { background: rgba(15, 118, 110, 0.03); }
+
+.sareport-track-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  flex: 1;
+}
+
+.sareport-track-name {
+  font-weight: 600;
+  color: var(--sa-ink);
+  font-size: 0.875rem;
+}
+
+.sareport-track-detail {
+  font-size: 0.78rem;
+  color: var(--sa-muted);
+}
+
+/* COMPARISON TABLE */
+.sareport-comparison-table {
+  overflow-x: auto;
+}
+
+.sareport-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.sareport-table thead {
+  background: var(--sa-bg);
+  border-bottom: 2px solid var(--sa-border);
+}
+
+.sareport-table th {
+  padding: 0.52rem 0.56rem;
+  text-align: left;
+  font-weight: 600;
+  color: var(--sa-ink);
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.sareport-table td {
+  padding: 0.46rem 0.56rem;
+  border-bottom: 1px solid var(--sa-border);
+  color: var(--sa-ink);
+  font-size: 0.81rem;
+}
+
+.sareport-table tbody tr:hover {
+  background: rgba(15, 118, 110, 0.03);
+}
+
+.sareport-store-name { font-weight: 600; color: var(--sa-teal); }
+.sareport-revenue { font-weight: 700; color: var(--sa-ink); }
+.sareport-recovered { font-weight: 600; color: var(--sa-success); }
+
+/* BADGES */
+.badge { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 999px; font-size: 0.72rem; font-weight: 600; white-space: nowrap; border: 1px solid; }
+.badge-success { color: var(--sa-success); background: rgba(16, 185, 129, 0.15); border-color: var(--sa-success); }
+.badge-warning { color: var(--sa-warning); background: rgba(245, 158, 11, 0.15); border-color: var(--sa-warning); }
+
+/* RESPONSIVE */
+@media (max-width: 768px) {
+  .sareport-page { gap: 0.8rem; overflow-y: auto; height: auto; }
+  .sareport-stats { grid-template-columns: repeat(2, 1fr); gap: 0.85rem; }
+  .sareport-charts-grid { grid-template-columns: 1fr; }
+  .sareport-toolbar { flex-direction: column; align-items: stretch; }
+}

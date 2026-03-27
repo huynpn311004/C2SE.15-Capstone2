@@ -1,0 +1,319 @@
+/* Trang đăng nhập SEIMS — chỉ class login-*; đăng ký dùng Register.css + register-* */
+.login-page {
+  --seims-teal: #0f766e;
+  --seims-teal-dark: #0d5c56;
+  --seims-mint: #ccfbf1;
+  --seims-ink: #134e4a;
+  --seims-muted: #5b7573;
+  --seims-card: #ffffff;
+  --seims-border: #d1e7e4;
+  --seims-error: #b91c1c;
+  --seims-error-bg: #fef2f2;
+
+  height: 100svh;
+  display: flex;
+  flex-direction: column;
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  color: var(--seims-ink);
+  background: linear-gradient(160deg, #ecfdf5 0%, #f0fdfa 45%, #e6fffa 100%);
+  overflow-x: hidden;
+  overflow-y: clip; /* tránh có thanh cuộn khi nội dung cao hơn khung */
+}
+
+.login-page a {
+  color: var(--seims-teal);
+  font-weight: 500;
+}
+
+.login-page a:focus-visible {
+  outline: 2px solid var(--seims-teal);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.login-shell {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  max-width: 960px;
+  width: 100%;
+  margin: 0 auto;
+  align-items: stretch;
+  min-height: 0; /* cho phép các phần tử con co/thu gọn trong flex layout */
+  box-sizing: border-box;
+  padding: 0 1rem;
+}
+
+@media (max-width: 800px) {
+  .login-shell {
+    grid-template-columns: 1fr;
+    max-width: 440px;
+  }
+}
+
+.login-brand {
+  padding: clamp(1.5rem, 4vh, 2.5rem) clamp(1.25rem, 2.5vw, 2rem);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1rem;
+  text-align: left;
+}
+
+@media (max-width: 800px) {
+  .login-brand {
+    text-align: center;
+    padding: 1.75rem 1.25rem 0.5rem;
+  }
+}
+
+.login-brand-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--seims-teal);
+  background: rgba(15, 118, 110, 0.12);
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  width: fit-content;
+}
+
+@media (max-width: 800px) {
+  .login-brand-badge {
+    margin: 0 auto;
+  }
+}
+
+.login-brand h1 {
+  margin: 0;
+  font-size: clamp(1.65rem, 4vw, 2.1rem);
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--seims-ink);
+  letter-spacing: -0.02em;
+}
+
+.login-brand p {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: var(--seims-muted);
+  max-width: 28ch;
+}
+
+@media (max-width: 800px) {
+  .login-brand p {
+    max-width: none;
+  }
+}
+
+.login-brand-list {
+  margin: 0.5rem 0 0;
+  padding-left: 1.15rem;
+  font-size: 0.875rem;
+  color: var(--seims-muted);
+  line-height: 1.6;
+}
+
+.login-panel {
+  padding: clamp(1.25rem, 3.5vh, 2rem) 1.25rem
+    clamp(1.5rem, 4vh, 2.5rem);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--seims-card);
+  border-radius: 16px;
+  padding: 1.75rem 1.5rem 1.5rem;
+  box-shadow:
+    0 4px 6px -1px rgba(15, 118, 110, 0.08),
+    0 12px 24px -4px rgba(15, 118, 110, 0.12);
+  border: 1px solid var(--seims-border);
+  box-sizing: border-box;
+}
+
+.login-card-header {
+  margin-bottom: 1.35rem;
+}
+
+.login-card-header h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: var(--seims-ink);
+}
+
+.login-card-header span {
+  font-size: 0.875rem;
+  color: var(--seims-muted);
+}
+
+.login-field {
+  margin-bottom: 1rem;
+  text-align: left;
+}
+
+.login-field label {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+  color: var(--seims-ink);
+}
+
+.login-field input[type='text'],
+.login-field input[type='password'],
+.login-field input[type='email'] {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.65rem 0.75rem;
+  font-size: 1rem;
+  border: 1px solid var(--seims-border);
+  border-radius: 10px;
+  background: #fafefd;
+  color: var(--seims-ink);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.login-field input:focus {
+  outline: none;
+  border-color: var(--seims-teal);
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.2);
+  background: #fff;
+}
+
+.login-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.15rem;
+  font-size: 0.8125rem;
+}
+
+.login-row label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  color: var(--seims-muted);
+  font-weight: 500;
+}
+
+.login-row input[type='checkbox'] {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--seims-teal);
+}
+
+.login-submit {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #fff;
+  background: linear-gradient(180deg, var(--seims-teal) 0%, var(--seims-teal-dark) 100%);
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: transform 0.08s, box-shadow 0.15s;
+  box-shadow: 0 2px 8px rgba(15, 118, 110, 0.35);
+}
+
+.login-submit:hover {
+  box-shadow: 0 4px 14px rgba(15, 118, 110, 0.4);
+}
+
+.login-submit:active {
+  transform: translateY(1px);
+}
+
+.login-submit:focus-visible {
+  outline: 2px solid var(--seims-teal-dark);
+  outline-offset: 2px;
+}
+
+.login-submit:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.login-message {
+  margin-top: 0.85rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 8px;
+  font-size: 0.8125rem;
+  text-align: left;
+}
+
+.login-message.info {
+  background: var(--seims-mint);
+  color: var(--seims-teal-dark);
+}
+
+.login-message.error {
+  background: var(--seims-error-bg);
+  color: var(--seims-error);
+}
+
+.login-footer {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--seims-border);
+  font-size: 0.8125rem;
+  color: var(--seims-muted);
+  line-height: 1.5;
+  text-align: center;
+}
+
+.login-top-nav {
+  padding: 1rem 1.25rem;
+  text-align: left;
+}
+
+.login-top-nav a {
+  text-decoration: none;
+  font-size: 0.875rem;
+}
+
+.login-top-nav a:hover {
+  text-decoration: underline;
+}
+
+@media (max-height: 720px) {
+  .login-brand {
+    gap: 0.75rem;
+  }
+
+  .login-card {
+    padding: 1.25rem 1.1rem 1.1rem;
+    border-radius: 14px;
+  }
+
+  .login-card-header {
+    margin-bottom: 1rem;
+  }
+
+  .login-field {
+    margin-bottom: 0.75rem;
+  }
+
+  .login-row {
+    margin-bottom: 0.85rem;
+  }
+
+  .login-footer {
+    margin-top: 1rem;
+    padding-top: 0.85rem;
+  }
+}

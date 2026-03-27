@@ -1,0 +1,106 @@
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+
+import Home from './pages/Home.jsx'
+import Login from './pages/auth/Login.jsx'
+import Register from './pages/auth/Register.jsx'
+import SystemAdminDashboard from './pages/admin/SystemAdminDashboard.jsx'
+import SupermarketManagement from './pages/admin/SupermarketManagement.jsx'
+import CharityManagement from './pages/admin/CharityManagement.jsx'
+import DeliveryManagement from './pages/admin/DeliveryManagement.jsx'
+import UserManagement from './pages/admin/UserManagement.jsx'
+import ReportsAnalytics from './pages/admin/ReportsAnalytics.jsx'
+import AdminSettings from './pages/admin/AdminSettings.jsx'
+import StaffDashboard from './pages/staff/DashboardStaff.jsx'
+import InventoryLots from './pages/staff/InventoryLots.jsx'
+import ExpiryTracking from './pages/staff/ExpiryTracking.jsx'
+import NearExpiryProducts from './pages/staff/NearExpiryProducts.jsx'
+import OrdersManagement from './pages/staff/OrdersManagement.jsx'
+import DonationManagement from './pages/staff/DonationManagement.jsx'
+import Notifications from './pages/staff/Notifications.jsx'
+import Profile from './pages/staff/Profile.jsx'
+import SupermarketAdminLayout from './components/layout/SupermarketAdmin.jsx'
+import SupermarketAdminDashboard from './pages/supermarketadmin/SupermarketAdminDashboard.jsx'
+import StoreManagement from './pages/supermarketadmin/StoreManagement.jsx'
+import StaffManagement from './pages/supermarketadmin/StaffManagement.jsx'
+import PermissionsManagement from './pages/supermarketadmin/PermissionsManagement.jsx'
+import PolicyConfiguration from './pages/supermarketadmin/PolicyConfiguration.jsx'
+import SupermarketReports from './pages/supermarketadmin/SupermarketReports.jsx'
+import DonationMonitoring from './pages/supermarketadmin/DonationMonitoring.jsx'
+import AuditLog from './pages/supermarketadmin/AuditLog.jsx'
+import SupermarketAdminSettings from './pages/supermarketadmin/SupermarketAdminSettings.jsx'
+import CharityDashboard from './pages/charity/CharityDashboard.jsx'
+import DonationMarket from './pages/charity/DonationMarket.jsx'
+import DonationHistory from './pages/charity/DonationHistory.jsx'
+import CharitySettings from './pages/charity/CharitySettings.jsx'
+import CustomerHome from './pages/customer/CustomerHome.jsx'
+import CustomerProductDetail from './pages/customer/CustomerProductDetail.jsx'
+import CustomerCart from './pages/customer/CustomerCart.jsx'
+import CustomerOrders from './pages/customer/CustomerOrders.jsx'
+import CustomerLayout from './components/layout/CustomerLayout.jsx'
+import CustomerCheckout from './pages/customer/CustomerCheckout.jsx'
+import './App.css'
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        {/* Public Routes */}
+        <Route path="/" element={<Home />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+
+        {/* Admin Routes */}
+        <Route path="/admin/dashboard" element={<SystemAdminDashboard />} />
+        <Route path="/admin/supermarkets" element={<SupermarketManagement />} />
+        <Route path="/admin/charities" element={<CharityManagement />} />
+        <Route path="/admin/delivery" element={<DeliveryManagement />} />
+        <Route path="/admin/users" element={<UserManagement />} />
+        <Route path="/admin/reports" element={<ReportsAnalytics />} />
+        <Route path="/admin/settings" element={<AdminSettings />} />
+
+        {/* Staff Routes */}
+        <Route path="/staff" element={<Navigate to="/staff/dashboard" replace />} />
+        <Route path="/staff/dashboard" element={<StaffDashboard />} />
+        <Route path="/staff/inventory-lots" element={<InventoryLots />} />
+        <Route path="/staff/expiry-tracking" element={<ExpiryTracking />} />
+        <Route path="/staff/near-expiry" element={<NearExpiryProducts />} />
+        <Route path="/staff/orders" element={<OrdersManagement />} />
+        <Route path="/staff/donations" element={<DonationManagement />} />
+        <Route path="/staff/notifications" element={<Notifications />} />
+        <Route path="/staff/settings" element={<Profile />} />
+        <Route path="/staff/profile" element={<Navigate to="/staff/settings" replace />} />
+
+        {/* Supermarket Admin Routes */}
+        <Route path="/supermarketadmin" element={<Navigate to="/supermarketadmin/dashboard" replace />} />
+        <Route path="/supermarketadmin/dashboard" element={<SupermarketAdminLayout><SupermarketAdminDashboard /></SupermarketAdminLayout>} />
+        <Route path="/supermarketadmin/stores" element={<SupermarketAdminLayout><StoreManagement /></SupermarketAdminLayout>} />
+        <Route path="/supermarketadmin/staff" element={<SupermarketAdminLayout><StaffManagement /></SupermarketAdminLayout>} />
+        <Route path="/supermarketadmin/permissions" element={<SupermarketAdminLayout><PermissionsManagement /></SupermarketAdminLayout>} />
+        <Route path="/supermarketadmin/policies" element={<SupermarketAdminLayout><PolicyConfiguration /></SupermarketAdminLayout>} />
+        <Route path="/supermarketadmin/reports" element={<SupermarketAdminLayout><SupermarketReports /></SupermarketAdminLayout>} />
+        <Route path="/supermarketadmin/donations" element={<SupermarketAdminLayout><DonationMonitoring /></SupermarketAdminLayout>} />
+        <Route path="/supermarketadmin/audit-logs" element={<SupermarketAdminLayout><AuditLog /></SupermarketAdminLayout>} />
+        <Route path="/supermarketadmin/settings" element={<SupermarketAdminLayout><SupermarketAdminSettings /></SupermarketAdminLayout>} />
+
+        {/* Charity Routes */}
+        <Route path="/charity/dashboard" element={<CharityDashboard />} />
+        <Route path="/charity/market" element={<DonationMarket />} />
+        <Route path="/charity/history" element={<DonationHistory />} />
+        <Route path="/charity/settings" element={<CharitySettings />} />
+        <Route path="/charity" element={<Navigate to="/charity/dashboard" replace />} />
+
+        {/* Customer Routes */} 
+        <Route path="/customer" element={<CustomerLayout />}>
+        <Route index element={<CustomerHome />} />
+        <Route path="home" element={<CustomerHome />} />
+        <Route path="product/:id" element={<CustomerProductDetail />} />
+        <Route path="cart" element={<CustomerCart />} />
+        <Route path="checkout" element={<CustomerCheckout />} />
+        <Route path="orders" element={<CustomerOrders />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
+  )
+}
+
+export default App
