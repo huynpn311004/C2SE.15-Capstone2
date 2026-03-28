@@ -1,5 +1,13 @@
-import { useState } from 'react'
-import SystemAdminLayout from '../../components/layout/Layout'
+import { useEffect, useState } from 'react'
+import SystemAdminLayout from '../../components/layout/SystemAdminLayout'
+import {
+  createAdminSupermarketAccount,
+  createAdminSupermarketWithAccount,
+  deleteAdminSupermarket,
+  fetchAdminSupermarkets,
+  toggleAdminSupermarketLock,
+  updateAdminSupermarket,
+} from '../../services/adminApi'
 import './SupermarketManagement.css'
 
 /**
@@ -15,64 +23,9 @@ export default function SupermarketManagement() {
     return `${year}-${month}-${day}`
   }
 
-  const [supermarkets, setSupermarkets] = useState([
-    {
-      id: 1,
-      name: 'BigMart Central',
-      email: 'contact@bigmart.com',
-      phone: '0285-123-4567',
-      address: '123 Nguyen Hue, HCMC',
-      requestDate: '2024-03-15',
-      status: 'pending',
-      director: 'Nguyen Van A',
-      isLocked: false,
-      accountCreated: false,
-      accountUsername: '',
-      accountStatus: '',
-    },
-    {
-      id: 2,
-      name: 'FreshMart Downtown',
-      email: 'admin@freshmart.com',
-      phone: '0287-987-6543',
-      address: '456 Tran Hung Dao, HCMC',
-      requestDate: '2024-03-18',
-      status: 'pending',
-      director: 'Tran Thi B',
-      isLocked: false,
-      accountCreated: true,
-      accountUsername: 'admin@freshmart.com',
-      accountStatus: 'active',
-    },
-    {
-      id: 3,
-      name: 'EasyMart North',
-      email: 'support@easymart.com',
-      phone: '0243-111-2222',
-      address: '789 Hanoi Road, HN',
-      requestDate: '2024-02-20',
-      status: 'approved',
-      director: 'Le Van C',
-      isLocked: false,
-      accountCreated: false,
-      accountUsername: '',
-      accountStatus: '',
-    },
-    {
-      id: 4,
-      name: 'ValueMart South',
-      email: 'info@valuemart.com',
-      phone: '0292-555-6666',
-      address: '321 Can Tho Street, CT',
-      requestDate: '2024-01-10',
-      status: 'rejected',
-      director: 'Pham Thi D',
-      isLocked: true,
-      accountCreated: true,
-      accountUsername: 'info@valuemart.com',
-      accountStatus: 'inactive',
-    },
-  ])
+  const [supermarkets, setSupermarkets] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
   const [selectedSupermarket, setSelectedSupermarket] = useState(null)
   const [showDetailModal, setShowDetailModal] = useState(false)
@@ -90,7 +43,6 @@ export default function SupermarketManagement() {
   const [createError, setCreateError] = useState('')
   const [createSuccess, setCreateSuccess] = useState('')
   const [createForm, setCreateForm] = useState({
-    supermarketId: '',
     name: '',
     director: '',
     email: '',
@@ -101,33 +53,34 @@ export default function SupermarketManagement() {
     activityStatus: 'active',
   })
 
-  const filteredSupermarkets = supermarkets
-
-  const pendingSupermarkets = supermarkets.filter((item) => !item.accountCreated)
-
-  function handleToggleLockSupermarket(id) {
-    setSupermarkets((prev) =>
-      prev.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              isLocked: !item.isLocked,
-            }
-          : item
-      )
-    )
-
-    setSelectedSupermarket((prev) =>
-      prev && prev.id === id
-        ? {
-            ...prev,
-            isLocked: !prev.isLocked,
-          }
-        : prev
-    )
+  async function loadSupermarkets() {
+    try {
+      setError('')
+      const items = await fetchAdminSupermarkets()
+      setSupermarkets(items)
+    } catch (err) {
+      setError(err?.response?.data?.detail || 'Không thể tải danh sách siêu thị.')
+    } finally {
+      setLoading(false)
+    }
   }
 
-  function handleDeleteSupermarket(id) {
+  useEffect(() => {
+    loadSupermarkets()
+  }, [])
+
+  const filteredSupermarkets = supermarkets
+
+  async function handleToggleLockSupermarket(id) {
+    try {
+      await toggleAdminSupermarketLock(id)
+      await loadSupermarkets()
+    } catch (err) {
+      window.alert(err?.response?.data?.detail || 'Không thể khóa/mở khóa siêu thị.')
+    }
+  }
+
+  async function handleDeleteSupermarket(id) {
     const supermarket = supermarkets.find((item) => item.id === id)
     if (!supermarket) {
       return
@@ -138,56 +91,19 @@ export default function SupermarketManagement() {
       return
     }
 
-    setSupermarkets((prev) => prev.filter((item) => item.id !== id))
-
-    if (selectedSupermarket && selectedSupermarket.id === id) {
-      closeDetail()
+    try {
+      await deleteAdminSupermarket(id)
+      await loadSupermarkets()
+      if (selectedSupermarket && selectedSupermarket.id === id) {
+        closeDetail()
+      }
+    } catch (err) {
+      window.alert(err?.response?.data?.detail || 'Không thể xóa siêu thị.')
     }
   }
 
-  function handleCreateAccount(supermarket) {
-    const isLockedByStatus = createForm.activityStatus === 'locked'
-
-    setSupermarkets((prev) =>
-      prev.map((item) =>
-        item.id === supermarket.id
-          ? {
-              ...item,
-              name: createForm.name.trim(),
-              director: createForm.director.trim(),
-              email: createForm.email.trim(),
-              phone: createForm.phone.trim(),
-              requestDate: createForm.requestDate,
-              isLocked: isLockedByStatus,
-              accountCreated: true,
-              accountUsername: createForm.email.trim(),
-              accountStatus: isLockedByStatus ? 'inactive' : 'active',
-            }
-          : item
-      )
-    )
-
-    setSelectedSupermarket((prev) =>
-      prev && prev.id === supermarket.id
-        ? {
-            ...prev,
-            name: createForm.name.trim(),
-            director: createForm.director.trim(),
-            email: createForm.email.trim(),
-            phone: createForm.phone.trim(),
-            requestDate: createForm.requestDate,
-            isLocked: isLockedByStatus,
-            accountCreated: true,
-            accountUsername: createForm.email.trim(),
-            accountStatus: isLockedByStatus ? 'inactive' : 'active',
-          }
-        : prev
-    )
-  }
-
-  function resetCreateForm(supermarketId = '') {
+  function resetCreateForm() {
     setCreateForm({
-      supermarketId: supermarketId ? String(supermarketId) : '',
       name: '',
       director: '',
       email: '',
@@ -202,20 +118,13 @@ export default function SupermarketManagement() {
   }
 
   function openCreateModal() {
-    const supermarketId = pendingSupermarkets[0]?.id
-
-    if (!supermarketId) {
-      window.alert('Không còn siêu thị nào cần tạo tài khoản.')
-      return
-    }
-
-    resetCreateForm(supermarketId)
+    resetCreateForm()
     setShowCreateModal(true)
   }
 
   function closeCreateModal() {
     setShowCreateModal(false)
-    resetCreateForm('')
+    resetCreateForm()
   }
 
   function handleCreateFormChange(event) {
@@ -230,18 +139,12 @@ export default function SupermarketManagement() {
     setCreateSuccess('')
   }
 
-  function submitCreateAccount(event) {
+  async function submitCreateAccount(event) {
     event.preventDefault()
     setCreateError('')
     setCreateSuccess('')
 
-    const selectedId = Number(createForm.supermarketId)
-    const supermarket = supermarkets.find((item) => item.id === selectedId)
-
-    if (!supermarket || supermarket.accountCreated) {
-      setCreateError('Siêu thị đã có tài khoản hoặc không hợp lệ.')
-      return
-    }
+    const supermarket = supermarkets.find((item) => !item.accountCreated) || supermarkets[0]
 
     if (!createForm.name.trim()) {
       setCreateError('Tên siêu thị không được để trống.')
@@ -278,8 +181,33 @@ export default function SupermarketManagement() {
       return
     }
 
-    handleCreateAccount(supermarket)
-    setCreateSuccess(`Đã tạo tài khoản thành công cho ${supermarket.name}.`)
+    try {
+      const payload = {
+        name: createForm.name.trim(),
+        director: createForm.director.trim(),
+        email: createForm.email.trim(),
+        phone: createForm.phone.trim(),
+        password: createForm.password,
+        activityStatus: createForm.activityStatus,
+      }
+
+      if (supermarket) {
+        await createAdminSupermarketAccount(supermarket.id, payload)
+        setCreateSuccess(
+          supermarket.accountCreated
+            ? `Đã cập nhật lại tài khoản cho ${supermarket.name}.`
+            : `Đã tạo tài khoản thành công cho ${supermarket.name}.`
+        )
+      } else {
+        await createAdminSupermarketWithAccount(payload)
+        setCreateSuccess(`Đã tạo tài khoản thành công cho ${payload.name}.`)
+      }
+
+      await loadSupermarkets()
+    } catch (err) {
+      setCreateError(err?.response?.data?.detail || 'Không thể tạo tài khoản siêu thị.')
+      return
+    }
 
     setTimeout(() => {
       closeCreateModal()
@@ -320,7 +248,7 @@ export default function SupermarketManagement() {
     setEditSuccess('')
   }
 
-  function submitEditSupermarket(event) {
+  async function submitEditSupermarket(event) {
     event.preventDefault()
 
     if (!selectedSupermarket) {
@@ -366,27 +294,13 @@ export default function SupermarketManagement() {
       requestDate: editForm.requestDate,
     }
 
-    setSupermarkets((prev) =>
-      prev.map((item) =>
-        item.id === selectedSupermarket.id
-          ? {
-              ...item,
-              ...nextData,
-            }
-          : item
-      )
-    )
-
-    setSelectedSupermarket((prev) =>
-      prev
-        ? {
-            ...prev,
-            ...nextData,
-          }
-        : prev
-    )
-
-    setEditSuccess('Đã cập nhật thông tin siêu thị.')
+    try {
+      await updateAdminSupermarket(selectedSupermarket.id, nextData)
+      setEditSuccess('Đã cập nhật thông tin siêu thị.')
+      await loadSupermarkets()
+    } catch (err) {
+      setEditError(err?.response?.data?.detail || 'Không thể cập nhật thông tin siêu thị.')
+    }
   }
 
   return (
@@ -397,7 +311,6 @@ export default function SupermarketManagement() {
           <button
             className="supermarkets-btn-create supermarkets-toolbar-btn"
             onClick={openCreateModal}
-            disabled={pendingSupermarkets.length === 0}
           >
             Tạo Tài Khoản
           </button>
@@ -406,6 +319,8 @@ export default function SupermarketManagement() {
 
         {/* TABLE */}
         <div className="supermarkets-card">
+          {loading && <div className="empty-cell">Đang tải dữ liệu...</div>}
+          {error && <div className="empty-cell">{error}</div>}
           <div className="table-responsive">
             <table className="supermarkets-table">
               <thead>

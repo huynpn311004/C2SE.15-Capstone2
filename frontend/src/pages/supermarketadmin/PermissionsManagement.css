@@ -1,0 +1,107 @@
+/* Permissions Management Page — CSS */
+.saperm-page {
+  --sa-teal: #0f766e;
+  --sa-teal-dark: #0d5c56;
+  --sa-ink: #134e4a;
+  --sa-muted: #5b7573;
+  --sa-card: #ffffff;
+  --sa-border: #d1e7e4;
+  --sa-bg: #f8fffe;
+  --sa-success: #10b981;
+  --sa-warning: #f59e0b;
+  --sa-error: #b91c1c;
+
+  max-width: 100%;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  height: calc(100vh - 64px);
+  overflow: hidden;
+}
+
+/* TOOLBAR */
+.saperm-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.6rem 0.7rem;
+  background: var(--sa-card);
+  border: 1px solid var(--sa-border);
+  border-radius: 9px;
+  box-shadow: 0 2px 8px rgba(15, 118, 110, 0.06);
+  flex-shrink: 0;
+}
+
+.saperm-toolbar-info { font-size: 0.76rem; color: var(--sa-muted); white-space: nowrap; }
+
+/* CARD */
+.saperm-card {
+  background: var(--sa-card);
+  border: 1px solid var(--sa-border);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(15, 118, 110, 0.06);
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* TABLE */
+.table-responsive { overflow-x: auto; overflow-y: auto; flex: 1; min-height: 0; }
+.saperm-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+.saperm-table thead { background: var(--sa-bg); border-bottom: 2px solid var(--sa-border); }
+.saperm-table th { padding: 0.52rem 0.56rem; text-align: left; font-weight: 600; color: var(--sa-ink); font-size: 0.72rem; letter-spacing: 0.05em; white-space: nowrap; }
+.saperm-table td { padding: 0.46rem 0.56rem; border-bottom: 1px solid var(--sa-border); color: var(--sa-ink); font-size: 0.81rem; vertical-align: top; }
+.saperm-table tbody tr:hover { background: rgba(15, 118, 110, 0.03); }
+.saperm-name { font-weight: 600; color: var(--sa-teal); }
+
+/* PERM TAGS */
+.saperm-perm-tags { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.saperm-perm-tag { display: inline-block; padding: 0.15rem 0.45rem; border-radius: 999px; font-size: 0.68rem; font-weight: 600; background: rgba(15, 118, 110, 0.1); color: var(--sa-teal); border: 1px solid rgba(15, 118, 110, 0.3); }
+
+/* ACTION BUTTONS */
+.action-group { display: flex; gap: 0.28rem; }
+.action-btn { background: none; border: 1px solid var(--sa-border); border-radius: 8px; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; }
+.action-btn:hover { transform: translateY(-1px); }
+.icon-action-btn { width: 30px; min-width: 30px; height: 30px; padding: 0; }
+.icon-action-btn svg { width: 15px; height: 15px; fill: currentColor; }
+.btn-edit { color: var(--sa-teal); border-color: rgba(15, 118, 110, 0.45); background: rgba(15, 118, 110, 0.06); }
+.btn-edit:hover { background: var(--sa-teal); color: white; }
+
+/* MODAL */
+.saperm-modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+.saperm-modal { background: var(--sa-card); border-radius: 14px; width: min(calc(100vw - 2rem), 600px); max-height: 96vh; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.18); display: flex; flex-direction: column; }
+.saperm-modal-header { padding: 1rem 1.5rem; background: linear-gradient(135deg, #0f766e 0%, #0d9488 100%); border-radius: 14px 14px 0 0; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+.saperm-modal-header h3 { font-size: 1rem; font-weight: 700; color: #ffffff; margin: 0; }
+.saperm-modal-close { width: 30px; height: 30px; border-radius: 50%; border: none; background: rgba(255,255,255,0.2); color: #ffffff; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s; flex-shrink: 0; line-height: 1; }
+.saperm-modal-close:hover { background: rgba(255,255,255,0.35); }
+.saperm-modal-body { padding: 1.5rem; background: #ffffff; overflow-y: auto; flex: 1; display: flex; flex-direction: column; }
+.saperm-modal-subtitle { font-size: 0.82rem; color: var(--sa-muted); margin: 0 0 1rem; }
+.saperm-perm-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.6rem; margin-bottom: 1rem; }
+.saperm-perm-check { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; border: 1.5px solid var(--sa-border); border-radius: 8px; cursor: pointer; transition: all 0.2s; font-size: 0.82rem; font-weight: 500; color: var(--sa-ink); }
+.saperm-perm-check:hover { border-color: var(--sa-teal); background: rgba(15, 118, 110, 0.03); }
+.saperm-perm-check.checked { border-color: var(--sa-teal); background: rgba(15, 118, 110, 0.08); color: var(--sa-teal); }
+.saperm-perm-check input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--sa-teal); cursor: pointer; }
+.saperm-error, .saperm-success { margin: 0; padding: 0.6rem 0.85rem; border-radius: 8px; font-size: 0.78rem; font-weight: 600; }
+.saperm-error { color: var(--sa-error); background: rgba(185, 28, 28, 0.07); border: 1px solid rgba(185, 28, 28, 0.18); }
+.saperm-success { color: var(--sa-teal); background: rgba(15, 118, 110, 0.07); border: 1px solid rgba(15, 118, 110, 0.2); }
+.saperm-form-footer { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e5e7eb; display: flex; justify-content: flex-end; }
+.saperm-form-actions { display: flex; gap: 0.75rem; }
+.btn-large { min-width: 110px; height: 38px; padding: 0.4rem 1.25rem; font-size: 0.82rem; font-weight: 600; border-radius: 8px; border: 1.5px solid transparent; cursor: pointer; transition: all 0.2s ease; letter-spacing: 0.01em; }
+.saperm-btn-save { background: linear-gradient(135deg, #0f766e 0%, #0d9488 100%); color: #ffffff; border-color: #0f766e; box-shadow: 0 6px 14px rgba(15, 118, 110, 0.22); }
+.saperm-btn-save:hover { filter: brightness(1.04); transform: translateY(-1px); }
+.btn-close { background: transparent; color: var(--sa-muted); border: 1px solid var(--sa-border); }
+.btn-close:hover { background: var(--sa-bg); color: var(--sa-ink); }
+
+@media (max-width: 768px) {
+  .saperm-page { gap: 0.8rem; overflow-y: auto; height: auto; }
+  .saperm-toolbar { flex-direction: column; align-items: stretch; }
+  .saperm-perm-grid { grid-template-columns: 1fr; }
+  .saperm-modal { width: calc(100vw - 1.2rem); max-height: 95vh; }
+  .saperm-form-footer { flex-direction: column; }
+  .saperm-form-actions { width: 100%; flex-direction: column; }
+  .saperm-form-actions .btn-large { width: 100%; }
+}

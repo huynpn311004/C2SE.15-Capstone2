@@ -1,5 +1,6 @@
-import { useState } from 'react'
-import SystemAdminLayout from '../../components/layout/Layout'
+import { useEffect, useState } from 'react'
+import SystemAdminLayout from '../../components/layout/SystemAdminLayout'
+import { deleteAdminUser, fetchAdminUsers, toggleAdminUserLock } from '../../services/adminApi'
 import './UserManagement.css'
 
 /**
@@ -7,73 +8,30 @@ import './UserManagement.css'
  * System Admin quản lý toàn bộ người dùng: lock/unlock account
  */
 export default function UserManagement() {
-  const [users, setUsers] = useState([
-    {
-      id: 1,
-      username: 'admin_sm_01',
-      fullName: 'Nguyen Van A',
-      email: 'admin@bigmart.com',
-      phone: '0901 234 567',
-      role: 'Supermarket Admin',
-      supermarket: 'BigMart Central',
-      joinDate: '2024-01-15',
-      status: 'active',
-      lastLogin: '2024-03-22 14:30',
-    },
-    {
-      id: 2,
-      username: 'nv_store_001',
-      fullName: 'Tran Thi B',
-      email: 'staff@freshmart.com',
-      phone: '0912 345 678',
-      role: 'Store Staff',
-      supermarket: 'FreshMart Downtown',
-      joinDate: '2024-02-01',
-      status: 'active',
-      lastLogin: '2024-03-22 09:15',
-    },
-    {
-      id: 3,
-      username: 'customer_123',
-      fullName: 'Le Van C',
-      email: 'customer@email.com',
-      phone: '0923 456 789',
-      role: 'Customer',
-      supermarket: 'N/A',
-      joinDate: '2024-02-10',
-      status: 'active',
-      lastLogin: '2024-03-21 18:45',
-    },
-    {
-      id: 4,
-      username: 'charity_hope',
-      fullName: 'Dang Thi E',
-      email: 'director@hopefoundation.org',
-      phone: '0934 567 890',
-      role: 'Charity Organization',
-      supermarket: 'N/A',
-      joinDate: '2024-03-01',
-      status: 'inactive',
-      lastLogin: '2024-03-15 10:20',
-    },
-    {
-      id: 5,
-      username: 'delivery_partner_01',
-      fullName: 'Hoang Van F',
-      email: 'delivery@express.com',
-      phone: '0945 678 901',
-      role: 'Delivery Partner',
-      supermarket: 'N/A',
-      joinDate: '2024-02-20',
-      status: 'active',
-      lastLogin: '2024-03-22 11:05',
-    },
-  ])
+  const [users, setUsers] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
   const [filterRole, setFilterRole] = useState('all')
   const [filterStatus, setFilterStatus] = useState('all')
   const [selectedUser, setSelectedUser] = useState(null)
   const [showDetailModal, setShowDetailModal] = useState(false)
+
+  async function loadUsers() {
+    try {
+      setError('')
+      const nextUsers = await fetchAdminUsers()
+      setUsers(nextUsers)
+    } catch (err) {
+      setError(err?.response?.data?.detail || 'Không thể tải dữ liệu người dùng.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadUsers()
+  }, [])
 
   const filteredUsers = users.filter(user => {
     const roleMatch = filterRole === 'all' || user.role === filterRole
@@ -81,19 +39,25 @@ export default function UserManagement() {
     return roleMatch && statusMatch
   })
 
-  function handleToggleLock(id) {
-    setUsers(users.map(u =>
-      u.id === id
-        ? { ...u, status: u.status === 'active' ? 'inactive' : 'active' }
-        : u
-    ))
+  async function handleToggleLock(id) {
+    try {
+      await toggleAdminUserLock(id)
+      await loadUsers()
+    } catch (err) {
+      window.alert(err?.response?.data?.detail || 'Không thể cập nhật trạng thái tài khoản.')
+    }
   }
 
-  function handleDeleteUser(id) {
+  async function handleDeleteUser(id) {
     if (window.confirm('Bạn có chắc muốn xóa người dùng này?')) {
-      setUsers(users.filter((u) => u.id !== id))
-      if (selectedUser?.id === id) {
-        closeDetail()
+      try {
+        await deleteAdminUser(id)
+        await loadUsers()
+        if (selectedUser?.id === id) {
+          closeDetail()
+        }
+      } catch (err) {
+        window.alert(err?.response?.data?.detail || 'Không thể xóa người dùng.')
       }
     }
   }
@@ -171,6 +135,8 @@ export default function UserManagement() {
 
         {/* TABLE */}
         <div className="users-card">
+          {loading && <div className="empty-cell">Đang tải dữ liệu...</div>}
+          {error && <div className="empty-cell">{error}</div>}
           <div className="table-responsive">
             <table className="users-table">
               <thead>
@@ -191,7 +157,7 @@ export default function UserManagement() {
                         <div className="users-name">
                           {user.fullName}
                         </div>
-                        <div className="users-username">@{user.username}</div>
+                        <div className="users-username">{user.username}</div>
                       </td>
                       <td>
                         <a href={`mailto:${user.email}`}>{user.email}</a>
@@ -205,16 +171,6 @@ export default function UserManagement() {
                       <td>{user.lastLogin}</td>
                       <td>
                         <div className="action-group">
-                          <button
-                            className="action-btn icon-action-btn btn-view"
-                            onClick={() => openDetail(user)}
-                            title="Xem chi tiết"
-                            aria-label="Xem chi tiết"
-                          >
-                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                              <path d="M12 5c5.5 0 9.5 4.6 10.8 6.3a1 1 0 0 1 0 1.4C21.5 14.4 17.5 19 12 19s-9.5-4.6-10.8-6.3a1 1 0 0 1 0-1.4C2.5 9.6 6.5 5 12 5Zm0 2C7.8 7 4.5 10.5 3.2 12 4.5 13.5 7.8 17 12 17s7.5-3.5 8.8-5C19.5 10.5 16.2 7 12 7Zm0 2.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5Z" />
-                            </svg>
-                          </button>
                           <button
                             className={`action-btn icon-action-btn ${user.status === 'active' ? 'btn-lock-small' : 'btn-unlock-small'}`}
                             onClick={() => handleToggleLock(user.id)}

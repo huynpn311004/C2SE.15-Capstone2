@@ -1,82 +1,108 @@
-import React, { useState } from 'react';
+import { useState } from 'react'
+import CharityLayout from '../../components/layout/CharityLayout'
+import './DonationHistory.css'
 
-const DonationHistory = () => {
-  const [filterStatus, setFilterStatus] = useState('All');
-  
-  const [requests, setRequests] = useState([
-    { id: 101, item: "Gạo sạch", reqQty: 20, status: "Đang chờ duyệt", date: "24/03/2026", approvedDate: "-", receivedDate: "-", store: "WinMart" },
-    { id: 102, item: "Sữa tươi", reqQty: 5, status: "Đã duyệt", date: "25/03/2026", approvedDate: "25/03/2026", receivedDate: "-", store: "Coop Mart" },
-    { id: 103, item: "Dầu ăn", reqQty: 2, status: "Đã nhận hàng", date: "20/03/2026", approvedDate: "21/03/2026", receivedDate: "22/03/2026", store: "Lotte Mart" },
-  ]);
+const seedRequests = [
+  { id: 'YC-101', item: 'Gạo Sạch', reqQty: 20, status: 'pending', date: '24/03/2026', approvedDate: '-', receivedDate: '-', store: 'WinMart' },
+  { id: 'YC-102', item: 'Sữa Tươi', reqQty: 5, status: 'approved', date: '25/03/2026', approvedDate: '25/03/2026', receivedDate: '-', store: 'Coop Mart' },
+  { id: 'YC-103', item: 'Dầu Ăn', reqQty: 2, status: 'received', date: '20/03/2026', approvedDate: '21/03/2026', receivedDate: '22/03/2026', store: 'Lotte Mart' },
+]
 
-  const filteredData = filterStatus === 'All' ? requests : requests.filter(r => r.status === filterStatus);
+const statusBadge = {
+  pending: 'badge-warning',
+  approved: 'badge-info',
+  received: 'badge-success',
+  rejected: 'badge-danger',
+}
+
+const statusLabel = {
+  pending: 'Đang Chờ',
+  approved: 'Đã Duyệt',
+  received: 'Đã Nhận',
+  rejected: 'Từ Chối',
+}
+
+export default function DonationHistory() {
+  const [requests, setRequests] = useState(seedRequests)
+  const [filter, setFilter] = useState('all')
+
+  const filtered = filter === 'all' ? requests : requests.filter(r => r.status === filter)
+
+  function confirmReceived(id) {
+    const today = new Date().toLocaleDateString('vi-VN')
+    setRequests(prev => prev.map(r => r.id === id ? { ...r, status: 'received', receivedDate: today } : r))
+  }
 
   return (
-    <div className="admin-content-inner">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-        <h2 className="text-2xl font-bold text-[#134e4a]">Lịch sử & Trạng thái</h2>
-        
-        {/* 5. FILTER CHỨC NĂNG */}
-        <div className="flex gap-2">
-          <select 
-            className="admin-user-btn bg-white outline-none"
-            onChange={(e) => setFilterStatus(e.target.value)}
-          >
-            <option value="All">Tất cả trạng thái</option>
-            <option value="Đang chờ duyệt">Đang chờ duyệt</option>
-            <option value="Đã duyệt">Đã duyệt</option>
-            <option value="Đã nhận hàng">Đã nhận hàng</option>
-          </select>
+    <CharityLayout>
+      <div className="chhistory-page">
+        {/* TOOLBAR */}
+        <div className="chhistory-toolbar">
+          <div className="chhistory-filter-group">
+            <label>Lọc theo trạng thái:</label>
+            <select className="chhistory-filter-select" value={filter} onChange={e => setFilter(e.target.value)}>
+              <option value="all">Tất Cả</option>
+              <option value="pending">Đang Chờ</option>
+              <option value="approved">Đã Duyệt</option>
+              <option value="received">Đã Nhận</option>
+              <option value="rejected">Từ Chối</option>
+            </select>
+          </div>
+          <div className="chhistory-toolbar-info">Hiển thị {filtered.length} yêu cầu</div>
+        </div>
+
+        {/* TABLE */}
+        <div className="chhistory-card">
+          <div className="table-responsive">
+            <table className="chhistory-table">
+              <thead>
+                <tr>
+                  <th>Sản Phẩm / Store</th>
+                  <th>SL Yêu Cầu</th>
+                  <th>Các Mốc Thời Gian</th>
+                  <th>Trạng Thái</th>
+                  <th>Thao Tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.length > 0 ? (
+                  filtered.map(req => (
+                    <tr key={req.id}>
+                      <td>
+                        <div className="chhistory-item-name">{req.item}</div>
+                        <div className="chhistory-item-store">{req.store}</div>
+                      </td>
+                      <td className="chhistory-qty">{req.reqQty}</td>
+                      <td className="chhistory-dates">
+                        <div>Yêu cầu: {req.date}</div>
+                        <div className="chhistory-date-approved">Duyệt: {req.approvedDate}</div>
+                        <div className="chhistory-date-received">Nhận: {req.receivedDate}</div>
+                      </td>
+                      <td>
+                        <span className={`badge ${statusBadge[req.status]}`}>{statusLabel[req.status]}</span>
+                      </td>
+                      <td>
+                        {req.status === 'approved' && (
+                          <button
+                            onClick={() => confirmReceived(req.id)}
+                            className="chhistory-btn-confirm"
+                          >
+                            Xác Nhận Đã Nhận
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="5" className="chhistory-empty-cell">Không có dữ liệu</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
-
-      <div className="seims-table-container shadow-sm border rounded-xl overflow-hidden bg-white">
-        <table className="min-w-full">
-          <thead>
-            <tr className="bg-[#ccfbf1]">
-              <th className="px-4 py-4 text-left text-[10px] font-bold uppercase text-[#0f766e]">Sản phẩm / Store</th>
-              <th className="px-4 py-4 text-center text-[10px] font-bold uppercase text-[#0f766e]">Số lượng yêu cầu</th>
-              <th className="px-4 py-4 text-center text-[10px] font-bold uppercase text-[#0f766e]">Các mốc thời gian</th>
-              <th className="px-4 py-4 text-center text-[10px] font-bold uppercase text-[#0f766e]">Trạng thái</th>
-              <th className="px-4 py-4 text-right text-[10px] font-bold uppercase text-[#0f766e]">Thao tác</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 text-sm">
-            {filteredData.map((req) => (
-              <tr key={req.id} className="hover:bg-gray-50 transition">
-                <td className="px-4 py-4">
-                  <div className="font-bold">{req.item}</div>
-                  <div className="text-xs text-gray-400">📍 {req.store}</div>
-                </td>
-                <td className="px-4 py-4 text-center font-bold text-teal-700">{req.reqQty}</td>
-                <td className="px-4 py-4 text-center text-[11px] leading-tight">
-                  <div>Yêu cầu: {req.date}</div>
-                  <div className="text-blue-500">Duyệt: {req.approvedDate}</div>
-                  <div className="text-green-600">Nhận: {req.receivedDate}</div>
-                </td>
-                <td className="px-4 py-4 text-center">
-                  <span className={`px-2 py-1 rounded-full text-[10px] font-bold border ${
-                    req.status === 'Đã nhận hàng' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 
-                    req.status === 'Đã duyệt' ? 'bg-blue-50 text-blue-600 border-blue-200' : 
-                    'bg-amber-50 text-amber-600 border-amber-200'
-                  }`}>
-                    {req.status}
-                  </span>
-                </td>
-                <td className="px-4 py-4 text-right">
-                  {req.status === 'Đã duyệt' && (
-                    <button className="bg-emerald-600 text-white px-3 py-1 rounded text-[10px] font-bold hover:bg-emerald-700 shadow-sm">
-                      Xác nhận đã nhận
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-};
-
-export default DonationHistory;
+    </CharityLayout>
+  )
+}

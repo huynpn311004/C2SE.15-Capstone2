@@ -1,5 +1,13 @@
-import { useState } from 'react'
-import SystemAdminLayout from '../../components/layout/Layout'
+import { useEffect, useState } from 'react'
+import SystemAdminLayout from '../../components/layout/SystemAdminLayout'
+import {
+  createAdminDeliveryAccount,
+  createAdminDeliveryWithAccount,
+  deleteAdminDeliveryPartner,
+  fetchAdminDeliveryPartners,
+  toggleAdminDeliveryLock,
+  updateAdminDeliveryPartner,
+} from '../../services/adminApi'
 import './DeliveryManagement.css'
 
 /**
@@ -15,53 +23,9 @@ export default function DeliveryManagement() {
     return `${year}-${month}-${day}`
   }
 
-  const [deliveryPartners, setDeliveryPartners] = useState([
-    {
-      id: 201,
-      name: 'FastShip Express',
-      manager: 'Nguyen Van T',
-      email: 'ops@fastship.vn',
-      phone: '0907 111 222',
-      vehicleType: 'Xe máy',
-      licensePlate: '59X3-123.45',
-      requestDate: '2024-03-16',
-      isLocked: false,
-      accountCreated: false,
-      accountUsername: '',
-      accountStatus: '',
-      passwordStatus: '',
-    },
-    {
-      id: 202,
-      name: 'GreenDelivery',
-      manager: 'Tran Thi N',
-      email: 'support@greendelivery.vn',
-      phone: '0918 333 444',
-      vehicleType: 'Xe tải nhẹ',
-      licensePlate: '51D-678.90',
-      requestDate: '2024-03-19',
-      isLocked: false,
-      accountCreated: true,
-      accountUsername: 'greendelivery_partner',
-      accountStatus: 'active',
-      passwordStatus: 'active',
-    },
-    {
-      id: 203,
-      name: 'CityRunner',
-      manager: 'Le Quoc H',
-      email: 'hello@cityrunner.vn',
-      phone: '0939 555 666',
-      vehicleType: 'Xe máy',
-      licensePlate: '43F1-246.80',
-      requestDate: '2024-02-10',
-      isLocked: true,
-      accountCreated: false,
-      accountUsername: '',
-      accountStatus: '',
-      passwordStatus: '',
-    },
-  ])
+  const [deliveryPartners, setDeliveryPartners] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
   const [selectedDelivery, setSelectedDelivery] = useState(null)
   const [showDetailModal, setShowDetailModal] = useState(false)
@@ -80,7 +44,6 @@ export default function DeliveryManagement() {
   const [createError, setCreateError] = useState('')
   const [createSuccess, setCreateSuccess] = useState('')
   const [createForm, setCreateForm] = useState({
-    deliveryId: '',
     manager: '',
     email: '',
     phone: '',
@@ -92,33 +55,34 @@ export default function DeliveryManagement() {
     passwordStatus: 'active',
   })
 
-  const filteredDeliveries = deliveryPartners
-
-  const pendingDeliveries = deliveryPartners.filter((delivery) => !delivery.accountCreated)
-
-  function handleToggleLockDelivery(id) {
-    setDeliveryPartners((prev) =>
-      prev.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              isLocked: !item.isLocked,
-            }
-          : item
-      )
-    )
-
-    setSelectedDelivery((prev) =>
-      prev && prev.id === id
-        ? {
-            ...prev,
-            isLocked: !prev.isLocked,
-          }
-        : prev
-    )
+  async function loadDeliveries() {
+    try {
+      setError('')
+      const items = await fetchAdminDeliveryPartners()
+      setDeliveryPartners(items)
+    } catch (err) {
+      setError(err?.response?.data?.detail || 'Không thể tải danh sách đối tác giao hàng.')
+    } finally {
+      setLoading(false)
+    }
   }
 
-  function handleDeleteDelivery(id) {
+  useEffect(() => {
+    loadDeliveries()
+  }, [])
+
+  const filteredDeliveries = deliveryPartners
+
+  async function handleToggleLockDelivery(id) {
+    try {
+      await toggleAdminDeliveryLock(id)
+      await loadDeliveries()
+    } catch (err) {
+      window.alert(err?.response?.data?.detail || 'Không thể khóa/mở khóa đối tác giao hàng.')
+    }
+  }
+
+  async function handleDeleteDelivery(id) {
     const delivery = deliveryPartners.find((item) => item.id === id)
     if (!delivery) {
       return
@@ -129,60 +93,19 @@ export default function DeliveryManagement() {
       return
     }
 
-    setDeliveryPartners((prev) => prev.filter((item) => item.id !== id))
-
-    if (selectedDelivery && selectedDelivery.id === id) {
-      closeDetail()
+    try {
+      await deleteAdminDeliveryPartner(id)
+      await loadDeliveries()
+      if (selectedDelivery && selectedDelivery.id === id) {
+        closeDetail()
+      }
+    } catch (err) {
+      window.alert(err?.response?.data?.detail || 'Không thể xóa đối tác giao hàng.')
     }
   }
 
-  function handleCreateAccount(delivery) {
-    const isLockedByStatus = createForm.passwordStatus === 'locked'
-
-    setDeliveryPartners((prev) =>
-      prev.map((item) =>
-        item.id === delivery.id
-          ? {
-              ...item,
-              manager: createForm.manager.trim(),
-              email: createForm.email.trim(),
-              phone: createForm.phone.trim(),
-              vehicleType: createForm.vehicleType.trim(),
-              licensePlate: createForm.licensePlate.trim(),
-              requestDate: createForm.requestDate,
-              isLocked: isLockedByStatus,
-              accountCreated: true,
-              accountUsername: createForm.email.trim(),
-              accountStatus: isLockedByStatus ? 'inactive' : 'active',
-              passwordStatus: createForm.passwordStatus,
-            }
-          : item
-      )
-    )
-
-    setSelectedDelivery((prev) =>
-      prev && prev.id === delivery.id
-        ? {
-            ...prev,
-            manager: createForm.manager.trim(),
-            email: createForm.email.trim(),
-            phone: createForm.phone.trim(),
-            vehicleType: createForm.vehicleType.trim(),
-            licensePlate: createForm.licensePlate.trim(),
-            requestDate: createForm.requestDate,
-            isLocked: isLockedByStatus,
-            accountCreated: true,
-            accountUsername: createForm.email.trim(),
-            accountStatus: isLockedByStatus ? 'inactive' : 'active',
-            passwordStatus: createForm.passwordStatus,
-          }
-        : prev
-    )
-  }
-
-  function resetCreateForm(deliveryId = '') {
+  function resetCreateForm() {
     setCreateForm({
-      deliveryId: deliveryId ? String(deliveryId) : '',
       manager: '',
       email: '',
       phone: '',
@@ -198,20 +121,13 @@ export default function DeliveryManagement() {
   }
 
   function openCreateModal() {
-    const deliveryId = pendingDeliveries[0]?.id
-
-    if (!deliveryId) {
-      window.alert('Không còn đối tác delivery nào cần tạo tài khoản.')
-      return
-    }
-
-    resetCreateForm(deliveryId)
+    resetCreateForm()
     setShowCreateModal(true)
   }
 
   function closeCreateModal() {
     setShowCreateModal(false)
-    resetCreateForm('')
+    resetCreateForm()
   }
 
   function handleCreateFormChange(event) {
@@ -226,18 +142,12 @@ export default function DeliveryManagement() {
     setCreateSuccess('')
   }
 
-  function submitCreateAccount(event) {
+  async function submitCreateAccount(event) {
     event.preventDefault()
     setCreateError('')
     setCreateSuccess('')
 
-    const selectedId = Number(createForm.deliveryId)
-    const delivery = deliveryPartners.find((item) => item.id === selectedId)
-
-    if (!delivery || delivery.accountCreated) {
-      setCreateError('Đối tác delivery đã có tài khoản hoặc không hợp lệ.')
-      return
-    }
+    const delivery = deliveryPartners.find((item) => !item.accountCreated) || deliveryPartners[0]
 
     if (!createForm.manager.trim()) {
       setCreateError('Người phụ trách không được để trống.')
@@ -279,8 +189,34 @@ export default function DeliveryManagement() {
       return
     }
 
-    handleCreateAccount(delivery)
-    setCreateSuccess(`Đã tạo tài khoản thành công cho ${delivery.name}.`)
+    try {
+      const payload = {
+        manager: createForm.manager.trim(),
+        email: createForm.email.trim(),
+        phone: createForm.phone.trim(),
+        vehicleType: createForm.vehicleType.trim(),
+        licensePlate: createForm.licensePlate.trim(),
+        password: createForm.password,
+        passwordStatus: createForm.passwordStatus,
+      }
+
+      if (delivery) {
+        await createAdminDeliveryAccount(delivery.id, payload)
+        setCreateSuccess(
+          delivery.accountCreated
+            ? `Đã cập nhật lại tài khoản cho ${delivery.name}.`
+            : `Đã tạo tài khoản thành công cho ${delivery.name}.`
+        )
+      } else {
+        await createAdminDeliveryWithAccount(payload)
+        setCreateSuccess(`Đã tạo tài khoản thành công cho ${payload.manager}.`)
+      }
+
+      await loadDeliveries()
+    } catch (err) {
+      setCreateError(err?.response?.data?.detail || 'Không thể tạo tài khoản đối tác giao hàng.')
+      return
+    }
 
     setTimeout(() => {
       closeCreateModal()
@@ -322,7 +258,7 @@ export default function DeliveryManagement() {
     setEditSuccess('')
   }
 
-  function submitEditDelivery(event) {
+  async function submitEditDelivery(event) {
     event.preventDefault()
 
     if (!selectedDelivery) {
@@ -374,27 +310,13 @@ export default function DeliveryManagement() {
       requestDate: editForm.requestDate,
     }
 
-    setDeliveryPartners((prev) =>
-      prev.map((item) =>
-        item.id === selectedDelivery.id
-          ? {
-              ...item,
-              ...nextData,
-            }
-          : item
-      )
-    )
-
-    setSelectedDelivery((prev) =>
-      prev
-        ? {
-            ...prev,
-            ...nextData,
-          }
-        : prev
-    )
-
-    setEditSuccess('Đã cập nhật thông tin đối tác delivery.')
+    try {
+      await updateAdminDeliveryPartner(selectedDelivery.id, nextData)
+      setEditSuccess('Đã cập nhật thông tin đối tác delivery.')
+      await loadDeliveries()
+    } catch (err) {
+      setEditError(err?.response?.data?.detail || 'Không thể cập nhật đối tác delivery.')
+    }
   }
 
   return (
@@ -405,7 +327,6 @@ export default function DeliveryManagement() {
           <button
             className="delivery-btn-create delivery-toolbar-btn"
             onClick={openCreateModal}
-            disabled={pendingDeliveries.length === 0}
           >
             Tạo tài khoản
           </button>
@@ -416,6 +337,8 @@ export default function DeliveryManagement() {
 
         {/* TABLE */}
         <div className="delivery-card">
+          {loading && <div className="empty-cell">Đang tải dữ liệu...</div>}
+          {error && <div className="empty-cell">{error}</div>}
           <div className="table-responsive">
             <table className="delivery-table">
               <thead>

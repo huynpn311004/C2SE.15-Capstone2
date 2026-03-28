@@ -1,45 +1,53 @@
-import SectionCard from '../../components/staff/SectionCard'
-import StatusBadge from '../../components/staff/StatusBadge'
+import StaffLayout from '../../components/layout/StaffLayout'
+import './Notifications.css'
 
 const notices = [
-  {
-    id: 1,
-    title: 'Near-expiry warning',
-    message: 'LOT-001 (Greek Yogurt) will expire in 4 days.',
-    type: 'warning',
-    time: '5 minutes ago',
-  },
-  {
-    id: 2,
-    title: 'New order received',
-    message: 'Order ORD-1004 needs confirmation.',
-    type: 'info',
-    time: '12 minutes ago',
-  },
-  {
-    id: 3,
-    title: 'Donation request',
-    message: 'Hope Foundation requested Milk 1L x 20.',
-    type: 'danger',
-    time: '30 minutes ago',
-  },
+  { id: 1, title: 'Cảnh Báo Sắp Hết Hạn', message: 'LH-001 (Sữa Chua Hy Lạp) sẽ hết hạn trong 4 ngày.', type: 'warning', time: '5 phút trước' },
+  { id: 2, title: 'Có Đơn Hàng Mới', message: 'Đơn hàng DH-1004 cần được xác nhận.', type: 'info', time: '12 phút trước' },
+  { id: 3, title: 'Yêu Cầu Quyên Góp', message: 'Quỹ Hy Vọng yêu cầu Sữa Tươi 1L x 20.', type: 'danger', time: '30 phút trước' },
 ]
+
+function getBadgeClass(type) {
+  if (type === 'warning') return 'badge-warning'
+  if (type === 'danger') return 'badge-danger'
+  return 'badge-info'
+}
+
+function getTypeLabel(type) {
+  if (type === 'warning') return 'Cảnh Báo'
+  if (type === 'danger') return 'Khẩn Cấp'
+  return 'Thông Tin'
+}
 
 export default function Notifications() {
   return (
-    <SectionCard title="Notifications" subtitle="Recent operational alerts for staff">
-      <div className="space-y-3">
-        {notices.map((notice) => (
-          <div key={notice.id} className="rounded-xl border border-emerald-100 bg-white p-3">
-            <div className="mb-2 flex items-center justify-between gap-3">
-              <h4 className="text-sm font-semibold text-emerald-900">{notice.title}</h4>
-              <StatusBadge tone={notice.type}>{notice.type}</StatusBadge>
-            </div>
-            <p className="text-sm text-slate-600">{notice.message}</p>
-            <p className="mt-2 text-xs text-slate-400">{notice.time}</p>
-          </div>
-        ))}
+    <StaffLayout>
+      <div className="notifications-page">
+      {/* TOOLBAR */}
+      <div className="notifications-toolbar">
+        <div className="notifications-toolbar-info">
+          Hiển thị {notices.length} thông báo
+        </div>
       </div>
-    </SectionCard>
+
+      {/* NOTIFICATION LIST */}
+      <div className="notifications-card">
+        <div className="notifications-list">
+          {notices.map((notice) => (
+            <div key={notice.id} className="notification-item">
+              <div className="notification-item-info">
+                <h4 className="notification-title">{notice.title}</h4>
+                <p className="notification-message">{notice.message}</p>
+                <p className="notification-time">{notice.time}</p>
+              </div>
+              <span className={`badge ${getBadgeClass(notice.type)}`}>
+                {getTypeLabel(notice.type)}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+      </div>
+    </StaffLayout>
   )
 }

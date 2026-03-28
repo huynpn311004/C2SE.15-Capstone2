@@ -1,55 +1,126 @@
 import { useState } from 'react'
-import SectionCard from '../../components/staff/SectionCard'
+import StaffLayout from '../../components/layout/StaffLayout'
+import './Profile.css'
 
 const defaultProfile = {
-  fullName: 'Tran Staff',
+  fullName: 'Trần Nhân Viên',
   email: 'staff01@seims.vn',
   phone: '0908 123 456',
-  store: 'BigMart Central',
-  role: 'Store Employee',
+  store: 'BigMart Trung Tâm',
+  role: 'Nhân Viên Cửa Hàng',
 }
 
 export default function Profile() {
   const [profile, setProfile] = useState(defaultProfile)
   const [saved, setSaved] = useState(false)
+  const [error, setError] = useState('')
 
   function handleChange(event) {
     const { name, value } = event.target
     setProfile((prev) => ({ ...prev, [name]: value }))
     setSaved(false)
+    setError('')
   }
 
   function handleSubmit(event) {
     event.preventDefault()
+    setError('')
+
+    if (!profile.fullName.trim()) {
+      setError('Họ tên không được để trống.')
+      return
+    }
+    if (!profile.email.trim()) {
+      setError('Email không được để trống.')
+      return
+    }
+    if (!profile.phone.trim()) {
+      setError('Số điện thoại không được để trống.')
+      return
+    }
+
     setSaved(true)
   }
 
   return (
-    <SectionCard title="Profile" subtitle="View and update your staff information">
-      <form onSubmit={handleSubmit} className="grid gap-3 sm:grid-cols-2">
-        <label className="text-sm">Full Name
-          <input name="fullName" value={profile.fullName} onChange={handleChange} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" />
-        </label>
-        <label className="text-sm">Email
-          <input name="email" type="email" value={profile.email} onChange={handleChange} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" />
-        </label>
-        <label className="text-sm">Phone
-          <input name="phone" value={profile.phone} onChange={handleChange} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" />
-        </label>
-        <label className="text-sm">Store
-          <input name="store" value={profile.store} onChange={handleChange} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" />
-        </label>
-        <label className="text-sm sm:col-span-2">Role
-          <input name="role" value={profile.role} disabled className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2" />
-        </label>
+    <StaffLayout>
+      <div className="profile-page">
+      {/* PROFILE CARD */}
+      <div className="profile-card">
+        <form onSubmit={handleSubmit} className="profile-form">
+          <div className="profile-form-grid">
+            <div className="profile-form-column">
+              <div className="profile-form-field">
+                <label>Họ Tên</label>
+                <input
+                  type="text"
+                  name="fullName"
+                  value={profile.fullName}
+                  onChange={handleChange}
+                  className="profile-input"
+                  placeholder="Nhập họ tên"
+                />
+              </div>
+              <div className="profile-form-field">
+                <label>Email</label>
+                <input
+                  type="email"
+                  name="email"
+                  value={profile.email}
+                  onChange={handleChange}
+                  className="profile-input"
+                  placeholder="Nhập email"
+                />
+              </div>
+              <div className="profile-form-field">
+                <label>Số Điện Thoại</label>
+                <input
+                  type="text"
+                  name="phone"
+                  value={profile.phone}
+                  onChange={handleChange}
+                  className="profile-input"
+                  placeholder="Nhập số điện thoại"
+                />
+              </div>
+            </div>
 
-        <div className="sm:col-span-2 flex justify-end gap-2">
-          {saved && <p className="mr-auto text-sm font-semibold text-emerald-700">Profile updated successfully.</p>}
-          <button type="submit" className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">
-            Save Changes
-          </button>
-        </div>
-      </form>
-    </SectionCard>
+            <div className="profile-form-column">
+              <div className="profile-form-field">
+                <label>Cửa Hàng</label>
+                <input
+                  type="text"
+                  name="store"
+                  value={profile.store}
+                  onChange={handleChange}
+                  className="profile-input"
+                  placeholder="Nhập tên cửa hàng"
+                />
+              </div>
+              <div className="profile-form-field">
+                <label>Chức Vụ</label>
+                <input
+                  type="text"
+                  name="role"
+                  value={profile.role}
+                  disabled
+                  className="profile-input profile-input-disabled"
+                />
+              </div>
+            </div>
+          </div>
+
+          {error && <p className="profile-error">{error}</p>}
+          {saved && <p className="profile-success">Hồ sơ đã được cập nhật thành công!</p>}
+
+          <div className="profile-form-footer">
+            <button type="submit" className="btn-large profile-btn-save">
+              Lưu Thay Đổi
+            </button>
+          </div>
+        </form>
+      </div>
+      </div>
+    </StaffLayout>
   )
 }

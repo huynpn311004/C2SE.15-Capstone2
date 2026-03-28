@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { useAuth } from '../../services/AuthContext'
 
 import './Login.css'
 
@@ -8,17 +9,38 @@ import './Login.css'
  * Khi nhóm nối API: gọi API.post('/auth/login', ...) trong handleSubmit.
  */
 export default function Login() {
+  const ADMIN_CONTACT = {
+    email: 'admin@seims.vn',
+    hotline: '1900-0000',
+  }
+
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [showAdminContact, setShowAdminContact] = useState(false)
+  const { login } = useAuth()
+  const navigate = useNavigate()
 
-  function handleSubmit(e) {
+  function routeByRole(role) {
+    const routes = {
+      system_admin: '/admin/dashboard',
+      supermarket_admin: '/supermarketadmin/dashboard',
+      store_staff: '/staff/dashboard',
+      customer: '/customer/home',
+      charity: '/charity/dashboard',
+      delivery_partner: '/',
+    }
+    return routes[role] || '/'
+  }
+
+  async function handleSubmit(e) {
     e.preventDefault()
     setMessage('')
     setError('')
+    setShowAdminContact(false)
 
     if (!username.trim()) {
       setError('Vui lòng nhập tên đăng nhập hoặc email.')
@@ -30,13 +52,31 @@ export default function Login() {
     }
 
     setLoading(true)
-    // Giả lập gọi server — thay bằng axios + endpoint thật khi backend xong
-    window.setTimeout(() => {
+    try {
+      const response = await login({
+        username: username.trim(),
+        password,
+      })
+      const nextRole = response?.user?.role
+      setMessage(response?.message || 'Dang nhap thanh cong.')
+      setTimeout(() => {
+        navigate(routeByRole(nextRole))
+      }, 500)
+    } catch (err) {
+      const status = err.response?.status
+      const detail = err.response?.data?.detail
+
+      if (detail) {
+        setError(detail)
+        if (status === 423 || detail.toLowerCase().includes('lien he admin')) {
+          setShowAdminContact(true)
+        }
+      } else {
+        setError('Dang nhap that bai. Vui long thu lai.')
+      }
+    } finally {
       setLoading(false)
-      setMessage(
-        'Đăng nhập (demo): dữ liệu hợp lệ. Nhóm có thể thay bằng gọi API và lưu token.',
-      )
-    }, 600)
+    }
   }
 
   return (
@@ -102,7 +142,7 @@ export default function Login() {
                   />
                   Hiển thị mật khẩu
                 </label>
-                <a href="#quen-mat-khau">Quên mật khẩu?</a>
+                <Link to="/forgot-password">Quên mật khẩu?</Link>
               </div>
 
               <button type="submit" className="login-submit" disabled={loading}>
@@ -113,6 +153,17 @@ export default function Login() {
                 <p className="login-message error" role="alert">
                   {error}
                 </p>
+              ) : null}
+              {showAdminContact ? (
+                <div className="login-message error" role="status">
+                  <strong>Tai khoan cua ban da bi khoa.</strong>
+                  <br />
+                  Vui long lien he admin de mo khoa:
+                  <br />
+                  Email: {ADMIN_CONTACT.email}
+                  <br />
+                  Hotline: {ADMIN_CONTACT.hotline}
+                </div>
               ) : null}
               {message ? (
                 <p className="login-message info" role="status">

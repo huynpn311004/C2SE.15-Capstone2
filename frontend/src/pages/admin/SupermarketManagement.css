@@ -136,14 +136,6 @@
   outline-offset: 2px;
 }
 
-.supermarkets-btn-create:disabled {
-  opacity: 0.62;
-  filter: grayscale(0.1);
-  box-shadow: none;
-  transform: none;
-  cursor: not-allowed;
-}
-
 /* CARD */
 .supermarkets-card {
   background: var(--seims-card);

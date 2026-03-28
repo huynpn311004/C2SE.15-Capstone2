@@ -1,0 +1,226 @@
+/* Policy Configuration Page — CSS */
+.sapolicy-page {
+  --sa-teal: #0f766e;
+  --sa-teal-dark: #0d5c56;
+  --sa-ink: #134e4a;
+  --sa-muted: #5b7573;
+  --sa-card: #ffffff;
+  --sa-border: #d1e7e4;
+  --sa-bg: #f8fffe;
+  --sa-success: #10b981;
+  --sa-warning: #f59e0b;
+  --sa-error: #b91c1c;
+
+  max-width: 100%;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  height: calc(100vh - 64px);
+  overflow-y: auto;
+}
+
+/* TOOLBAR */
+.sapolicy-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.6rem 0.7rem;
+  background: var(--sa-card);
+  border: 1px solid var(--sa-border);
+  border-radius: 9px;
+  box-shadow: 0 2px 8px rgba(15, 118, 110, 0.06);
+  flex-shrink: 0;
+}
+
+.sapolicy-toolbar-info { font-size: 0.76rem; color: var(--sa-muted); white-space: nowrap; }
+
+/* CARDS */
+.sapolicy-card {
+  background: var(--sa-card);
+  border: 1px solid var(--sa-border);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(15, 118, 110, 0.06);
+  display: flex;
+  flex-direction: column;
+}
+
+.sapolicy-card-title {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--sa-ink);
+  margin: 0;
+  padding: 0.75rem 1rem;
+  background: var(--sa-bg);
+  border-bottom: 1px solid var(--sa-border);
+}
+
+.sapolicy-card-override {
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.sapolicy-card-override .sapolicy-card-title {
+  background: rgba(245, 158, 11, 0.08);
+  color: #92400e;
+}
+
+/* LIST */
+.sapolicy-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.sapolicy-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--sa-border);
+  transition: background 0.2s;
+}
+
+.sapolicy-item:last-child { border-bottom: none; }
+.sapolicy-item:hover { background: rgba(15, 118, 110, 0.03); }
+
+.sapolicy-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.sapolicy-item-name {
+  font-weight: 600;
+  color: var(--sa-ink);
+  font-size: 0.875rem;
+}
+
+.sapolicy-item-desc {
+  font-size: 0.78rem;
+  color: var(--sa-muted);
+  line-height: 1.4;
+}
+
+.sapolicy-item-value {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.sapolicy-value-num {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--sa-teal);
+}
+
+.sapolicy-value-unit {
+  font-size: 0.78rem;
+  color: var(--sa-muted);
+  font-weight: 600;
+}
+
+/* ACTION BUTTONS */
+.action-btn { background: none; border: 1px solid var(--sa-border); border-radius: 8px; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; }
+.action-btn:hover { transform: translateY(-1px); }
+.icon-action-btn { width: 30px; min-width: 30px; height: 30px; padding: 0; }
+.icon-action-btn svg { width: 15px; height: 15px; fill: currentColor; }
+.btn-edit { color: var(--sa-teal); border-color: rgba(15, 118, 110, 0.45); background: rgba(15, 118, 110, 0.06); }
+.btn-edit:hover { background: var(--sa-teal); color: white; }
+
+/* OVERRIDE */
+.sapolicy-override-note {
+  font-size: 0.8rem;
+  color: var(--sa-muted);
+  padding: 0.75rem 1rem;
+  margin: 0;
+  border-bottom: 1px solid var(--sa-border);
+  background: rgba(245, 158, 11, 0.04);
+}
+
+.sapolicy-override-log {
+  display: flex;
+  flex-direction: column;
+}
+
+.sapolicy-log-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid var(--sa-border);
+  transition: background 0.2s;
+}
+
+.sapolicy-log-item:last-child { border-bottom: none; }
+.sapolicy-log-item:hover { background: rgba(15, 118, 110, 0.03); }
+
+.sapolicy-log-time {
+  font-size: 0.72rem;
+  color: var(--sa-muted);
+  font-weight: 600;
+}
+
+.sapolicy-log-staff {
+  font-size: 0.8rem;
+  color: var(--sa-ink);
+  font-weight: 500;
+}
+
+.sapolicy-log-action {
+  font-size: 0.8rem;
+  color: var(--sa-muted);
+}
+
+.sapolicy-override-old {
+  text-decoration: line-through;
+  color: var(--sa-error);
+  font-weight: 600;
+}
+
+.sapolicy-override-new {
+  color: var(--sa-success);
+  font-weight: 700;
+}
+
+/* MODAL */
+.sapolicy-modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+.sapolicy-modal { background: var(--sa-card); border-radius: 14px; width: min(calc(100vw - 2rem), 700px); max-height: 96vh; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.18); display: flex; flex-direction: column; }
+.sapolicy-modal-header { padding: 1rem 1.5rem; background: linear-gradient(135deg, #0f766e 0%, #0d9488 100%); border-radius: 14px 14px 0 0; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+.sapolicy-modal-header h3 { font-size: 1rem; font-weight: 700; color: #ffffff; margin: 0; }
+.sapolicy-modal-close { width: 30px; height: 30px; border-radius: 50%; border: none; background: rgba(255,255,255,0.2); color: #ffffff; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s; flex-shrink: 0; line-height: 1; }
+.sapolicy-modal-close:hover { background: rgba(255,255,255,0.35); }
+.sapolicy-modal-body { padding: 1.5rem; background: #ffffff; overflow-y: auto; flex: 1; display: flex; flex-direction: column; }
+.sapolicy-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+.sapolicy-form-column { display: flex; flex-direction: column; gap: 1rem; }
+.sapolicy-form-field { display: flex; flex-direction: column; gap: 0.4rem; }
+.sapolicy-form-field label { font-size: 0.82rem; font-weight: 600; color: #374151; }
+.sapolicy-input { box-sizing: border-box; width: 100%; padding: 0.5rem 0.85rem; border: 1.5px solid #d1d5db; border-radius: 8px; background: #ffffff; color: #111827; font-size: 0.82rem; line-height: 1.3; transition: border-color 0.2s, box-shadow 0.2s; font-family: inherit; }
+.sapolicy-input:focus { outline: none; border-color: #0d9488; box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.12); }
+.sapolicy-textarea { resize: vertical; min-height: 80px; }
+.sapolicy-error, .sapolicy-success { margin: 0; padding: 0.6rem 0.85rem; border-radius: 8px; font-size: 0.78rem; font-weight: 600; }
+.sapolicy-error { color: var(--sa-error); background: rgba(185, 28, 28, 0.07); border: 1px solid rgba(185, 28, 28, 0.18); }
+.sapolicy-success { color: var(--sa-teal); background: rgba(15, 118, 110, 0.07); border: 1px solid rgba(15, 118, 110, 0.2); }
+.sapolicy-form-footer { margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid #e5e7eb; display: flex; justify-content: flex-end; }
+.sapolicy-form-actions { display: flex; gap: 0.75rem; }
+.btn-large { min-width: 110px; height: 38px; padding: 0.4rem 1.25rem; font-size: 0.82rem; font-weight: 600; border-radius: 8px; border: 1.5px solid transparent; cursor: pointer; transition: all 0.2s ease; letter-spacing: 0.01em; }
+.sapolicy-btn-save { background: linear-gradient(135deg, #0f766e 0%, #0d9488 100%); color: #ffffff; border-color: #0f766e; box-shadow: 0 6px 14px rgba(15, 118, 110, 0.22); }
+.sapolicy-btn-save:hover { filter: brightness(1.04); transform: translateY(-1px); }
+.btn-close { background: transparent; color: var(--sa-muted); border: 1px solid var(--sa-border); }
+.btn-close:hover { background: var(--sa-bg); color: var(--sa-ink); }
+
+@media (max-width: 768px) {
+  .sapolicy-page { gap: 0.8rem; overflow-y: auto; height: auto; }
+  .sapolicy-toolbar { flex-direction: column; align-items: stretch; }
+  .sapolicy-item { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+  .sapolicy-modal { width: calc(100vw - 1.2rem); max-height: 95vh; }
+  .sapolicy-form-grid { grid-template-columns: 1fr; gap: 0.85rem; }
+  .sapolicy-form-footer { flex-direction: column; }
+  .sapolicy-form-actions { width: 100%; flex-direction: column; }
+  .sapolicy-form-actions .btn-large { width: 100%; }
+}

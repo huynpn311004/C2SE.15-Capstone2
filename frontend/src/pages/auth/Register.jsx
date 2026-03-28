@@ -1,66 +1,81 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { useAuth } from '../../services/AuthContext'
 
 import './Register.css'
 
-/**
- * Đăng ký tài khoản khách hàng (customer) — demo validate phía client.
- * CSS riêng Register.css, class register-* (không dùng login-*).
- */
 export default function Register() {
-  const [fullName, setFullName] = useState('')
-  const [username, setUsername] = useState('')
-  const [email, setEmail] = useState('')
-  const [phone, setPhone] = useState('')
-  const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [agreeTerms, setAgreeTerms] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [message, setMessage] = useState('')
+  const [fullName, setFullName] = useState('');
+  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [agreeTerms, setAgreeTerms] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState('');
   const [error, setError] = useState('')
 
-  function handleSubmit(e) {
+  const { register } = useAuth()
+  const navigate = useNavigate()
+
+  async function handleSubmit(e) {
     e.preventDefault()
     setMessage('')
     setError('')
 
     if (!fullName.trim()) {
-      setError('Vui lòng nhập họ và tên.')
+      setError('Vui lòng nhập họ và tên.');
       return
     }
     if (!username.trim() || username.trim().length < 3) {
-      setError('Tên đăng nhập ít nhất 3 ký tự.')
+      setError('Tên đăng nhập ít nhất 3 ký tự.');
       return
     }
     if (!email.trim()) {
-      setError('Vui lòng nhập email.')
+      setError('Vui lòng nhập email.');
       return
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      setError('Email không hợp lệ.')
+      setError('Email không hợp lệ.');
       return
     }
     if (password.length < 6) {
-      setError('Mật khẩu ít nhất 6 ký tự.')
+      setError('Mật khẩu ít nhất 6 ký tự.');
       return
     }
     if (password !== confirmPassword) {
-      setError('Mật khẩu nhập lại không khớp.')
+      setError('Mật khẩu nhập lại không khớp.');
       return
     }
     if (!agreeTerms) {
-      setError('Bạn cần đồng ý điều khoản sử dụng.')
+      setError('Bạn cần đồng ý điều khoản sử dụng.');
       return
     }
 
     setLoading(true)
-    window.setTimeout(() => {
+    try {
+      await register({
+        username: username.trim(),
+        email: email.trim(),
+        password,
+        full_name: fullName.trim(),
+        phone: phone.trim() || null,
+      })
+      setMessage('Đăng ký thành công! Vui lòng đăng nhập.')
+      setTimeout(() => {
+        navigate('/login')
+      }, 1500)
+    } catch (err) {
+      if (err.response?.data?.detail) {
+        setError(err.response.data.detail)
+      } else {
+        setError('Đăng ký thất bại. Vui lòng thử lại.')
+      }
+    } finally {
       setLoading(false)
-      setMessage(
-        'Đăng ký (demo) thành công. Nhóm thay bằng API POST /auth/register và chuyển sang đăng nhập.',
-      )
-    }, 700)
+    }
   }
 
   return (
@@ -87,7 +102,7 @@ export default function Register() {
           <div className="register-card">
             <header className="register-card-header">
               <h2>Tạo tài khoản</h2>
-              <span>Dành cho khách hàng — tài khoản nội bộ do admin cấp</span>
+              <span>Đăng ký tài khoản khách hàng</span>
             </header>
 
             <form onSubmit={handleSubmit} noValidate>
@@ -113,7 +128,7 @@ export default function Register() {
                   autoComplete="username"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="chuỗi không dấu, vd: nguyenvana"
+                  placeholder="nguyenvana"
                 />
                 <p className="register-field-hint">
                   Ít nhất 3 ký tự, dùng để đăng nhập.
