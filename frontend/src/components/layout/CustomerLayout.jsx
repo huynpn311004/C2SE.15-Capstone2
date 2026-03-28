@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
+import { useAuth } from '../../services/AuthContext'
 import './CustomerLayout.css'
 
 const CUSTOMER_PROFILE_STORAGE_KEY = 'seims_customer_profile'
@@ -22,7 +23,15 @@ function getStoredCustomerProfile() {
 export default function CustomerLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [customerProfile, setCustomerProfile] = useState(getStoredCustomerProfile)
+  const { user } = useAuth()
   const navigate = useNavigate()
+
+  const displayName =
+    user?.full_name ||
+    user?.fullName ||
+    user?.name ||
+    customerProfile.fullName ||
+    'Khách hàng'
 
   useEffect(() => {
     function syncProfile() {
@@ -55,7 +64,7 @@ export default function CustomerLayout({ children }) {
             <span className="customer-logo-lines">
               <span className="customer-logo-text">SEIMS</span>
               <span className="customer-logo-subtext">
-                Xin chào, {customerProfile.fullName}
+                Xin chào, {displayName}
               </span>
             </span>
           </Link>
@@ -118,7 +127,7 @@ export default function CustomerLayout({ children }) {
                     `customer-nav-link${isActive ? ' active' : ''}`
                   }
                 >
-                  <span className="customer-nav-label">Tài khoản</span>
+                  <span className="customer-nav-label">Cài đặt</span>
                 </NavLink>
               </li>
             </ul>
@@ -153,7 +162,7 @@ export default function CustomerLayout({ children }) {
             ☰
           </button>
           <div className="customer-header-title">
-            <h1>Cổng khách hàng SEIMS</h1>
+            <h1>Xin chào, {displayName}</h1>
           </div>
           <div className="customer-header-actions">
             <button className="customer-header-btn" aria-label="Thông báo" title="Thông báo">
@@ -161,7 +170,7 @@ export default function CustomerLayout({ children }) {
             </button>
             <div className="customer-user-menu">
               <button className="customer-user-btn" aria-label="Menu người dùng">
-                {customerProfile.fullName}
+                {displayName}
               </button>
             </div>
           </div>

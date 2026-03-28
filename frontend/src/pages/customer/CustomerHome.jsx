@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { mockProducts } from "../../services/mockProducts";
-import './CustomerDashboard.css';
+import './CustomerHome.css';
 
 const CustomerHome = () => {
   const navigate = useNavigate();
@@ -12,14 +12,6 @@ const CustomerHome = () => {
 
   return (
     <div className="customer-page">
-      {/* Welcome Header */}
-      <div className="customer-welcome">
-        <div>
-          <h2>Xin chào, Khách hàng!</h2>
-          <p>Theo dõi nhanh giỏ hàng, đơn hàng và đi tới mục mua sắm</p>
-        </div>
-      </div>
-
       {/* Stats Grid */}
       <div className="customer-stats">
         <div className="customer-stat-card">

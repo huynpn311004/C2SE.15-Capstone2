@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { mockProducts } from "../../services/mockProducts";
-import './CustomerDashboard.css';
+import './CustomerHome.css';
 
 const CART_KEY = 'seims_customer_cart';
 

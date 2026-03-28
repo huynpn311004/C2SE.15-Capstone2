@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { mockProducts } from '../../services/mockProducts';
-import './CustomerDashboard.css';
+import './CustomerCart.css';
 
 const CART_KEY = 'seims_customer_cart';
 
@@ -126,14 +126,6 @@ const CustomerCart = () => {
 
   return (
     <div className="customer-page">
-      {/* Welcome Header */}
-      <div className="customer-welcome">
-        <div>
-          <h2>Giỏ hàng của bạn</h2>
-          <p>Kiểm tra và thanh toán đơn hàng</p>
-        </div>
-      </div>
-
       <div style={{ display: 'flex', gap: '1rem', flex: 1, overflow: 'hidden' }}>
         {/* Cart Items */}
         <div className="customer-products-section" style={{ flex: 2, display: 'flex', flexDirection: 'column' }}>
