@@ -1,5 +1,13 @@
-import { useState } from 'react'
-import SystemAdminLayout from '../../components/layout/Layout'
+import { useEffect, useState } from 'react'
+import SystemAdminLayout from '../../components/layout/SystemAdminLayout'
+import {
+  createAdminCharityAccount,
+  createAdminCharityWithAccount,
+  deleteAdminCharity,
+  fetchAdminCharities,
+  toggleAdminCharityLock,
+  updateAdminCharity,
+} from '../../services/adminApi'
 import './CharityManagement.css'
 
 /**
@@ -15,50 +23,9 @@ export default function CharityManagement() {
     return `${year}-${month}-${day}`
   }
 
-  const [charities, setCharities] = useState([
-    {
-      id: 101,
-      name: 'Hope Foundation',
-      email: 'hello@hopefoundation.org',
-      phone: '0285-999-8888',
-      address: '100 Charity Lane, HCMC',
-      requestDate: '2024-03-16',
-      director: 'Dang Thi E',
-      isLocked: false,
-      accountCreated: false,
-      accountUsername: '',
-      accountStatus: '',
-      passwordStatus: '',
-    },
-    {
-      id: 102,
-      name: 'Community Care',
-      email: 'info@communitycare.org',
-      phone: '0287-777-6666',
-      address: '200 Aid Street, HCMC',
-      requestDate: '2024-03-19',
-      director: 'Hoang Van F',
-      isLocked: false,
-      accountCreated: true,
-      accountUsername: 'communitycare_charity',
-      accountStatus: 'active',
-      passwordStatus: 'active',
-    },
-    {
-      id: 103,
-      name: 'Children Tomorrow',
-      email: 'contact@childrentomorrow.org',
-      phone: '0243-444-3333',
-      address: '300 Future Road, HN',
-      requestDate: '2024-02-10',
-      director: 'Nguyen Thi G',
-      isLocked: false,
-      accountCreated: false,
-      accountUsername: '',
-      accountStatus: '',
-      passwordStatus: '',
-    },
-  ])
+  const [charities, setCharities] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
   const [selectedCharity, setSelectedCharity] = useState(null)
   const [showDetailModal, setShowDetailModal] = useState(false)
@@ -76,7 +43,6 @@ export default function CharityManagement() {
   const [createError, setCreateError] = useState('')
   const [createSuccess, setCreateSuccess] = useState('')
   const [createForm, setCreateForm] = useState({
-    charityId: '',
     name: '',
     director: '',
     email: '',
@@ -86,6 +52,22 @@ export default function CharityManagement() {
     requestDate: getTodayDate(),
     passwordStatus: 'active',
   })
+
+  async function loadCharities() {
+    try {
+      setError('')
+      const items = await fetchAdminCharities()
+      setCharities(items)
+    } catch (err) {
+      setError(err?.response?.data?.detail || 'Không thể tải danh sách tổ chức từ thiện.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadCharities()
+  }, [])
 
   function openDetail(charity) {
     setSelectedCharity(charity)
@@ -121,7 +103,7 @@ export default function CharityManagement() {
     setEditSuccess('')
   }
 
-  function submitEditCharity(event) {
+  async function submitEditCharity(event) {
     event.preventDefault()
 
     if (!selectedCharity) {
@@ -167,52 +149,25 @@ export default function CharityManagement() {
       requestDate: editForm.requestDate,
     }
 
-    setCharities((prev) =>
-      prev.map((item) =>
-        item.id === selectedCharity.id
-          ? {
-              ...item,
-              ...nextData,
-            }
-          : item
-      )
-    )
-
-    setSelectedCharity((prev) =>
-      prev
-        ? {
-            ...prev,
-            ...nextData,
-          }
-        : prev
-    )
-
-    setEditSuccess('Đã cập nhật thông tin charity.')
+    try {
+      await updateAdminCharity(selectedCharity.id, nextData)
+      setEditSuccess('Đã cập nhật thông tin charity.')
+      await loadCharities()
+    } catch (err) {
+      setEditError(err?.response?.data?.detail || 'Không thể cập nhật charity.')
+    }
   }
 
-  function handleToggleLockCharity(id) {
-    setCharities((prev) =>
-      prev.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              isLocked: !item.isLocked,
-            }
-          : item
-      )
-    )
-
-    setSelectedCharity((prev) =>
-      prev && prev.id === id
-        ? {
-            ...prev,
-            isLocked: !prev.isLocked,
-          }
-        : prev
-    )
+  async function handleToggleLockCharity(id) {
+    try {
+      await toggleAdminCharityLock(id)
+      await loadCharities()
+    } catch (err) {
+      window.alert(err?.response?.data?.detail || 'Không thể khóa/mở khóa charity.')
+    }
   }
 
-  function handleDeleteCharity(id) {
+  async function handleDeleteCharity(id) {
     const charity = charities.find((item) => item.id === id)
     if (!charity) {
       return
@@ -223,60 +178,19 @@ export default function CharityManagement() {
       return
     }
 
-    setCharities((prev) => prev.filter((item) => item.id !== id))
-
-    if (selectedCharity && selectedCharity.id === id) {
-      closeDetail()
+    try {
+      await deleteAdminCharity(id)
+      await loadCharities()
+      if (selectedCharity && selectedCharity.id === id) {
+        closeDetail()
+      }
+    } catch (err) {
+      window.alert(err?.response?.data?.detail || 'Không thể xóa charity.')
     }
   }
 
-  function handleCreateAccount(charity) {
-    const isLockedByStatus = createForm.passwordStatus === 'locked'
-
-    setCharities((prev) =>
-      prev.map((item) =>
-        item.id === charity.id
-          ? {
-              ...item,
-              name: createForm.name.trim(),
-              director: createForm.director.trim(),
-              email: createForm.email.trim(),
-              phone: createForm.phone.trim(),
-              requestDate: createForm.requestDate,
-              isLocked: isLockedByStatus,
-              accountCreated: true,
-              accountUsername: createForm.email.trim(),
-              accountStatus: isLockedByStatus ? 'inactive' : 'active',
-              passwordStatus: createForm.passwordStatus,
-            }
-          : item
-      )
-    )
-
-    setSelectedCharity((prev) =>
-      prev && prev.id === charity.id
-        ? {
-            ...prev,
-            name: createForm.name.trim(),
-            director: createForm.director.trim(),
-            email: createForm.email.trim(),
-            phone: createForm.phone.trim(),
-            requestDate: createForm.requestDate,
-            isLocked: isLockedByStatus,
-            accountCreated: true,
-            accountUsername: createForm.email.trim(),
-            accountStatus: isLockedByStatus ? 'inactive' : 'active',
-            passwordStatus: createForm.passwordStatus,
-          }
-        : prev
-    )
-  }
-
-  const pendingCharities = charities.filter((charity) => !charity.accountCreated)
-
-  function resetCreateForm(charityId = '') {
+  function resetCreateForm() {
     setCreateForm({
-      charityId: charityId ? String(charityId) : '',
       name: '',
       director: '',
       email: '',
@@ -291,20 +205,13 @@ export default function CharityManagement() {
   }
 
   function openCreateModal() {
-    const charityId = pendingCharities[0]?.id
-
-    if (!charityId) {
-      window.alert('Không còn charity nào cần tạo tài khoản.')
-      return
-    }
-
-    resetCreateForm(charityId)
+    resetCreateForm()
     setShowCreateModal(true)
   }
 
   function closeCreateModal() {
     setShowCreateModal(false)
-    resetCreateForm('')
+    resetCreateForm()
   }
 
   function handleCreateFormChange(event) {
@@ -319,18 +226,12 @@ export default function CharityManagement() {
     setCreateSuccess('')
   }
 
-  function submitCreateAccount(event) {
+  async function submitCreateAccount(event) {
     event.preventDefault()
     setCreateError('')
     setCreateSuccess('')
 
-    const selectedId = Number(createForm.charityId)
-    const charity = charities.find((item) => item.id === selectedId)
-
-    if (!charity || charity.accountCreated) {
-      setCreateError('Charity đã có tài khoản hoặc không hợp lệ.')
-      return
-    }
+    const charity = charities.find((item) => !item.accountCreated) || charities[0]
 
     if (!createForm.name.trim()) {
       setCreateError('Tên tổ chức không được để trống.')
@@ -367,8 +268,33 @@ export default function CharityManagement() {
       return
     }
 
-    handleCreateAccount(charity)
-    setCreateSuccess(`Đã tạo tài khoản thành công cho ${charity.name}.`)
+    try {
+      const payload = {
+        name: createForm.name.trim(),
+        director: createForm.director.trim(),
+        email: createForm.email.trim(),
+        phone: createForm.phone.trim(),
+        password: createForm.password,
+        passwordStatus: createForm.passwordStatus,
+      }
+
+      if (charity) {
+        await createAdminCharityAccount(charity.id, payload)
+        setCreateSuccess(
+          charity.accountCreated
+            ? `Đã cập nhật lại tài khoản cho ${charity.name}.`
+            : `Đã tạo tài khoản thành công cho ${charity.name}.`
+        )
+      } else {
+        await createAdminCharityWithAccount(payload)
+        setCreateSuccess(`Đã tạo tài khoản thành công cho ${payload.name}.`)
+      }
+
+      await loadCharities()
+    } catch (err) {
+      setCreateError(err?.response?.data?.detail || 'Không thể tạo tài khoản charity.')
+      return
+    }
 
     setTimeout(() => {
       closeCreateModal()
@@ -384,7 +310,6 @@ export default function CharityManagement() {
           <button
             className="charities-btn-create charities-toolbar-btn"
             onClick={openCreateModal}
-            disabled={pendingCharities.length === 0}
           >
             Tạo Tài Khoản
           </button>
@@ -395,6 +320,8 @@ export default function CharityManagement() {
 
         {/* TABLE */}
         <div className="charities-card">
+          {loading && <div className="empty-cell">Đang tải dữ liệu...</div>}
+          {error && <div className="empty-cell">{error}</div>}
           <div className="table-responsive">
             <table className="charities-table">
               <thead>

@@ -76,14 +76,6 @@
   outline-offset: 2px;
 }
 
-.charities-btn-create:disabled {
-  opacity: 0.62;
-  filter: grayscale(0.1);
-  box-shadow: none;
-  transform: none;
-  cursor: not-allowed;
-}
-
 .btn-lock-small {
   color: #9a3412;
   border-color: #d97706;

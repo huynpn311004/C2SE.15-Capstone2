@@ -78,14 +78,6 @@
   outline-offset: 2px;
 }
 
-.delivery-btn-create:disabled {
-  opacity: 0.62;
-  filter: grayscale(0.1);
-  box-shadow: none;
-  transform: none;
-  cursor: not-allowed;
-}
-
 /* CARD */
 .delivery-card {
   background: var(--seims-card);

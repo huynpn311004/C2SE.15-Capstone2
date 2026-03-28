@@ -10,10 +10,6 @@
   --seims-card: #ffffff;
   --seims-border: #d1e7e4;
   --seims-bg: #f8fffe;
-  --seims-success: #10b981;
-  --seims-warning: #f59e0b;
-  --seims-error: #b91c1c;
-  --seims-error-bg: #fef2f2;
 
   max-width: 100%;
   padding: 1rem;
@@ -79,27 +75,6 @@
   transform: translateY(-2px);
   box-shadow: 0 8px 24px rgba(15, 118, 110, 0.12);
   border-color: var(--seims-teal);
-}
-
-.stat-header {
-  display: flex;
-  justify-content: flex-end;
-  align-items: flex-start;
-  margin-bottom: 0.5rem;
-}
-
-.stat-change {
-  font-size: 0.85rem;
-  font-weight: 600;
-  padding: 0.25rem 0.75rem;
-  background: rgba(16, 185, 129, 0.15);
-  color: var(--seims-success);
-  border-radius: 999px;
-}
-
-.stat-card-warning .stat-change {
-  background: rgba(245, 158, 11, 0.15);
-  color: var(--seims-warning);
 }
 
 .stat-value {

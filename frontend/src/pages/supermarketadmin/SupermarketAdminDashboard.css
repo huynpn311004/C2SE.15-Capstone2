@@ -1,0 +1,272 @@
+/* Supermarket Admin Dashboard — CSS */
+.sadashboard-page {
+  --sa-teal: #0f766e;
+  --sa-teal-dark: #0d5c56;
+  --sa-teal-light: #14b8a6;
+  --sa-ink: #134e4a;
+  --sa-muted: #5b7573;
+  --sa-card: #ffffff;
+  --sa-border: #d1e7e4;
+  --sa-bg: #f8fffe;
+  --sa-success: #10b981;
+  --sa-warning: #f59e0b;
+  --sa-error: #b91c1c;
+
+  max-width: 100%;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  height: calc(100vh - 64px);
+  overflow: hidden;
+}
+
+/* WELCOME BANNER */
+.sadashboard-welcome {
+  background: linear-gradient(135deg, var(--sa-teal) 0%, var(--sa-teal-dark) 100%);
+  color: white;
+  padding: 1.1rem 1.2rem;
+  border-radius: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 4px 16px rgba(15, 118, 110, 0.15);
+  flex-shrink: 0;
+}
+
+.sadashboard-welcome-content h2 {
+  margin: 0 0 0.2rem 0;
+  font-size: 1.12rem;
+  font-weight: 700;
+}
+
+.sadashboard-welcome-content p {
+  margin: 0;
+  font-size: 0.8rem;
+  opacity: 0.95;
+}
+
+/* STATS GRID */
+.sadashboard-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.7rem;
+  flex-shrink: 0;
+}
+
+.sadashboard-stat-card {
+  background: var(--sa-card);
+  padding: 0.8rem;
+  border-radius: 10px;
+  border: 1px solid var(--sa-border);
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(15, 118, 110, 0.06);
+}
+
+.sadashboard-stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(15, 118, 110, 0.12);
+  border-color: var(--sa-teal);
+}
+
+.sadashboard-stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--sa-ink);
+  margin-bottom: 0.2rem;
+}
+
+.sadashboard-stat-label {
+  font-size: 0.78rem;
+  color: var(--sa-muted);
+  font-weight: 500;
+}
+
+/* CONTENT GRID */
+.sadashboard-content-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+@media (max-width: 1024px) {
+  .sadashboard-content-grid {
+    grid-template-columns: 1fr;
+    overflow-y: auto;
+  }
+}
+
+/* CARDS */
+.sadashboard-card {
+  background: var(--sa-card);
+  border: 1px solid var(--sa-border);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(15, 118, 110, 0.06);
+  display: flex;
+  flex-direction: column;
+}
+
+.sadashboard-card-title {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--sa-ink);
+  margin: 0;
+  padding: 0.75rem 1rem;
+  background: var(--sa-bg);
+  border-bottom: 1px solid var(--sa-border);
+}
+
+/* STORE LIST */
+.sadashboard-store-list {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.sadashboard-store-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid var(--sa-border);
+  transition: background 0.2s ease;
+}
+
+.sadashboard-store-item:last-child {
+  border-bottom: none;
+}
+
+.sadashboard-store-item:hover {
+  background: rgba(15, 118, 110, 0.03);
+}
+
+.sadashboard-store-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  flex: 1;
+}
+
+.sadashboard-store-name {
+  font-weight: 600;
+  color: var(--sa-ink);
+  font-size: 0.875rem;
+}
+
+.sadashboard-store-orders {
+  font-size: 0.78rem;
+  color: var(--sa-muted);
+}
+
+.sadashboard-store-revenue {
+  font-weight: 700;
+  color: var(--sa-teal);
+  font-size: 0.875rem;
+}
+
+/* DONATION LIST */
+.sadashboard-donation-list {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.sadashboard-donation-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid var(--sa-border);
+  transition: background 0.2s ease;
+}
+
+.sadashboard-donation-item:last-child {
+  border-bottom: none;
+}
+
+.sadashboard-donation-item:hover {
+  background: rgba(15, 118, 110, 0.03);
+}
+
+.sadashboard-donation-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  flex: 1;
+}
+
+.sadashboard-donation-store {
+  font-weight: 600;
+  color: var(--sa-ink);
+  font-size: 0.875rem;
+}
+
+.sadashboard-donation-items {
+  font-size: 0.8rem;
+  color: var(--sa-muted);
+}
+
+.sadashboard-donation-recipient {
+  font-size: 0.78rem;
+  color: var(--sa-teal);
+  font-weight: 500;
+}
+
+.sadashboard-donation-date {
+  font-size: 0.75rem;
+  color: var(--sa-muted);
+  white-space: nowrap;
+}
+
+/* BADGES */
+.badge {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid;
+}
+
+.badge-success {
+  color: var(--sa-success);
+  background: rgba(16, 185, 129, 0.15);
+  border-color: var(--sa-success);
+}
+
+.badge-warning {
+  color: var(--sa-warning);
+  background: rgba(245, 158, 11, 0.15);
+  border-color: var(--sa-warning);
+}
+
+/* RESPONSIVE */
+@media (max-width: 768px) {
+  .sadashboard-page {
+    gap: 0.8rem;
+    overflow-y: auto;
+    height: auto;
+  }
+
+  .sadashboard-stats {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.85rem;
+  }
+
+  .sadashboard-stat-card {
+    padding: 1rem;
+  }
+
+  .sadashboard-stat-value {
+    font-size: 1.5rem;
+  }
+}

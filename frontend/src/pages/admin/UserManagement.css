@@ -272,18 +272,6 @@
   fill: currentColor;
 }
 
-.btn-view.icon-action-btn {
-  color: #0f766e;
-  border-color: rgba(15, 118, 110, 0.45);
-  background: rgba(15, 118, 110, 0.06);
-}
-
-.btn-view.icon-action-btn:hover {
-  background: #0f766e;
-  border-color: #0f766e;
-  color: #ffffff;
-}
-
 .btn-lock-small {
   color: #9a3412;
   border-color: #d97706;
