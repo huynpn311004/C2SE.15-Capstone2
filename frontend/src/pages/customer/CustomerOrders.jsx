@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import './CustomerDashboard.css';
+import './CustomerOrders.css';
 
 const ORDERS_KEY = 'seims_customer_orders';
 
@@ -184,14 +184,6 @@ const CustomerOrders = () => {
 
   return (
     <div className="customer-page">
-      {/* Welcome Header */}
-      <div className="customer-welcome">
-        <div>
-          <h2>Đơn hàng của bạn</h2>
-          <p>Theo dõi trạng thái đơn hàng</p>
-        </div>
-      </div>
-
       {/* Tabs */}
       <div className="customer-search-bar">
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>

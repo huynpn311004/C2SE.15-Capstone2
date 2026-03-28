@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import './CustomerDashboard.css';
+import './CustomerHome.css';
 
 const CART_KEY = 'seims_customer_cart';
 const ORDERS_KEY = 'seims_customer_orders';

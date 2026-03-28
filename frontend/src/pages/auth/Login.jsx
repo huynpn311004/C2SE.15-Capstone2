@@ -3,11 +3,6 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../services/AuthContext'
 
 import './Login.css'
-
-/**
- * Trang đăng nhập SEIMS — chỉ dùng useState + form cơ bản.
- * Khi nhóm nối API: gọi API.post('/auth/login', ...) trong handleSubmit.
- */
 export default function Login() {
   const ADMIN_CONTACT = {
     email: 'admin@seims.vn',
@@ -58,7 +53,7 @@ export default function Login() {
         password,
       })
       const nextRole = response?.user?.role
-      setMessage(response?.message || 'Dang nhap thanh cong.')
+      setMessage(response?.message || 'Đăng nhập thành công.')
       setTimeout(() => {
         navigate(routeByRole(nextRole))
       }, 500)
@@ -72,7 +67,7 @@ export default function Login() {
           setShowAdminContact(true)
         }
       } else {
-        setError('Dang nhap that bai. Vui long thu lai.')
+        setError('Đăng nhập thất bại. Vui lòng thử lại.')
       }
     } finally {
       setLoading(false)
@@ -82,7 +77,7 @@ export default function Login() {
   return (
     <div className="login-page">
       <nav className="login-top-nav" aria-label="Điều hướng phụ">
-        <Link to="/">← Về trang chủ</Link>
+        <Link to="/">Về Trang Chủ</Link>
       </nav>
 
       <div className="login-shell">
@@ -102,13 +97,12 @@ export default function Login() {
         <div className="login-panel">
           <div className="login-card">
             <header className="login-card-header">
-              <h2>Đăng nhập</h2>
-              <span>Nhập tài khoản được quản trị viên cấp</span>
+              <h2>Đăng Nhập</h2>
             </header>
 
             <form onSubmit={handleSubmit} noValidate>
               <div className="login-field">
-                <label htmlFor="login-username">Tên đăng nhập hoặc email</label>
+                <label htmlFor="login-username">Tên Đăng Nhập Hoặc Email</label>
                 <input
                   id="login-username"
                   name="username"
@@ -116,12 +110,12 @@ export default function Login() {
                   autoComplete="username"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="vd: nv_cua_hang_01"
+                  placeholder="Nhập tên đăng nhập hoặc email"
                 />
               </div>
 
               <div className="login-field">
-                <label htmlFor="login-password">Mật khẩu</label>
+                <label htmlFor="login-password">Mật Khẩu</label>
                 <input
                   id="login-password"
                   name="password"
@@ -142,11 +136,11 @@ export default function Login() {
                   />
                   Hiển thị mật khẩu
                 </label>
-                <Link to="/forgot-password">Quên mật khẩu?</Link>
+                <Link to="/forgot-password">Quên Mật Khẩu?</Link>
               </div>
 
               <button type="submit" className="login-submit" disabled={loading}>
-                {loading ? 'Đang xử lý…' : 'Đăng nhập'}
+                {loading ? 'Đang Xử Lý…' : 'Đăng Nhập'}
               </button>
 
               {error ? (
@@ -156,9 +150,9 @@ export default function Login() {
               ) : null}
               {showAdminContact ? (
                 <div className="login-message error" role="status">
-                  <strong>Tai khoan cua ban da bi khoa.</strong>
+                  <strong>Tài khoản bạn đã bị khóa.</strong>
                   <br />
-                  Vui long lien he admin de mo khoa:
+                  Vui lòng liên hệ đến admin:
                   <br />
                   Email: {ADMIN_CONTACT.email}
                   <br />
@@ -173,7 +167,7 @@ export default function Login() {
             </form>
 
             <footer className="login-footer">
-              Chưa có tài khoản? <Link to="/register">Đăng ký khách hàng</Link>
+              Chưa có tài khoản? <Link to="/register">Đăng ký Khách Hàng</Link>
               <br />
               Đại diện siêu thị?{' '}
               <a href="#dang-ky-sieu-thi">Gửi hồ sơ tham gia</a>
