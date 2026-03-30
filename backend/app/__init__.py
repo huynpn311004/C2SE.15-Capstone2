@@ -7,6 +7,7 @@ from app import models  # noqa: F401
 from app.routers.auth import router as auth_router
 from app.routers.admin import router as admin_router
 from app.routers.supermarket_admin import router as supermarket_admin_router
+from app.routers.staff import router as staff_router
 
 
 def _ensure_users_lock_columns() -> None:
@@ -58,4 +59,5 @@ def create_app():
     app.include_router(auth_router, prefix="/api")
     app.include_router(admin_router, prefix="/api")
     app.include_router(supermarket_admin_router, prefix="/api")
+    app.include_router(staff_router, prefix="/api")
     return app
