@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
-import { useAuth } from '../../services/AuthContext'
+import { useAuth, ROLE_DISPLAY } from '../../services/AuthContext'
 import './SupermarketAdmin.css'
 
 const ADMIN_PROFILE_KEY = 'supermarket_admin_profile'
@@ -89,14 +89,6 @@ export default function SupermarketAdminLayout({ children }) {
               </li>
               <li>
                 <NavLink
-                  to="/supermarketadmin/permissions"
-                  className={({ isActive }) => `supermarketadmin-nav-link${isActive ? ' active' : ''}`}
-                >
-                  <span className="supermarketadmin-nav-label">Phân Quyền Nhân Viên</span>
-                </NavLink>
-              </li>
-              <li>
-                <NavLink
                   to="/supermarketadmin/policies"
                   className={({ isActive }) => `supermarketadmin-nav-link${isActive ? ' active' : ''}`}
                 >
@@ -116,7 +108,7 @@ export default function SupermarketAdminLayout({ children }) {
                   to="/supermarketadmin/donations"
                   className={({ isActive }) => `supermarketadmin-nav-link${isActive ? ' active' : ''}`}
                 >
-                  <span className="supermarketadmin-nav-label">Giám Sát Donation</span>
+                  <span className="supermarketadmin-nav-label">Giám Sát Quyên Góp</span>
                 </NavLink>
               </li>
               <li>
@@ -124,7 +116,7 @@ export default function SupermarketAdminLayout({ children }) {
                   to="/supermarketadmin/audit-logs"
                   className={({ isActive }) => `supermarketadmin-nav-link${isActive ? ' active' : ''}`}
                 >
-                  <span className="supermarketadmin-nav-label">Audit Log</span>
+                  <span className="supermarketadmin-nav-label">Nhật Ký Kiểm Toán</span>
                 </NavLink>
               </li>
               <li>
@@ -171,9 +163,9 @@ export default function SupermarketAdminLayout({ children }) {
           </div>
           <div className="supermarketadmin-header-actions">
             <div className="supermarketadmin-user-menu">
-              <button className="supermarketadmin-user-btn" aria-label="Menu người dùng">
-                {displayName}
-              </button>
+              <span className="supermarketadmin-user-role">
+                {ROLE_DISPLAY[user?.role] || 'Người dùng'}
+              </span>
             </div>
           </div>
         </header>

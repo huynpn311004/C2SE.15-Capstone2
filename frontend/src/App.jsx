@@ -22,12 +22,13 @@ import NearExpiryProducts from './pages/staff/NearExpiryProducts.jsx';
 import OrdersManagement from './pages/staff/OrdersManagement.jsx';
 import DonationManagement from './pages/staff/DonationManagement.jsx';
 import Notifications from './pages/staff/Notifications.jsx';
-import Profile from './pages/staff/Profile.jsx';
+import StaffSetting from './pages/staff/StaffSetting.jsx';
+import CategoryManagement from './pages/staff/CategoryManagement.jsx';
+import ProductManagement from './pages/staff/ProductManagement.jsx';
 import SupermarketAdminLayout from './components/layout/SupermarketAdmin.jsx';
 import SupermarketAdminDashboard from './pages/supermarketadmin/SupermarketAdminDashboard.jsx';
 import StoreManagement from './pages/supermarketadmin/StoreManagement.jsx';
 import StaffManagement from './pages/supermarketadmin/StaffManagement.jsx';
-import PermissionsManagement from './pages/supermarketadmin/PermissionsManagement.jsx';
 import PolicyConfiguration from './pages/supermarketadmin/PolicyConfiguration.jsx';
 import SupermarketReports from './pages/supermarketadmin/SupermarketReports.jsx';
 import DonationMonitoring from './pages/supermarketadmin/DonationMonitoring.jsx';
@@ -171,16 +172,6 @@ function App() {
             }
           />
           <Route
-            path="/supermarketadmin/permissions"
-            element={
-              <ProtectedRoute allowedRoles={[ROLES.SUPERMARKET_ADMIN]}>
-                <SupermarketAdminLayout>
-                  <PermissionsManagement />
-                </SupermarketAdminLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
             path="/supermarketadmin/policies"
             element={
               <ProtectedRoute allowedRoles={[ROLES.SUPERMARKET_ADMIN]}>
@@ -297,10 +288,26 @@ function App() {
             }
           />
           <Route
-            path="/staff/profile"
+            path="/staff/settings"
             element={
               <ProtectedRoute allowedRoles={[ROLES.STORE_STAFF]}>
-                <Profile />
+                <StaffSetting />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/staff/categories"
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.STORE_STAFF]}>
+                <CategoryManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/staff/products"
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.STORE_STAFF]}>
+                <ProductManagement />
               </ProtectedRoute>
             }
           />

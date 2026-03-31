@@ -380,6 +380,186 @@
   color: var(--char-ink);
 }
 
+/* SPINNER */
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--char-border);
+  border-top-color: var(--char-teal);
+  border-radius: 50%;
+  animation: chspin 0.7s linear infinite;
+}
+
+@keyframes chspin {
+  to { transform: rotate(360deg); }
+}
+
+/* LOADING */
+.chmarket-loading,
+.chhistory-loading,
+.chdash-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  flex: 1;
+  color: var(--char-muted);
+  font-size: 0.875rem;
+  padding: 2rem;
+}
+
+.chsettings-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  height: 50vh;
+  color: var(--char-muted);
+  font-size: 0.875rem;
+}
+
+/* ERROR BANNER */
+.chmarket-error-banner,
+.chhistory-error-banner,
+.chdash-error-banner {
+  background: rgba(185, 28, 28, 0.07);
+  border: 1px solid rgba(185, 28, 28, 0.2);
+  border-radius: 9px;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.82rem;
+  color: var(--char-error);
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.chsettings-error-banner {
+  background: rgba(185, 28, 28, 0.07);
+  border: 1px solid rgba(185, 28, 28, 0.2);
+  border-radius: 9px;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.82rem;
+  color: var(--char-error);
+  font-weight: 500;
+  height: 50vh;
+}
+
+.chsettings-error-banner p,
+.chsettings-error-banner span {
+  margin: 0;
+}
+
+.chmarket-retry-btn,
+.chhistory-retry-btn,
+.chdash-retry-btn,
+.chsettings-retry-btn {
+  padding: 0.3rem 0.85rem;
+  border-radius: 6px;
+  border: 1px solid rgba(185, 28, 28, 0.3);
+  background: transparent;
+  color: var(--char-error);
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.chmarket-retry-btn:hover,
+.chhistory-retry-btn:hover,
+.chdash-retry-btn:hover,
+.chsettings-retry-btn:hover {
+  background: rgba(185, 28, 28, 0.08);
+}
+
+/* EMPTY */
+.chmarket-empty,
+.chhistory-empty,
+.chdash-empty {
+  text-align: center;
+  padding: 2.5rem 1rem;
+  color: var(--char-muted);
+  font-size: 0.9rem;
+  font-style: italic;
+  grid-column: 1 / -1;
+}
+
+/* SUCCESS BANNER */
+.chhistory-success-banner {
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: 9px;
+  padding: 0.6rem 1rem;
+  font-size: 0.82rem;
+  color: var(--char-success);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+/* PENDING BUTTON */
+.chmarket-btn-pending {
+  background: #e5e7eb;
+  color: #9ca3af;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.chmarket-btn-pending:hover {
+  filter: none;
+  transform: none;
+  box-shadow: none;
+}
+
+/* MODAL PRODUCT INFO */
+.chmarket-modal-product {
+  background: var(--char-bg);
+  border: 1px solid var(--char-border);
+  border-radius: 8px;
+  padding: 0.6rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.chmarket-modal-product strong {
+  color: var(--char-ink);
+  font-size: 0.875rem;
+}
+
+.chmarket-modal-product span {
+  color: var(--char-muted);
+  font-size: 0.78rem;
+}
+
+/* SUPERMARKET NAME IN CARD */
+.chmarket-card-super {
+  color: #6b7280;
+  font-size: 0.72rem !important;
+}
+
+/* RECEIVED LABEL */
+.chhistory-received-label {
+  font-size: 0.76rem;
+  color: var(--char-success);
+  font-weight: 600;
+  font-style: italic;
+}
+
+/* INFO (SUPERMARKET) IN HISTORY */
+.chhistory-item-super {
+  color: #9ca3af !important;
+}
+
 /* RESPONSIVE */
 @media (max-width: 768px) {
   .chmarket-page {

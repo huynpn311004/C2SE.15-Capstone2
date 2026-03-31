@@ -53,10 +53,10 @@ export default function Login() {
         password,
       })
       const nextRole = response?.user?.role
-      setMessage(response?.message || 'Đăng nhập thành công.')
+      setMessage('Đăng nhập thành công!')
       setTimeout(() => {
         navigate(routeByRole(nextRole))
-      }, 500)
+      }, 1500)
     } catch (err) {
       const status = err.response?.status
       const detail = err.response?.data?.detail

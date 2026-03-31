@@ -270,6 +270,550 @@ def _pick_field(row: dict[str, object], *keys: str) -> object:
     return None
 
 
+@router.get("/profile")
+def get_staff_profile(
+    user_id: int = Query(..., ge=1),
+    db: Session = Depends(get_db),
+):
+    user = db.execute(
+        text(
+            """
+            SELECT u.id, u.username, u.email, u.full_name, u.phone, u.role,
+                   u.store_id, u.supermarket_id,
+                   s.name AS store_name, s.location AS store_address
+            FROM users u
+            LEFT JOIN stores s ON s.id = u.store_id
+            WHERE u.id = :user_id
+            LIMIT 1
+            """
+        ),
+        {"user_id": user_id},
+    ).first()
+
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    return {
+        "email": user.email,
+        "fullName": user.full_name,
+        "phone": user.phone,
+        "role": user.role,
+        "storeName": user.store_name or "Chưa gán cửa hàng",
+        "storeAddress": user.store_address or "",
+    }
+
+
+@router.put("/profile")
+def update_staff_profile(
+    payload: dict,
+    user_id: int = Query(..., ge=1),
+    db: Session = Depends(get_db),
+):
+    full_name = (payload.get("fullName") or "").strip()
+    email = (payload.get("email") or "").strip().lower()
+    phone = (payload.get("phone") or "").strip()
+
+    if not full_name:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Họ tên không được trống")
+    if not email:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email không được trống")
+
+    existing = db.execute(
+        text(
+            """
+            SELECT id FROM users
+            WHERE email = :email AND id != :user_id
+            LIMIT 1
+            """
+        ),
+        {"email": email, "user_id": user_id},
+    ).first()
+    if existing:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email đã được sử dụng")
+
+    db.execute(
+        text(
+            """
+            UPDATE users
+            SET full_name = :full_name,
+                email = :email,
+                phone = :phone
+            WHERE id = :user_id
+            """
+        ),
+        {"full_name": full_name, "email": email, "phone": phone, "user_id": user_id},
+    )
+    db.commit()
+    return {"success": True}
+
+
+@router.get("/orders")
+def list_staff_orders(
+    user_id: int = Query(..., ge=1),
+    db: Session = Depends(get_db),
+):
+    scope = _get_staff_scope(db, user_id)
+    store_id = scope["store_id"]
+
+    rows = db.execute(
+        text(
+            """
+            SELECT o.id, o.status, o.total_amount, o.payment_status, o.created_at,
+                   u.full_name AS customer_name
+            FROM orders o
+            JOIN users u ON u.id = o.customer_id
+            WHERE o.store_id = :store_id
+            ORDER BY o.created_at DESC
+            LIMIT 100
+            """
+        ),
+        {"store_id": store_id},
+    ).all()
+
+    items = []
+    for row in rows:
+        items.append({
+            "id": f"DH-{row.id}",
+            "orderId": row.id,
+            "customer": row.customer_name,
+            "status": row.status,
+            "amount": f"{float(row.total_amount or 0):,.0f} VNĐ" if row.total_amount else "0 VNĐ",
+            "paymentStatus": row.payment_status,
+            "createdAt": row.created_at.strftime("%d/%m/%Y %H:%M"),
+        })
+
+    return {"items": items}
+
+
+@router.put("/orders/{order_id}/status")
+def update_staff_order_status(
+    order_id: int,
+    payload: dict,
+    user_id: int = Query(..., ge=1),
+    db: Session = Depends(get_db),
+):
+    scope = _get_staff_scope(db, user_id)
+    new_status = (payload.get("status") or "").strip().lower()
+
+    valid_statuses = ["pending", "preparing", "ready", "completed", "cancelled"]
+    if new_status not in valid_statuses:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Trạng thái không hợp lệ")
+
+    result = db.execute(
+        text(
+            """
+            UPDATE orders
+            SET status = :status
+            WHERE id = :order_id AND store_id = :store_id
+            """
+        ),
+        {"status": new_status, "order_id": order_id, "store_id": scope["store_id"]},
+    )
+    db.commit()
+
+    if (result.rowcount or 0) == 0:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Đơn hàng không tồn tại")
+
+    return {"success": True, "status": new_status}
+
+
+@router.get("/notifications")
+def list_staff_notifications(
+    user_id: int = Query(..., ge=1),
+    db: Session = Depends(get_db),
+):
+    rows = db.execute(
+        text(
+            """
+            SELECT id, type, content, is_read, created_at
+            FROM notifications
+            WHERE user_id = :user_id
+            ORDER BY created_at DESC
+            LIMIT 50
+            """
+        ),
+        {"user_id": user_id},
+    ).all()
+
+    items = []
+    for row in rows:
+        items.append({
+            "id": row.id,
+            "type": row.type or "info",
+            "content": row.content or "",
+            "isRead": bool(row.is_read),
+            "createdAt": row.created_at.strftime("%d/%m/%Y %H:%M"),
+        })
+
+    return {"items": items}
+
+
+@router.put("/notifications/{notification_id}/read")
+def mark_notification_as_read(
+    notification_id: int,
+    user_id: int = Query(..., ge=1),
+    db: Session = Depends(get_db),
+):
+    result = db.execute(
+        text(
+            """
+            UPDATE notifications
+            SET is_read = 1
+            WHERE id = :notification_id AND user_id = :user_id
+            """
+        ),
+        {"notification_id": notification_id, "user_id": user_id},
+    )
+    db.commit()
+
+    return {"success": True}
+
+
+@router.get("/category-stats")
+def staff_category_stats(
+    user_id: int = Query(..., ge=1),
+    db: Session = Depends(get_db),
+):
+    scope = _get_staff_scope(db, user_id)
+    store_id = scope["store_id"]
+
+    rows = db.execute(
+        text(
+            """
+            SELECT COALESCE(c.name, 'Khác') AS category_name,
+                   COUNT(il.id) AS lot_count
+            FROM inventory_lots il
+            JOIN products p ON p.id = il.product_id
+            LEFT JOIN categories c ON c.id = p.category_id
+            WHERE il.store_id = :store_id
+              AND il.expiry_date >= CURDATE()
+              AND il.expiry_date <= DATE_ADD(CURDATE(), INTERVAL 7 DAY)
+            GROUP BY c.id, c.name
+            ORDER BY lot_count DESC
+            LIMIT 10
+            """
+        ),
+        {"store_id": store_id},
+    ).all()
+
+    total = sum(row.lot_count for row in rows) or 1
+    items = []
+    for row in rows:
+        items.append({
+            "name": row.category_name,
+            "percent": int((row.lot_count / total) * 100),
+        })
+
+    return {"items": items}
+
+
+@router.get("/categories")
+def list_categories(
+    user_id: int = Query(..., ge=1),
+    db: Session = Depends(get_db),
+):
+    scope = _get_staff_scope(db, user_id)
+    supermarket_id = scope["supermarket_id"]
+
+    rows = db.execute(
+        text(
+            """
+            SELECT c.id, c.name, COUNT(p.id) AS product_count
+            FROM categories c
+            LEFT JOIN products p ON p.category_id = c.id AND p.supermarket_id = :supermarket_id
+            GROUP BY c.id, c.name
+            ORDER BY c.name ASC
+            """
+        ),
+        {"supermarket_id": supermarket_id},
+    ).all()
+
+    items = [
+        {"id": row.id, "name": row.name, "productCount": row.product_count}
+        for row in rows
+    ]
+
+    return {"items": items}
+
+
+@router.post("/categories")
+def create_category(
+    payload: dict,
+    user_id: int = Query(..., ge=1),
+    db: Session = Depends(get_db),
+):
+    name = (payload.get("name") or "").strip()
+    if not name:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tên danh mục không được trống")
+
+    existing = db.execute(
+        text("SELECT id FROM categories WHERE LOWER(name) = LOWER(:name) LIMIT 1"),
+        {"name": name},
+    ).first()
+    if existing:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Danh mục đã tồn tại")
+
+    db.execute(
+        text("INSERT INTO categories (name) VALUES (:name)"),
+        {"name": name},
+    )
+    db.commit()
+
+    return {"message": "Tạo danh mục thành công", "name": name}
+
+
+@router.put("/categories/{category_id}")
+def update_category(
+    category_id: int,
+    payload: dict,
+    user_id: int = Query(..., ge=1),
+    db: Session = Depends(get_db),
+):
+    name = (payload.get("name") or "").strip()
+    if not name:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tên danh mục không được trống")
+
+    existing = db.execute(
+        text("SELECT id FROM categories WHERE LOWER(name) = LOWER(:name) AND id != :id LIMIT 1"),
+        {"name": name, "id": category_id},
+    ).first()
+    if existing:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Danh mục đã tồn tại")
+
+    db.execute(
+        text("UPDATE categories SET name = :name WHERE id = :id"),
+        {"name": name, "id": category_id},
+    )
+    db.commit()
+
+    return {"message": "Cập nhật danh mục thành công"}
+
+
+@router.delete("/categories/{category_id}")
+def delete_category(
+    category_id: int,
+    user_id: int = Query(..., ge=1),
+    db: Session = Depends(get_db),
+):
+    has_products = db.execute(
+        text("SELECT COUNT(*) FROM products WHERE category_id = :category_id"),
+        {"category_id": category_id},
+    ).scalar() or 0
+
+    if has_products > 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Không thể xóa: có {has_products} sản phẩm đang sử dụng danh mục này"
+        )
+
+    db.execute(text("DELETE FROM categories WHERE id = :id"), {"id": category_id})
+    db.commit()
+
+    return {"message": "Xóa danh mục thành công"}
+
+
+@router.get("/products")
+def list_products(
+    user_id: int = Query(..., ge=1),
+    category_filter: int = Query(default=None),
+    search: str = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    scope = _get_staff_scope(db, user_id)
+    supermarket_id = scope["supermarket_id"]
+
+    query = """
+        SELECT p.id, p.sku, p.name, p.base_price, p.image_url,
+               c.name AS category_name, c.id AS category_id,
+               COALESCE(SUM(il.qty_on_hand), 0) AS total_stock
+        FROM products p
+        LEFT JOIN categories c ON c.id = p.category_id
+        LEFT JOIN inventory_lots il ON il.product_id = p.id
+        WHERE p.supermarket_id = :supermarket_id
+    """
+    params = {"supermarket_id": supermarket_id}
+
+    if category_filter is not None:
+        query += " AND p.category_id = :category_id"
+        params["category_id"] = category_filter
+
+    if search:
+        query += " AND (p.name LIKE :search OR p.sku LIKE :search)"
+        params["search"] = f"%{search}%"
+
+    query += " GROUP BY p.id, p.sku, p.name, p.base_price, p.image_url, c.name, c.id ORDER BY p.name ASC"
+
+    rows = db.execute(text(query), params).all()
+
+    items = [
+        {
+            "id": row.id,
+            "sku": row.sku,
+            "name": row.name,
+            "basePrice": float(row.base_price),
+            "imageUrl": row.image_url,
+            "categoryName": row.category_name or "Chưa phân loại",
+            "categoryId": row.category_id,
+            "totalStock": int(row.total_stock),
+        }
+        for row in rows
+    ]
+
+    return {"items": items}
+
+
+@router.post("/products")
+def create_product(
+    payload: dict,
+    user_id: int = Query(..., ge=1),
+    db: Session = Depends(get_db),
+):
+    scope = _get_staff_scope(db, user_id)
+    supermarket_id = scope["supermarket_id"]
+
+    name = (payload.get("name") or "").strip()
+    sku = (payload.get("sku") or "").strip()
+    base_price = payload.get("basePrice")
+    category_id = payload.get("categoryId")
+    image_url = (payload.get("imageUrl") or "").strip() or None
+
+    if not name:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tên sản phẩm không được trống")
+    if not sku:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="SKU không được trống")
+    if base_price is None or float(base_price) < 0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Giá không hợp lệ")
+
+    existing = db.execute(
+        text("SELECT id FROM products WHERE supermarket_id = :sm AND sku = :sku LIMIT 1"),
+        {"sm": supermarket_id, "sku": sku},
+    ).first()
+    if existing:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="SKU đã tồn tại")
+
+    db.execute(
+        text(
+            "INSERT INTO products (supermarket_id, category_id, sku, name, base_price, image_url) "
+            "VALUES (:sm, :cat, :sku, :name, :price, :img)"
+        ),
+        {
+            "sm": supermarket_id,
+            "cat": category_id if category_id else None,
+            "sku": sku,
+            "name": name,
+            "price": float(base_price),
+            "img": image_url,
+        },
+    )
+    db.commit()
+
+    return {"message": "Tạo sản phẩm thành công"}
+
+
+@router.put("/products/{product_id}")
+def update_product(
+    product_id: int,
+    payload: dict,
+    user_id: int = Query(..., ge=1),
+    db: Session = Depends(get_db),
+):
+    scope = _get_staff_scope(db, user_id)
+    supermarket_id = scope["supermarket_id"]
+
+    name = (payload.get("name") or "").strip()
+    base_price = payload.get("basePrice")
+    category_id = payload.get("categoryId")
+    image_url = (payload.get("imageUrl") or "").strip() or None
+
+    if not name:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tên sản phẩm không được trống")
+    if base_price is None or float(base_price) < 0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Giá không hợp lệ")
+
+    product = db.execute(
+        text("SELECT id FROM products WHERE id = :id AND supermarket_id = :sm LIMIT 1"),
+        {"id": product_id, "sm": supermarket_id},
+    ).first()
+    if not product:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sản phẩm không tìm thấy")
+
+    db.execute(
+        text(
+            "UPDATE products SET name = :name, base_price = :price, "
+            "category_id = :cat, image_url = :img WHERE id = :id"
+        ),
+        {
+            "name": name,
+            "price": float(base_price),
+            "cat": category_id if category_id else None,
+            "img": image_url,
+            "id": product_id,
+        },
+    )
+    db.commit()
+
+    return {"message": "Cập nhật sản phẩm thành công"}
+
+
+@router.delete("/products/{product_id}")
+def delete_product(
+    product_id: int,
+    user_id: int = Query(..., ge=1),
+    db: Session = Depends(get_db),
+):
+    scope = _get_staff_scope(db, user_id)
+    supermarket_id = scope["supermarket_id"]
+
+    product = db.execute(
+        text("SELECT id FROM products WHERE id = :id AND supermarket_id = :sm LIMIT 1"),
+        {"id": product_id, "sm": supermarket_id},
+    ).first()
+    if not product:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sản phẩm không tìm thấy")
+
+    has_lots = db.execute(
+        text("SELECT COUNT(*) FROM inventory_lots WHERE product_id = :product_id"),
+        {"product_id": product_id},
+    ).scalar() or 0
+
+    if has_lots > 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Không thể xóa: có {has_lots} lô hàng liên quan đến sản phẩm này"
+        )
+
+    db.execute(text("DELETE FROM products WHERE id = :id"), {"id": product_id})
+    db.commit()
+
+    return {"message": "Xóa sản phẩm thành công"}
+
+
+@router.get("/products/categories")
+def list_product_categories(
+    user_id: int = Query(..., ge=1),
+    db: Session = Depends(get_db),
+):
+    scope = _get_staff_scope(db, user_id)
+    supermarket_id = scope["supermarket_id"]
+
+    rows = db.execute(
+        text(
+            """
+            SELECT DISTINCT c.id, c.name
+            FROM categories c
+            LEFT JOIN products p ON p.category_id = c.id AND p.supermarket_id = :sm
+            WHERE c.id IN (SELECT category_id FROM products WHERE supermarket_id = :sm)
+               OR c.id NOT IN (SELECT DISTINCT category_id FROM products WHERE supermarket_id = :sm AND category_id IS NOT NULL)
+            ORDER BY c.name ASC
+            """
+        ),
+        {"sm": supermarket_id},
+    ).all()
+
+    items = [{"id": row.id, "name": row.name} for row in rows]
+    return {"items": items}
+
+
 @router.get("/dashboard-summary")
 def staff_dashboard_summary(
     user_id: int = Query(..., ge=1),

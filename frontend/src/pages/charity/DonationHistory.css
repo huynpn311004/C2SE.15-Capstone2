@@ -176,6 +176,92 @@
 .badge-info { color: #0369a1; background: rgba(14, 165, 233, 0.15); border-color: #0369a1; }
 .badge-danger { color: var(--char-error); background: rgba(185, 28, 28, 0.15); border-color: var(--char-error); }
 
+/* SPINNER */
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--char-border);
+  border-top-color: var(--char-teal);
+  border-radius: 50%;
+  animation: chspin 0.7s linear infinite;
+}
+
+@keyframes chspin {
+  to { transform: rotate(360deg); }
+}
+
+/* LOADING */
+.chhistory-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  flex: 1;
+  color: var(--char-muted);
+  font-size: 0.875rem;
+  padding: 2rem;
+}
+
+/* ERROR BANNER */
+.chhistory-error-banner {
+  background: rgba(185, 28, 28, 0.07);
+  border: 1px solid rgba(185, 28, 28, 0.2);
+  border-radius: 9px;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.82rem;
+  color: var(--char-error);
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.chhistory-retry-btn {
+  padding: 0.3rem 0.85rem;
+  border-radius: 6px;
+  border: 1px solid rgba(185, 28, 28, 0.3);
+  background: transparent;
+  color: var(--char-error);
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.chhistory-retry-btn:hover {
+  background: rgba(185, 28, 28, 0.08);
+}
+
+/* SUCCESS BANNER */
+.chhistory-success-banner {
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: 9px;
+  padding: 0.6rem 1rem;
+  font-size: 0.82rem;
+  color: var(--char-success);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+/* RECEIVED LABEL */
+.chhistory-received-label {
+  font-size: 0.76rem;
+  color: var(--char-success);
+  font-weight: 600;
+  font-style: italic;
+}
+
+/* INFO (SUPERMARKET) IN HISTORY */
+.chhistory-item-super {
+  color: #9ca3af !important;
+}
+
 /* BUTTON */
 .chhistory-btn-confirm {
   padding: 0.38rem 0.75rem;

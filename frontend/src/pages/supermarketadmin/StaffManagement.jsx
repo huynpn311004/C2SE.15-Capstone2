@@ -182,7 +182,7 @@ export default function StaffManagement() {
       {/* TOOLBAR */}
       <div className="sastaff-toolbar">
         <div className="sastaff-toolbar-info">{loading ? 'Đang tải...' : `Hiển thị ${staff.length} nhân viên`}</div>
-        <button onClick={openCreateModal} className="sastaff-btn-create">+ Thêm Nhân Viên</button>
+        <button onClick={openCreateModal} className="sastaff-btn-create"> Thêm Nhân Viên</button>
       </div>
 
       {/* TABLE */}

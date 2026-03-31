@@ -1,31 +1,25 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import CharityLayout from '../../components/layout/CharityLayout'
+import {
+  fetchCharityProfile,
+  updateCharityProfile,
+  changeCharityPassword,
+} from '../../services/charityApi'
 import './CharitySettings.css'
 
-const CHARITY_PROFILE_KEY = 'seims_charity_profile'
-const CHARITY_PASSWORD_KEY = 'seims_charity_password'
-const DEFAULT_PASSWORD = 'charity123'
-
-const DEFAULT_PROFILE = {
-  fullName: 'Tổ chức từ thiện ABC',
-  email: 'charity@abc.vn',
-  phone: '0900000000',
-  position: 'Charity Organization',
-}
-
-function getStoredProfile() {
-  try {
-    const raw = localStorage.getItem(CHARITY_PROFILE_KEY)
-    if (!raw) return DEFAULT_PROFILE
-    return { ...DEFAULT_PROFILE, ...JSON.parse(raw) }
-  } catch {
-    return DEFAULT_PROFILE
-  }
-}
-
 export default function CharitySettings() {
-  const [formData, setFormData] = useState(getStoredProfile)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  const [formData, setFormData] = useState({
+    fullName: '',
+    orgName: '',
+    email: '',
+    phone: '',
+  })
   const [saveMessage, setSaveMessage] = useState('')
+  const [saveError, setSaveError] = useState('')
+  const [saving, setSaving] = useState(false)
 
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
@@ -34,19 +28,49 @@ export default function CharitySettings() {
   })
   const [passwordMessage, setPasswordMessage] = useState('')
   const [passwordError, setPasswordError] = useState('')
+  const [changingPassword, setChangingPassword] = useState(false)
+
+  useEffect(() => {
+    loadProfile()
+  }, [])
+
+  async function loadProfile() {
+    setLoading(true)
+    setError('')
+    try {
+      const data = await fetchCharityProfile()
+      setFormData({
+        fullName: data.fullName || '',
+        orgName: data.orgName || '',
+        email: data.email || '',
+        phone: data.phone || '',
+      })
+    } catch (err) {
+      setError(err?.response?.data?.detail || err.message || 'Không thể tải thông tin')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   function handleChange(e) {
     const { name, value } = e.target
-    if (name === 'position') return
     setFormData(prev => ({ ...prev, [name]: value }))
   }
 
-  function handleSave(e) {
+  async function handleSave(e) {
     e.preventDefault()
-    localStorage.setItem(CHARITY_PROFILE_KEY, JSON.stringify(formData))
-    window.dispatchEvent(new Event('seims-charity-profile-updated'))
-    setSaveMessage('Đã lưu thay đổi thành công.')
-    setTimeout(() => setSaveMessage(''), 3000)
+    setSaving(true)
+    setSaveMessage('')
+    setSaveError('')
+    try {
+      await updateCharityProfile(formData)
+      setSaveMessage('Đã lưu thay đổi thành công.')
+      setTimeout(() => setSaveMessage(''), 3000)
+    } catch (err) {
+      setSaveError(err?.response?.data?.detail || err.message || 'Lưu thất bại')
+    } finally {
+      setSaving(false)
+    }
   }
 
   function handlePasswordChange(e) {
@@ -54,17 +78,10 @@ export default function CharitySettings() {
     setPasswordData(prev => ({ ...prev, [name]: value }))
   }
 
-  function handleChangePassword(e) {
+  async function handleChangePassword(e) {
     e.preventDefault()
     setPasswordMessage('')
     setPasswordError('')
-
-    const storedPassword = localStorage.getItem(CHARITY_PASSWORD_KEY) || DEFAULT_PASSWORD
-
-    if (passwordData.currentPassword !== storedPassword) {
-      setPasswordError('Mật khẩu hiện tại không đúng.')
-      return
-    }
 
     if (passwordData.newPassword.length < 6) {
       setPasswordError('Mật khẩu mới phải có ít nhất 6 ký tự.')
@@ -76,16 +93,48 @@ export default function CharitySettings() {
       return
     }
 
-    localStorage.setItem(CHARITY_PASSWORD_KEY, passwordData.newPassword)
-    setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' })
-    setPasswordMessage('Đổi mật khẩu thành công.')
-    setTimeout(() => setPasswordMessage(''), 3000)
+    setChangingPassword(true)
+    try {
+      await changeCharityPassword({
+        currentPassword: passwordData.currentPassword,
+        newPassword: passwordData.newPassword,
+      })
+      setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' })
+      setPasswordMessage('Đổi mật khẩu thành công.')
+      setTimeout(() => setPasswordMessage(''), 3000)
+    } catch (err) {
+      setPasswordError(err?.response?.data?.detail || err.message || 'Đổi mật khẩu thất bại')
+    } finally {
+      setChangingPassword(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <CharityLayout>
+        <div className="chsettings-loading">
+          <div className="spinner"></div>
+          <span>Đang tải thông tin...</span>
+        </div>
+      </CharityLayout>
+    )
+  }
+
+  if (error) {
+    return (
+      <CharityLayout>
+        <div className="chsettings-error-banner">
+          <p>{error}</p>
+          <button onClick={loadProfile} className="chsettings-retry-btn">Thử lại</button>
+        </div>
+      </CharityLayout>
+    )
   }
 
   return (
     <CharityLayout>
       <div className="chsettings-page">
-        {/* THÔNG TIN TÀI KHOẢN */}
+        {/* THONG TIN TAI KHOAN */}
         <form className="chsettings-card" onSubmit={handleSave}>
           <h3 className="chsettings-section-title">Thông Tin Tài Khoản</h3>
           <div className="chsettings-grid">
@@ -102,14 +151,13 @@ export default function CharitySettings() {
             </label>
 
             <label className="chsettings-field">
-              <span>Chức Vụ</span>
+              <span>Tổ Chức</span>
               <input
                 type="text"
-                name="position"
-                value={formData.position}
-                readOnly
-                disabled
-                aria-label="Chức vụ hiện tại"
+                name="orgName"
+                value={formData.orgName}
+                onChange={handleChange}
+                placeholder="Tên tổ chức từ thiện"
               />
             </label>
 
@@ -133,19 +181,21 @@ export default function CharitySettings() {
                 value={formData.phone}
                 onChange={handleChange}
                 placeholder="0900000000"
-                required
               />
             </label>
           </div>
 
           <div className="chsettings-actions">
-            <button type="submit" className="chsettings-btn">Lưu Thay Đổi</button>
+            <button type="submit" className="chsettings-btn" disabled={saving}>
+              {saving ? 'Đang lưu...' : 'Lưu Thay Đổi'}
+            </button>
           </div>
 
+          {saveError && <p className="chsettings-msg-error">{saveError}</p>}
           {saveMessage && <p className="chsettings-msg-success">{saveMessage}</p>}
         </form>
 
-        {/* ĐỔI MẬT KHẨU */}
+        {/* DOI MAT KHAU */}
         <form className="chsettings-card" onSubmit={handleChangePassword}>
           <h3 className="chsettings-section-title">Đổi Mật Khẩu</h3>
           <div className="chsettings-grid chsettings-grid-single">
@@ -187,7 +237,9 @@ export default function CharitySettings() {
           </div>
 
           <div className="chsettings-actions">
-            <button type="submit" className="chsettings-btn">Cập Nhật Mật Khẩu</button>
+            <button type="submit" className="chsettings-btn" disabled={changingPassword}>
+              {changingPassword ? 'Đang xử lý...' : 'Cập Nhật Mật Khẩu'}
+            </button>
           </div>
 
           {passwordError && <p className="chsettings-msg-error">{passwordError}</p>}

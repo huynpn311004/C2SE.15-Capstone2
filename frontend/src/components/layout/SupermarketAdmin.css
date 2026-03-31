@@ -288,6 +288,16 @@
   position: relative;
 }
 
+.supermarketadmin-user-role {
+  background: linear-gradient(135deg, rgba(15, 118, 110, 0.1), rgba(20, 184, 166, 0.1));
+  border: 1px solid var(--sa-border);
+  padding: 0.42rem 0.75rem;
+  border-radius: 6px;
+  font-weight: 600;
+  color: var(--sa-teal-dark);
+  font-size: 0.82rem;
+}
+
 .supermarketadmin-user-btn {
   background: linear-gradient(135deg, rgba(15, 118, 110, 0.1), rgba(20, 184, 166, 0.1));
   border: 1px solid var(--sa-border);

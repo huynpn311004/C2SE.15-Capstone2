@@ -1,73 +1,104 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import StaffLayout from '../../components/layout/StaffLayout'
+import { fetchInventoryLots } from '../../services/staffApi'
 import './ExpiryTracking.css'
 
-const rows = [
-  { id: 1, product: 'Sữa Tươi 1L', remainingDays: 14 },
-  { id: 2, product: 'Bánh Mì切片', remainingDays: 4 },
-  { id: 3, product: 'Phô Mai Viên', remainingDays: 1 },
-  { id: 4, product: 'Sữa Chua Đậu Nành', remainingDays: 22 },
-]
+function getStatusInfo(expiryDateStr, status) {
+  if (status === 'Het Han') {
+    return { tone: 'danger', text: 'Đã Hết Hạn', badgeClass: 'badge-danger' }
+  }
+  if (status === 'Sap Het Han') {
+    return { tone: 'warning', text: 'Sắp Hết Hạn', badgeClass: 'badge-warning' }
+  }
+  return { tone: 'safe', text: 'Còn Hạn', badgeClass: 'badge-success' }
+}
 
-function getTone(days) {
-  if (days <= 2) return { tone: 'danger', text: 'Nguy Cấp', badgeClass: 'badge-danger' }
-  if (days <= 7) return { tone: 'warning', text: 'Cảnh Báo', badgeClass: 'badge-warning' }
-  return { tone: 'safe', text: 'An Toàn', badgeClass: 'badge-success' }
+function getRemainingDays(expiryDateStr) {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const expiry = new Date(expiryDateStr)
+  expiry.setHours(0, 0, 0, 0)
+  const diff = expiry - today
+  return Math.ceil(diff / (1000 * 60 * 60 * 24))
 }
 
 export default function ExpiryTracking() {
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('all')
+
+  useEffect(() => {
+    loadData()
+  }, [])
+
+  async function loadData() {
+    try {
+      setLoading(true)
+      const lots = await fetchInventoryLots()
+      setRows(lots)
+    } catch (err) {
+      console.error('Failed to load inventory lots:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const filtered = statusFilter === 'all'
     ? rows
-    : rows.filter((row) => getTone(row.remainingDays).text === statusFilter)
+    : rows.filter((row) => {
+        const statusInfo = getStatusInfo(row.expiryDate, row.status)
+        return statusInfo.text === statusFilter
+      })
 
   return (
     <StaffLayout>
       <div className="expiry-page">
-      {/* TOOLBAR */}
-      <div className="expiry-toolbar">
-        <div className="expiry-filter-group">
-          <label>Lọc theo trạng thái:</label>
-          <select
-            className="expiry-filter-select"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-          >
-            <option value="all">Tất Cả</option>
-            <option value="An Toàn">An Toàn</option>
-            <option value="Cảnh Báo">Cảnh Báo</option>
-            <option value="Nguy Cấp">Nguy Cấp</option>
-          </select>
+        <div className="expiry-toolbar">
+          <div className="expiry-filter-group">
+            <label>Lọc theo trạng thái:</label>
+            <select
+              className="expiry-filter-select"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="all">Tất Cả</option>
+              <option value="Còn Hạn">Còn Hạn</option>
+              <option value="Sắp Hết Hạn">Sắp Hết Hạn</option>
+              <option value="Đã Hết Hạn">Đã Hết Hạn</option>
+            </select>
+          </div>
+          <div className="expiry-toolbar-info">
+            Hiển thị {filtered.length} sản phẩm
+          </div>
         </div>
-        <div className="expiry-toolbar-info">
-          Hiển thị {filtered.length} sản phẩm
-        </div>
-      </div>
 
-      {/* CONTENT LIST */}
-      <div className="expiry-card">
-        <div className="expiry-list">
-          {filtered.length > 0 ? (
-            filtered.map((row) => {
-              const status = getTone(row.remainingDays)
-              return (
-                <div key={row.id} className="expiry-item">
-                  <div className="expiry-item-info">
-                    <p className="expiry-item-name">{row.product}</p>
-                    <p className="expiry-item-remaining">Còn lại: {row.remainingDays} ngày</p>
+        <div className="expiry-card">
+          <div className="expiry-list">
+            {loading ? (
+              <div className="empty-cell">Đang tải...</div>
+            ) : filtered.length > 0 ? (
+              filtered.map((row) => {
+                const remainingDays = getRemainingDays(row.expiryDate)
+                const status = getStatusInfo(row.expiryDate, row.status)
+                return (
+                  <div key={row.id} className="expiry-item">
+                    <div className="expiry-item-info">
+                      <p className="expiry-item-name">{row.productName}</p>
+                      <p className="expiry-item-remaining">
+                        Mã lô: {row.lotCode} | Còn lại: {remainingDays} ngày
+                      </p>
+                    </div>
+                    <span className={`badge ${status.badgeClass}`}>
+                      {status.text}
+                    </span>
                   </div>
-                  <span className={`badge ${status.badgeClass}`}>
-                    {status.text}
-                  </span>
-                </div>
-              )
-            })
-          ) : (
-            <div className="empty-cell">Không có dữ liệu</div>
-          )}
+                )
+              })
+            ) : (
+              <div className="empty-cell">Không có dữ liệu</div>
+            )}
+          </div>
         </div>
-      </div>
       </div>
     </StaffLayout>
   )

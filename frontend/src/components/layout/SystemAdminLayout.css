@@ -312,24 +312,18 @@
   margin-left: auto;
 }
 
-.admin-header-btn {
-  background: none;
-  border: 1px solid var(--seims-border);
-  padding: 0.42rem 0.78rem;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 0.8rem;
-  transition: all 0.2s ease;
-  color: var(--seims-ink);
-}
-
-.admin-header-btn:hover {
-  background: rgba(15, 118, 110, 0.05);
-  border-color: var(--seims-teal);
-}
-
 .admin-user-menu {
   position: relative;
+}
+
+.admin-user-role {
+  background: linear-gradient(135deg, rgba(15, 118, 110, 0.1), rgba(20, 184, 166, 0.1));
+  border: 1px solid var(--seims-border);
+  padding: 0.42rem 0.75rem;
+  border-radius: 6px;
+  font-weight: 600;
+  color: var(--seims-teal-dark);
+  font-size: 0.82rem;
 }
 
 .admin-user-btn {
