@@ -1,52 +1,87 @@
+import { useState, useEffect } from 'react'
 import StaffLayout from '../../components/layout/StaffLayout'
+import { fetchNotifications, markNotificationRead } from '../../services/staffApi'
 import './Notifications.css'
-
-const notices = [
-  { id: 1, title: 'Cảnh Báo Sắp Hết Hạn', message: 'LH-001 (Sữa Chua Hy Lạp) sẽ hết hạn trong 4 ngày.', type: 'warning', time: '5 phút trước' },
-  { id: 2, title: 'Có Đơn Hàng Mới', message: 'Đơn hàng DH-1004 cần được xác nhận.', type: 'info', time: '12 phút trước' },
-  { id: 3, title: 'Yêu Cầu Quyên Góp', message: 'Quỹ Hy Vọng yêu cầu Sữa Tươi 1L x 20.', type: 'danger', time: '30 phút trước' },
-]
 
 function getBadgeClass(type) {
   if (type === 'warning') return 'badge-warning'
-  if (type === 'danger') return 'badge-danger'
+  if (type === 'danger' || type === 'urgent') return 'badge-danger'
   return 'badge-info'
 }
 
 function getTypeLabel(type) {
   if (type === 'warning') return 'Cảnh Báo'
-  if (type === 'danger') return 'Khẩn Cấp'
+  if (type === 'danger' || type === 'urgent') return 'Khẩn Cấp'
+  if (type === 'donation') return 'Quyên Góp'
   return 'Thông Tin'
 }
 
 export default function Notifications() {
+  const [notices, setNotices] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    loadNotifications()
+  }, [])
+
+  async function loadNotifications() {
+    try {
+      setLoading(true)
+      const data = await fetchNotifications()
+      setNotices(data)
+    } catch (err) {
+      console.error('Failed to load notifications:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleMarkRead(id) {
+    try {
+      await markNotificationRead(id)
+      setNotices((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
+      )
+    } catch (err) {
+      console.error('Failed to mark notification as read:', err)
+    }
+  }
+
   return (
     <StaffLayout>
       <div className="notifications-page">
-      {/* TOOLBAR */}
-      <div className="notifications-toolbar">
-        <div className="notifications-toolbar-info">
-          Hiển thị {notices.length} thông báo
+        <div className="notifications-toolbar">
+          <div className="notifications-toolbar-info">
+            {loading ? 'Đang tải...' : `Hiển thị ${notices.length} thông báo`}
+          </div>
         </div>
-      </div>
 
-      {/* NOTIFICATION LIST */}
-      <div className="notifications-card">
-        <div className="notifications-list">
-          {notices.map((notice) => (
-            <div key={notice.id} className="notification-item">
-              <div className="notification-item-info">
-                <h4 className="notification-title">{notice.title}</h4>
-                <p className="notification-message">{notice.message}</p>
-                <p className="notification-time">{notice.time}</p>
-              </div>
-              <span className={`badge ${getBadgeClass(notice.type)}`}>
-                {getTypeLabel(notice.type)}
-              </span>
-            </div>
-          ))}
+        <div className="notifications-card">
+          <div className="notifications-list">
+            {loading ? (
+              <div className="empty-cell">Đang tải...</div>
+            ) : notices.length > 0 ? (
+              notices.map((notice) => (
+                <div
+                  key={notice.id}
+                  className={`notification-item ${notice.isRead ? 'notification-read' : ''}`}
+                  onClick={() => !notice.isRead && handleMarkRead(notice.id)}
+                  style={{ cursor: notice.isRead ? 'default' : 'pointer' }}
+                >
+                  <div className="notification-item-info">
+                    <h4 className="notification-title">{notice.content}</h4>
+                    <p className="notification-time">{notice.createdAt}</p>
+                  </div>
+                  <span className={`badge ${getBadgeClass(notice.type)}`}>
+                    {getTypeLabel(notice.type)}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <div className="empty-cell">Không có thông báo nào</div>
+            )}
+          </div>
         </div>
-      </div>
       </div>
     </StaffLayout>
   )

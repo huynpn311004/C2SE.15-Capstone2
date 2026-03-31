@@ -1,27 +1,34 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import StaffLayout from '../../components/layout/StaffLayout'
+import {
+  fetchDonationOffers,
+  createDonationOffer,
+  updateDonationOfferStatus,
+  fetchDonationRequests,
+  updateDonationRequestStatus,
+} from '../../services/staffApi'
 import './DonationManagement.css'
 
-const offerSeed = [
-  { id: 1, product: 'Combo Bánh Mì', quantity: 18, status: 'Đang Chờ', expiryDate: '2026-04-05', store: 'BigMart Q1' },
-  { id: 2, product: 'Gói Trái Cây', quantity: 12, status: 'Đã Duyệt', expiryDate: '2026-04-10', store: 'BigMart Q1' },
-]
-
-const requestSeed = [
-  { id: 11, organization: 'Quỹ Hy Vọng', request: 'Sữa Tươi 1L x 20', status: 'Đang Chờ' },
-  { id: 12, organization: 'Green Hands', request: 'Gói Snack x 30', status: 'Đang Chờ' },
-]
-
 function getBadgeClass(status) {
-  if (status === 'Đã Duyệt') return 'badge-success'
-  if (status === 'Đã Từ Chối') return 'badge-danger'
-  if (status === 'Đã Hủy') return 'badge-muted'
+  if (status === 'Approved') return 'badge-success'
+  if (status === 'Rejected') return 'badge-danger'
+  if (status === 'Cancelled') return 'badge-muted'
   return 'badge-warning'
 }
 
+function getStatusLabel(status) {
+  if (status === 'Pending') return 'Đang Chờ'
+  if (status === 'Approved') return 'Đã Duyệt'
+  if (status === 'Rejected') return 'Đã Từ Chối'
+  if (status === 'Cancelled') return 'Đã Hủy'
+  return status
+}
+
 export default function DonationManagement() {
-  const [offers, setOffers] = useState(offerSeed)
-  const [requests, setRequests] = useState(requestSeed)
+  const [offers, setOffers] = useState([])
+  const [requests, setRequests] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [createError, setCreateError] = useState('')
   const [createSuccess, setCreateSuccess] = useState('')
@@ -30,8 +37,27 @@ export default function DonationManagement() {
     quantity: '',
     expiryDate: '',
     description: '',
-    store: 'BigMart Q1',
   })
+
+  useEffect(() => {
+    loadData()
+  }, [])
+
+  async function loadData() {
+    try {
+      setLoading(true)
+      const [offersData, requestsData] = await Promise.all([
+        fetchDonationOffers(),
+        fetchDonationRequests(),
+      ])
+      setOffers(offersData)
+      setRequests(requestsData)
+    } catch (err) {
+      console.error('Failed to load donation data:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   function resetCreateForm() {
     setCreateForm({
@@ -39,7 +65,6 @@ export default function DonationManagement() {
       quantity: '',
       expiryDate: '',
       description: '',
-      store: 'BigMart Q1',
     })
     setCreateError('')
     setCreateSuccess('')
@@ -62,7 +87,7 @@ export default function DonationManagement() {
     setCreateSuccess('')
   }
 
-  function submitCreateOffer(event) {
+  async function submitCreateOffer(event) {
     event.preventDefault()
     setCreateError('')
     setCreateSuccess('')
@@ -82,22 +107,57 @@ export default function DonationManagement() {
       return
     }
 
-    const newOffer = {
-      id: Date.now(),
-      product: createForm.productName.trim(),
-      quantity: Number(createForm.quantity),
-      expiryDate: createForm.expiryDate,
-      store: createForm.store,
-      description: createForm.description.trim(),
-      status: 'Đang Chờ',
+    try {
+      setIsSubmitting(true)
+      const newOffer = await createDonationOffer({
+        productName: createForm.productName.trim(),
+        quantity: Number(createForm.quantity),
+        expiryDate: createForm.expiryDate,
+        description: createForm.description.trim(),
+      })
+      setOffers((prev) => [newOffer, ...prev])
+      setCreateSuccess('Đã tạo đề nghị quyên góp thành công!')
+      setTimeout(() => closeCreateModal(), 800)
+    } catch (err) {
+      console.error('Failed to create offer:', err)
+      setCreateError(err?.response?.data?.detail || 'Tạo đề nghị quyên góp thất bại.')
+    } finally {
+      setIsSubmitting(false)
     }
+  }
 
-    setOffers((prev) => [newOffer, ...prev])
-    setCreateSuccess('Đã tạo đề nghị quyên góp thành công!')
+  async function handleOfferStatusChange(id, newStatus) {
+    try {
+      await updateDonationOfferStatus(id, newStatus)
+      setOffers((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, status: newStatus } : r))
+      )
+    } catch (err) {
+      console.error('Failed to update offer status:', err)
+      alert('Cập nhật trạng thái thất bại')
+    }
+  }
 
-    setTimeout(() => {
-      closeCreateModal()
-    }, 800)
+  async function handleRequestStatusChange(id, newStatus) {
+    try {
+      await updateDonationRequestStatus(id, newStatus)
+      setRequests((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, status: newStatus } : r))
+      )
+    } catch (err) {
+      console.error('Failed to update request status:', err)
+      alert('Cập nhật trạng thái thất bại')
+    }
+  }
+
+  if (loading) {
+    return (
+      <StaffLayout>
+        <div className="donation-page">
+          <div style={{ textAlign: 'center', padding: '3rem' }}>Đang tải dữ liệu...</div>
+        </div>
+      </StaffLayout>
+    )
   }
 
   return (
@@ -126,7 +186,7 @@ export default function DonationManagement() {
               offers.map((row) => (
                 <div key={row.id} className="donation-item">
                   <div className="donation-item-info">
-                    <p className="donation-item-name">{row.product}</p>
+                    <p className="donation-item-name">{row.productName}</p>
                     <p className="donation-item-detail">
                       Số lượng: {row.quantity} | HSD: {row.expiryDate ? new Date(row.expiryDate).toLocaleDateString('vi-VN') : '-'}
                     </p>
@@ -136,12 +196,12 @@ export default function DonationManagement() {
                   </div>
                   <div className="donation-item-actions">
                     <span className={`badge ${getBadgeClass(row.status)}`}>
-                      {row.status}
+                      {getStatusLabel(row.status)}
                     </span>
-                    {row.status === 'Đang Chờ' && (
+                    {row.status === 'Pending' && (
                       <>
                         <button
-                          onClick={() => setOffers((prev) => prev.map((r) => r.id === row.id ? { ...r, status: 'Đã Duyệt' } : r))}
+                          onClick={() => handleOfferStatusChange(row.id, 'Approved')}
                           className="action-btn icon-action-btn btn-approve"
                           title="Duyệt"
                         >
@@ -150,7 +210,7 @@ export default function DonationManagement() {
                           </svg>
                         </button>
                         <button
-                          onClick={() => setOffers((prev) => prev.map((r) => r.id === row.id ? { ...r, status: 'Đã Từ Chối' } : r))}
+                          onClick={() => handleOfferStatusChange(row.id, 'Rejected')}
                           className="action-btn icon-action-btn btn-reject"
                           title="Từ chối"
                         >
@@ -187,12 +247,12 @@ export default function DonationManagement() {
                   </div>
                   <div className="donation-item-actions">
                     <span className={`badge ${getBadgeClass(row.status)}`}>
-                      {row.status}
+                      {getStatusLabel(row.status)}
                     </span>
-                    {row.status === 'Đang Chờ' && (
+                    {row.status === 'Pending' && (
                       <>
                         <button
-                          onClick={() => setRequests((prev) => prev.map((r) => r.id === row.id ? { ...r, status: 'Đã Duyệt' } : r))}
+                          onClick={() => handleRequestStatusChange(row.id, 'Approved')}
                           className="action-btn icon-action-btn btn-approve"
                           title="Duyệt"
                         >
@@ -201,7 +261,7 @@ export default function DonationManagement() {
                           </svg>
                         </button>
                         <button
-                          onClick={() => setRequests((prev) => prev.map((r) => r.id === row.id ? { ...r, status: 'Đã Từ Chối' } : r))}
+                          onClick={() => handleRequestStatusChange(row.id, 'Rejected')}
                           className="action-btn icon-action-btn btn-reject"
                           title="Từ chối"
                         >
@@ -273,20 +333,6 @@ export default function DonationManagement() {
                       required
                     />
                   </div>
-                  <div className="donation-form-field">
-                    <label>Cửa Hàng</label>
-                    <select
-                      name="store"
-                      value={createForm.store}
-                      onChange={handleCreateFormChange}
-                      className="donation-input"
-                    >
-                      <option value="BigMart Q1">BigMart Q1</option>
-                      <option value="BigMart Q3">BigMart Q3</option>
-                      <option value="BigMart Q5">BigMart Q5</option>
-                      <option value="BigMart Q7">BigMart Q7</option>
-                    </select>
-                  </div>
                 </div>
               </div>
 
@@ -307,8 +353,8 @@ export default function DonationManagement() {
 
               <div className="donation-form-footer">
                 <div className="donation-form-actions">
-                  <button type="submit" className="btn-large donation-btn-create">
-                    Tạo Đề Nghị
+                  <button type="submit" className="btn-large donation-btn-create" disabled={isSubmitting}>
+                    {isSubmitting ? 'Đang tạo...' : 'Tạo Đề Nghị'}
                   </button>
                   <button type="button" className="btn-large btn-close" onClick={closeCreateModal}>
                     Hủy

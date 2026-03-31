@@ -15,6 +15,16 @@ export const ROLES = {
   DELIVERY_PARTNER: 'delivery_partner',
 }
 
+export const ROLE_DISPLAY = {
+  system_admin: 'Quản Trị Hệ Thống',
+  supermarket_admin: 'Quản Lý Siêu Thị',
+  store_staff: 'Nhân Viên Cửa Hàng',
+  customer: 'Khách Hàng',
+  charity: 'Tổ Chức Từ Thiện',
+  delivery: 'Giao Hàng',
+  delivery_partner: 'Đối Tác Giao Hàng',
+}
+
 function getStoredUser() {
   try {
     const raw = localStorage.getItem(AUTH_STORAGE_KEY)

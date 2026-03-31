@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
+import { useAuth, ROLE_DISPLAY } from '../../services/AuthContext'
 import './SystemAdminLayout.css'
 
 const ADMIN_PROFILE_STORAGE_KEY = 'seims_admin_profile'
@@ -32,6 +33,7 @@ function getStoredAdminProfile() {
 export default function SystemAdminLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [adminProfile, setAdminProfile] = useState(getStoredAdminProfile)
+  const { user } = useAuth()
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -130,7 +132,7 @@ export default function SystemAdminLayout({ children }) {
                   to="/admin/audit-logs"
                   className={({ isActive }) => `admin-nav-link${isActive ? ' active' : ''}`}
                 >
-                  <span className="admin-nav-label">Audit Log</span>
+                  <span className="admin-nav-label">Nhật Ký Kiểm Toán</span>
                 </NavLink>
               </li>
               <li>
@@ -176,13 +178,10 @@ export default function SystemAdminLayout({ children }) {
             <h1>Hệ thống quản trị SEIMS</h1>
           </div>
           <div className="admin-header-actions">
-            <button className="admin-header-btn" aria-label="Thông báo" title="Thông báo">
-              Thông báo
-            </button>
             <div className="admin-user-menu">
-              <button className="admin-user-btn" aria-label="Menu người dùng">
-                {adminProfile.fullName}
-              </button>
+              <span className="admin-user-role">
+                {ROLE_DISPLAY[user?.role] || 'Quản Trị Hệ Thống'}
+              </span>
             </div>
           </div>
         </header>

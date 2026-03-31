@@ -150,7 +150,7 @@ export default function StoreManagement() {
       {/* TOOLBAR */}
       <div className="sastore-toolbar">
         <div className="sastore-toolbar-info">{loading ? 'Đang tải...' : `Hiển thị ${stores.length} store`}</div>
-        <button onClick={openCreateModal} className="sastaff-btn-create">+ Tạo Store</button>
+        <button onClick={openCreateModal} className="sastaff-btn-create"> Tạo Store</button>
       </div>
 
       {/* TABLE */}

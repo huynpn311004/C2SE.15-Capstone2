@@ -19,8 +19,8 @@ ALLOWED_ROLES = {
 
 MAX_FAILED_LOGIN_ATTEMPTS = 5
 LOCKED_ACCOUNT_DETAIL = (
-	"Tai khoan da bi khoa do dang nhap sai qua 5 lan. "
-	"Vui long lien he admin qua email admin@seims.vn hoac hotline 1900-0000."
+	"Tài khoản đã bị khóa do đăng nhập sai qua 5 lần. "
+	"Vui lòng liên hệ admin qua email admin@seims.vn."
 )
 
 
@@ -35,7 +35,7 @@ def register_user(db: Session, payload: RegisterRequest) -> User:
 	if role not in ALLOWED_ROLES:
 		raise HTTPException(
 			status_code=status.HTTP_400_BAD_REQUEST,
-			detail="Vai tro khong hop le.",
+			detail="Vai trò không hợp lệ.",
 		)
 
 	resolved_store = None
@@ -61,11 +61,11 @@ def register_user(db: Session, payload: RegisterRequest) -> User:
 		if existing_user.username == username:
 			raise HTTPException(
 				status_code=status.HTTP_400_BAD_REQUEST,
-				detail="Ten dang nhap da ton tai.",
+				detail="Tên đăng nhập đã tồn tại.",
 			)
 		raise HTTPException(
 			status_code=status.HTTP_400_BAD_REQUEST,
-			detail="Email da duoc su dung.",
+			detail="Email đã được sử dụng.",
 		)
 
 	user = User(
@@ -83,7 +83,7 @@ def register_user(db: Session, payload: RegisterRequest) -> User:
 	except ValueError as exc:
 		raise HTTPException(
 			status_code=status.HTTP_400_BAD_REQUEST,
-			detail=f"Mat khau khong hop le: {exc}",
+			detail=f"Mật khẩu không hợp lệ: {exc}",
 		) from exc
 	db.add(user)
 	db.commit()
@@ -101,7 +101,7 @@ def login_user(db: Session, payload: LoginRequest) -> User:
 	if not user:
 		raise HTTPException(
 			status_code=status.HTTP_401_UNAUTHORIZED,
-			detail="Thong tin dang nhap khong chinh xac.",
+			detail="Thông tin đăng nhập không chính xác.",
 		)
 	if not user.is_active:
 		raise HTTPException(
@@ -127,8 +127,8 @@ def login_user(db: Session, payload: LoginRequest) -> User:
 		raise HTTPException(
 			status_code=status.HTTP_401_UNAUTHORIZED,
 			detail=(
-				"Thong tin dang nhap khong chinh xac. "
-				f"Ban con {remaining_attempts} lan thu truoc khi tai khoan bi khoa."
+				"Thông tin đăng nhập không chính xác. "
+				f"Bạn còn {remaining_attempts} lần thử trước khi tài khoản bị khóa."
 			),
 		)
 

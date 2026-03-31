@@ -1,25 +1,31 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import StaffLayout from '../../components/layout/StaffLayout'
+import { fetchInventoryLots, createInventoryLot, updateInventoryLot, deleteInventoryLot } from '../../services/staffApi'
 import './InventoryLots.css'
 
 const statusColors = {
-  'Mới': 'badge-new',
-  'Sắp Hết Hạn': 'badge-warning',
-  'Hết Hạn': 'badge-danger',
+  'Moi': 'badge-new',
+  'Sap Het Han': 'badge-warning',
+  'Het Han': 'badge-danger',
 }
 
 const badgeTextMap = {
-  'Mới': 'Mới',
-  'Sắp Hết Hạn': 'Sắp Hết Hạn',
-  'Hết Hạn': 'Hết Hạn',
+  'Moi': 'Mới',
+  'Sap Het Han': 'Sắp Hết Hạn',
+  'Het Han': 'Hết Hạn',
+}
+
+function getStatusLabel(status) {
+  if (status === 'Moi') return 'Mới'
+  if (status === 'Sap Het Han') return 'Sắp Hết Hạn'
+  if (status === 'Het Han') return 'Hết Hạn'
+  return status
 }
 
 export default function InventoryLots() {
-  const [lots, setLots] = useState([
-    { id: 1, lotCode: 'LH-001', productName: 'Sữa Chua Hy Lạp', quantity: 80, expiryDate: '2026-04-10', status: 'Sắp Hết Hạn' },
-    { id: 2, lotCode: 'LH-002', productName: 'Nước Cam', quantity: 120, expiryDate: '2026-06-01', status: 'Mới' },
-    { id: 3, lotCode: 'LH-003', productName: 'Bánh Mì Tươi', quantity: 32, expiryDate: '2026-03-26', status: 'Hết Hạn' },
-  ])
+  const [lots, setLots] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const [statusFilter, setStatusFilter] = useState('all')
   const [selectedLot, setSelectedLot] = useState(null)
@@ -31,46 +37,62 @@ export default function InventoryLots() {
   const [createSuccess, setCreateSuccess] = useState('')
 
   const [editForm, setEditForm] = useState({
-    lotCode: '',
     productName: '',
     quantity: '',
     expiryDate: '',
-    status: 'Mới',
   })
 
   const [createForm, setCreateForm] = useState({
-    lotCode: '',
     productName: '',
     quantity: '',
     expiryDate: '',
-    status: 'Mới',
   })
+
+  useEffect(() => {
+    loadLots()
+  }, [])
+
+  async function loadLots() {
+    try {
+      setLoading(true)
+      const data = await fetchInventoryLots()
+      setLots(data)
+    } catch (err) {
+      console.error('Failed to load inventory lots:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const filteredLots = statusFilter === 'all'
     ? lots
     : lots.filter((lot) => lot.status === statusFilter)
 
-  function handleDeleteLot(id) {
+  async function handleDeleteLot(id) {
     const lot = lots.find((item) => item.id === id)
     if (!lot) return
 
     const confirmed = window.confirm(`Xóa lô hàng ${lot.lotCode}?`)
     if (!confirmed) return
 
-    setLots((prev) => prev.filter((item) => item.id !== id))
-    if (selectedLot?.id === id) {
-      setSelectedLot(null)
+    try {
+      await deleteInventoryLot(id)
+      setLots((prev) => prev.filter((item) => item.id !== id))
+      if (selectedLot?.id === id) {
+        setSelectedLot(null)
+      }
+    } catch (err) {
+      console.error('Failed to delete lot:', err)
+      alert('Xóa lô hàng thất bại')
     }
   }
 
   function openEditModal(lot) {
     setSelectedLot(lot)
     setEditForm({
-      lotCode: lot.lotCode,
       productName: lot.productName,
       quantity: String(lot.quantity),
       expiryDate: lot.expiryDate,
-      status: lot.status,
     })
     setEditError('')
     setEditSuccess('')
@@ -91,15 +113,11 @@ export default function InventoryLots() {
     setEditSuccess('')
   }
 
-  function submitEditLot(event) {
+  async function submitEditLot(event) {
     event.preventDefault()
     setEditError('')
     setEditSuccess('')
 
-    if (!editForm.lotCode.trim()) {
-      setEditError('Mã lô không được để trống.')
-      return
-    }
     if (!editForm.productName.trim()) {
       setEditError('Tên sản phẩm không được để trống.')
       return
@@ -113,19 +131,34 @@ export default function InventoryLots() {
       return
     }
 
-    const updated = {
-      lotCode: editForm.lotCode.trim(),
-      productName: editForm.productName.trim(),
-      quantity: Number(editForm.quantity),
-      expiryDate: editForm.expiryDate,
-      status: editForm.status,
-    }
+    try {
+      setIsSubmitting(true)
+      await updateInventoryLot(selectedLot.id, {
+        productName: editForm.productName.trim(),
+        quantity: Number(editForm.quantity),
+        expiryDate: editForm.expiryDate,
+      })
 
-    setLots((prev) =>
-      prev.map((item) => (item.id === selectedLot.id ? { ...item, ...updated } : item))
-    )
-    setSelectedLot((prev) => prev ? { ...prev, ...updated } : prev)
-    setEditSuccess('Đã cập nhật thông tin lô hàng.')
+      setLots((prev) =>
+        prev.map((item) =>
+          item.id === selectedLot.id
+            ? {
+                ...item,
+                productName: editForm.productName.trim(),
+                quantity: Number(editForm.quantity),
+                expiryDate: editForm.expiryDate,
+              }
+            : item
+        )
+      )
+      setEditSuccess('Đã cập nhật thông tin lô hàng.')
+      setTimeout(() => closeEditModal(), 600)
+    } catch (err) {
+      console.error('Failed to update lot:', err)
+      setEditError(err?.response?.data?.detail || 'Cập nhật lô hàng thất bại.')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   function resetCreateForm() {
@@ -157,15 +190,11 @@ export default function InventoryLots() {
     setCreateSuccess('')
   }
 
-  function submitCreateLot(event) {
+  async function submitCreateLot(event) {
     event.preventDefault()
     setCreateError('')
     setCreateSuccess('')
 
-    if (!createForm.lotCode.trim()) {
-      setCreateError('Mã lô không được để trống.')
-      return
-    }
     if (!createForm.productName.trim()) {
       setCreateError('Tên sản phẩm không được để trống.')
       return
@@ -179,21 +208,32 @@ export default function InventoryLots() {
       return
     }
 
-    const newLot = {
-      id: Date.now(),
-      lotCode: createForm.lotCode.trim(),
-      productName: createForm.productName.trim(),
-      quantity: Number(createForm.quantity),
-      expiryDate: createForm.expiryDate,
-      status: createForm.status,
+    try {
+      setIsSubmitting(true)
+      const newLot = await createInventoryLot({
+        productName: createForm.productName.trim(),
+        quantity: Number(createForm.quantity),
+        expiryDate: createForm.expiryDate,
+      })
+      setLots((prev) => [newLot, ...prev])
+      setCreateSuccess('Đã tạo lô hàng mới thành công.')
+      setTimeout(() => closeCreateModal(), 600)
+    } catch (err) {
+      console.error('Failed to create lot:', err)
+      setCreateError(err?.response?.data?.detail || 'Tạo lô hàng thất bại.')
+    } finally {
+      setIsSubmitting(false)
     }
+  }
 
-    setLots((prev) => [...prev, newLot])
-    setCreateSuccess('Đã tạo lô hàng mới thành công.')
-
-    setTimeout(() => {
-      closeCreateModal()
-    }, 600)
+  if (loading) {
+    return (
+      <StaffLayout>
+        <div className="inventory-page">
+          <div style={{ textAlign: 'center', padding: '3rem' }}>Đang tải dữ liệu...</div>
+        </div>
+      </StaffLayout>
+    )
   }
 
   return (
@@ -209,9 +249,9 @@ export default function InventoryLots() {
             onChange={(e) => setStatusFilter(e.target.value)}
           >
             <option value="all">Tất Cả</option>
-            <option value="Mới">Mới</option>
-            <option value="Sắp Hết Hạn">Sắp Hết Hạn</option>
-            <option value="Hết Hạn">Hết Hạn</option>
+            <option value="Moi">Mới</option>
+            <option value="Sap Het Han">Sắp Hết Hạn</option>
+            <option value="Het Han">Hết Hạn</option>
           </select>
         </div>
         <button className="inventory-btn-create inventory-toolbar-btn" onClick={openCreateModal}>
@@ -248,7 +288,7 @@ export default function InventoryLots() {
                     <td>{new Date(lot.expiryDate).toLocaleDateString('vi-VN')}</td>
                     <td>
                       <span className={`badge ${statusColors[lot.status]}`}>
-                        {badgeTextMap[lot.status]}
+                        {getStatusLabel(lot.status)}
                       </span>
                     </td>
                     <td>
@@ -304,12 +344,9 @@ export default function InventoryLots() {
                     <label>Mã Lô</label>
                     <input
                       type="text"
-                      name="lotCode"
-                      value={editForm.lotCode}
-                      onChange={handleEditFormChange}
+                      value={selectedLot.lotCode}
                       className="inventory-input"
-                      placeholder="Nhập mã lô"
-                      required
+                      disabled
                     />
                   </div>
                   <div className="inventory-form-field">
@@ -351,19 +388,6 @@ export default function InventoryLots() {
                       required
                     />
                   </div>
-                  <div className="inventory-form-field">
-                    <label>Trạng Thái</label>
-                    <select
-                      name="status"
-                      value={editForm.status}
-                      onChange={handleEditFormChange}
-                      className="inventory-input"
-                    >
-                      <option value="Mới">Mới</option>
-                      <option value="Sắp Hết Hạn">Sắp Hết Hạn</option>
-                      <option value="Hết Hạn">Hết Hạn</option>
-                    </select>
-                  </div>
                 </div>
               </div>
 
@@ -372,8 +396,8 @@ export default function InventoryLots() {
 
               <div className="inventory-form-footer">
                 <div className="inventory-form-actions">
-                  <button type="submit" className="btn-large inventory-btn-create">
-                    Lưu Thay Đổi
+                  <button type="submit" className="btn-large inventory-btn-create" disabled={isSubmitting}>
+                    {isSubmitting ? 'Đang lưu...' : 'Lưu Thay Đổi'}
                   </button>
                   <button type="button" className="btn-large btn-close" onClick={closeEditModal}>
                     Hủy
@@ -396,18 +420,6 @@ export default function InventoryLots() {
             <form className="modal-body" onSubmit={submitCreateLot}>
               <div className="inventory-form-grid">
                 <div className="inventory-form-column">
-                  <div className="inventory-form-field">
-                    <label>Mã Lô</label>
-                    <input
-                      type="text"
-                      name="lotCode"
-                      value={createForm.lotCode}
-                      onChange={handleCreateFormChange}
-                      className="inventory-input"
-                      placeholder="Nhập mã lô"
-                      required
-                    />
-                  </div>
                   <div className="inventory-form-field">
                     <label>Tên Sản Phẩm</label>
                     <input
@@ -447,19 +459,6 @@ export default function InventoryLots() {
                       required
                     />
                   </div>
-                  <div className="inventory-form-field">
-                    <label>Trạng Thái</label>
-                    <select
-                      name="status"
-                      value={createForm.status}
-                      onChange={handleCreateFormChange}
-                      className="inventory-input"
-                    >
-                      <option value="Mới">Mới</option>
-                      <option value="Sắp Hết Hạn">Sắp Hết Hạn</option>
-                      <option value="Hết Hạn">Hết Hạn</option>
-                    </select>
-                  </div>
                 </div>
               </div>
 
@@ -468,8 +467,8 @@ export default function InventoryLots() {
 
               <div className="inventory-form-footer">
                 <div className="inventory-form-actions">
-                  <button type="submit" className="btn-large inventory-btn-create">
-                    Tạo Mới
+                  <button type="submit" className="btn-large inventory-btn-create" disabled={isSubmitting}>
+                    {isSubmitting ? 'Đang tạo...' : 'Tạo Lô Mới'}
                   </button>
                   <button type="button" className="btn-large btn-close" onClick={closeCreateModal}>
                     Hủy

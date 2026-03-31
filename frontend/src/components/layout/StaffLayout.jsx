@@ -93,6 +93,22 @@ export default function StaffLayout({ children }) {
               </li>
               <li>
                 <NavLink
+                  to="/staff/categories"
+                  className={({ isActive }) => `staff-nav-link${isActive ? ' active' : ''}`}
+                >
+                  <span className="staff-nav-label">Quản Lý Danh Mục</span>
+                </NavLink>
+              </li>
+              <li>
+                <NavLink
+                  to="/staff/products"
+                  className={({ isActive }) => `staff-nav-link${isActive ? ' active' : ''}`}
+                >
+                  <span className="staff-nav-label">Quản Lý Sản Phẩm</span>
+                </NavLink>
+              </li>
+              <li>
+                <NavLink
                   to="/staff/inventory-lots"
                   className={({ isActive }) => `staff-nav-link${isActive ? ' active' : ''}`}
                 >
