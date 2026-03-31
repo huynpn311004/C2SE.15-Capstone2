@@ -6,6 +6,7 @@ import {
   createProduct,
   updateProduct,
   deleteProduct,
+  importProducts,
 } from '../../services/staffApi'
 import './ProductManagement.css'
 
@@ -19,6 +20,7 @@ export default function ProductManagement() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [saving, setSaving] = useState(false)
+  const [isImporting, setIsImporting] = useState(false)
 
   const [searchTerm, setSearchTerm] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
@@ -149,6 +151,46 @@ export default function ProductManagement() {
     setDeleteConfirm(null)
   }
 
+  async function handleImportFile(event) {
+    const selectedFile = event.target.files?.[0]
+    event.target.value = ''
+
+    if (!selectedFile) {
+      return
+    }
+
+    const fileName = selectedFile.name.toLowerCase()
+    if (!fileName.endsWith('.xlsx') && !fileName.endsWith('.csv')) {
+      setError('Chỉ hỗ trợ file .xlsx hoặc .csv')
+      setSuccess('')
+      return
+    }
+
+    try {
+      setIsImporting(true)
+      setError('')
+      setSuccess('')
+
+      const result = await importProducts(selectedFile)
+      await loadData()
+
+      let message = `Import thành công: sản phẩm tạo mới ${result.productsCreated || 0}, cập nhật ${result.productsUpdated || 0}`
+      message += ` | lô hàng tạo mới ${result.lotsCreated || 0}, cập nhật ${result.lotsUpdated || 0}`
+      if (result.failed) {
+        const firstError = result.errors?.[0]
+        const detail = firstError
+          ? ` Dòng lỗi đầu tiên: ${firstError.row} - ${firstError.message}`
+          : ''
+        message += `. Lỗi ${result.failed}.${detail}`
+      }
+      setSuccess(message)
+    } catch (err) {
+      setError(err.response?.data?.detail || err.message || 'Import file thất bại')
+    } finally {
+      setIsImporting(false)
+    }
+  }
+
   function formatCurrency(value) {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value)
   }
@@ -159,12 +201,24 @@ export default function ProductManagement() {
         <div className="product-card">
           <div className="product-card-header">
             <h2>Quản Lý Sản Phẩm</h2>
-            <button className="product-btn-add" onClick={openAddModal}>
-              <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
-              </svg>
-              Thêm Sản Phẩm
-            </button>
+            <div className="product-header-actions">
+              <label className={`product-btn-import ${isImporting ? 'is-disabled' : ''}`}>
+                {isImporting ? 'Đang import...' : 'Upload Excel/CSV'}
+                <input
+                  type="file"
+                  accept=".xlsx,.csv"
+                  onChange={handleImportFile}
+                  disabled={isImporting}
+                  hidden
+                />
+              </label>
+              <button className="product-btn-add" onClick={openAddModal}>
+                <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                  <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                </svg>
+                Thêm Sản Phẩm
+              </button>
+            </div>
           </div>
 
           {error && <div className="product-alert product-alert-error">{error}</div>}

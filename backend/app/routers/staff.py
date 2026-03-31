@@ -4,6 +4,7 @@ import csv
 from datetime import date, datetime
 from io import BytesIO, StringIO
 import re
+import unicodedata
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from openpyxl import load_workbook
@@ -48,10 +49,48 @@ def _parse_date_input(value) -> date:
 def _normalize_header(header: object) -> str:
     if header is None:
         return ""
-    value = str(header).strip().lower()
+    value = unicodedata.normalize("NFKD", str(header).strip().lower())
+    value = "".join(char for char in value if not unicodedata.combining(char))
     value = value.replace(" ", "_")
     value = value.replace("-", "_")
     return value
+
+
+def _normalize_status_value(raw_status: object, expiry_date: date) -> str:
+    if raw_status is None:
+        return _status_label(expiry_date)
+
+    normalized = unicodedata.normalize("NFKD", str(raw_status).strip().lower())
+    normalized = "".join(char for char in normalized if not unicodedata.combining(char))
+    normalized = normalized.replace("_", " ")
+
+    status_map = {
+        "moi": "Moi",
+        "sap het han": "Sap Het Han",
+        "het han": "Het Han",
+    }
+    return status_map.get(normalized, _status_label(expiry_date))
+
+
+def _parse_non_negative_float(value: object, field_name: str) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, str) and not value.strip():
+        return None
+
+    normalized = str(value).strip().replace(" ", "")
+    if "," in normalized and "." in normalized:
+        normalized = normalized.replace(",", "")
+    elif "," in normalized and "." not in normalized:
+        normalized = normalized.replace(",", ".")
+    try:
+        result = float(normalized)
+    except ValueError as exc:
+        raise ValueError(f"{field_name} khong hop le") from exc
+
+    if result < 0:
+        raise ValueError(f"{field_name} phai >= 0")
+    return result
 
 
 def _build_product_sku(name: str) -> str:
@@ -119,6 +158,161 @@ def _get_staff_scope(db: Session, user_id: int) -> dict[str, int]:
     return {"store_id": int(user.store_id), "supermarket_id": int(user.supermarket_id)}
 
 
+def _resolve_or_create_category(db: Session, category_name: object) -> int | None:
+    name = str(category_name or "").strip()
+    if not name:
+        return None
+
+    existing = db.execute(
+        text(
+            """
+            SELECT id
+            FROM categories
+            WHERE LOWER(name) = LOWER(:name)
+            LIMIT 1
+            """
+        ),
+        {"name": name},
+    ).first()
+
+    if existing:
+        return int(existing.id)
+
+    result = db.execute(
+        text("INSERT INTO categories (name) VALUES (:name)"),
+        {"name": name},
+    )
+    return int(result.lastrowid)
+
+
+def _ensure_unique_sku_for_product(
+    db: Session,
+    supermarket_id: int,
+    sku: str,
+    current_product_id: int | None = None,
+) -> None:
+    conflict = db.execute(
+        text(
+            """
+            SELECT id
+            FROM products
+            WHERE supermarket_id = :supermarket_id
+              AND sku = :sku
+              AND (:current_product_id IS NULL OR id != :current_product_id)
+            LIMIT 1
+            """
+        ),
+        {
+            "supermarket_id": supermarket_id,
+            "sku": sku,
+            "current_product_id": current_product_id,
+        },
+    ).first()
+
+    if conflict:
+        raise ValueError(f"SKU '{sku}' da ton tai")
+
+
+def _upsert_product_from_import(
+    db: Session,
+    *,
+    supermarket_id: int,
+    product_name_raw: object,
+    sku_raw: object = None,
+    base_price_raw: object = None,
+    category_name_raw: object = None,
+) -> tuple[int, str]:
+    product_name = str(product_name_raw or "").strip()
+    if not product_name:
+        raise ValueError("Ten san pham khong duoc trong")
+
+    sku = str(sku_raw or "").strip()
+    if not sku:
+        sku = None
+
+    base_price = _parse_non_negative_float(base_price_raw, "Don gia")
+    category_id = _resolve_or_create_category(db, category_name_raw)
+
+    product = None
+    if sku:
+        product = db.execute(
+            text(
+                """
+                SELECT id, sku, base_price, category_id
+                FROM products
+                WHERE supermarket_id = :supermarket_id
+                  AND sku = :sku
+                LIMIT 1
+                """
+            ),
+            {"supermarket_id": supermarket_id, "sku": sku},
+        ).first()
+
+    if not product:
+        product = db.execute(
+            text(
+                """
+                SELECT id, sku, base_price, category_id
+                FROM products
+                WHERE supermarket_id = :supermarket_id
+                  AND LOWER(name) = LOWER(:name)
+                LIMIT 1
+                """
+            ),
+            {"supermarket_id": supermarket_id, "name": product_name},
+        ).first()
+
+    if product:
+        current_id = int(product.id)
+        next_sku = str(product.sku)
+        if sku and sku != next_sku:
+            _ensure_unique_sku_for_product(db, supermarket_id, sku, current_product_id=current_id)
+            next_sku = sku
+
+        next_base_price = float(base_price) if base_price is not None else float(product.base_price or 0)
+        next_category_id = category_id if category_id is not None else product.category_id
+
+        db.execute(
+            text(
+                """
+                UPDATE products
+                SET sku = :sku,
+                    name = :name,
+                    base_price = :base_price,
+                    category_id = :category_id
+                WHERE id = :id
+                """
+            ),
+            {
+                "sku": next_sku,
+                "name": product_name,
+                "base_price": next_base_price,
+                "category_id": next_category_id,
+                "id": current_id,
+            },
+        )
+        return current_id, "updated"
+
+    next_sku = sku or _generate_unique_sku(db, supermarket_id, product_name)
+    _ensure_unique_sku_for_product(db, supermarket_id, next_sku)
+    result = db.execute(
+        text(
+            """
+            INSERT INTO products (supermarket_id, category_id, sku, name, base_price, image_url)
+            VALUES (:supermarket_id, :category_id, :sku, :name, :base_price, NULL)
+            """
+        ),
+        {
+            "supermarket_id": supermarket_id,
+            "category_id": category_id,
+            "sku": next_sku,
+            "name": product_name,
+            "base_price": float(base_price) if base_price is not None else 0,
+        },
+    )
+    return int(result.lastrowid), "created"
+
+
 def _resolve_or_create_product(db: Session, supermarket_id: int, product_name: str) -> int:
     name = product_name.strip()
     product = db.execute(
@@ -159,6 +353,8 @@ def _upsert_inventory_lot(
     product_name: str,
     quantity: int,
     expiry_date: date,
+    manual_status: object = None,
+    product_id: int | None = None,
 ) -> str:
     lot = db.execute(
         text(
@@ -173,8 +369,9 @@ def _upsert_inventory_lot(
         {"store_id": store_id, "lot_code": lot_code},
     ).first()
 
-    product_id = _resolve_or_create_product(db, supermarket_id, product_name)
-    lot_status = _status_label(expiry_date)
+    if product_id is None:
+        product_id = _resolve_or_create_product(db, supermarket_id, product_name)
+    lot_status = _normalize_status_value(manual_status, expiry_date)
 
     if lot:
         db.execute(
@@ -891,6 +1088,7 @@ def list_inventory_lots(
                 il.lot_code,
                 il.qty_on_hand,
                 il.expiry_date,
+                il.status,
                 p.name AS product_name
             FROM inventory_lots il
             JOIN products p ON p.id = il.product_id
@@ -904,8 +1102,8 @@ def list_inventory_lots(
     items = []
     for row in rows:
         item = _dict_row(row)
-        computed_status = _status_label(item["expiry_date"])
-        if status_filter != "all" and status_filter.strip().lower() != computed_status.lower():
+        current_status = _normalize_status_value(item.get("status"), item["expiry_date"])
+        if status_filter != "all" and status_filter.strip().lower() != current_status.lower():
             continue
         items.append(
             {
@@ -914,7 +1112,7 @@ def list_inventory_lots(
                 "productName": item["product_name"],
                 "quantity": int(item["qty_on_hand"] or 0),
                 "expiryDate": item["expiry_date"].strftime("%Y-%m-%d"),
-                "status": computed_status,
+                "status": current_status,
             }
         )
 
@@ -933,6 +1131,8 @@ def create_inventory_lot(
     product_name = (payload.get("productName") or "").strip()
     quantity_raw = payload.get("quantity")
     expiry_date_raw = payload.get("expiryDate")
+    manual_status = payload.get("status")
+    action_note = (payload.get("actionNote") or "").strip()
 
     if not lot_code or not product_name:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Du lieu khong hop le")
@@ -957,10 +1157,11 @@ def create_inventory_lot(
         product_name=product_name,
         quantity=quantity,
         expiry_date=expiry_date,
+        manual_status=manual_status,
     )
     db.commit()
 
-    return {"success": True, "action": action}
+    return {"success": True, "action": action, "actionNote": action_note}
 
 
 @router.put("/inventory-lots/{lot_id}")
@@ -991,6 +1192,7 @@ def update_inventory_lot(
     product_name = (payload.get("productName") or "").strip()
     quantity_raw = payload.get("quantity")
     expiry_date_raw = payload.get("expiryDate")
+    manual_status = payload.get("status")
 
     if not lot_code or not product_name:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Du lieu khong hop le")
@@ -1008,7 +1210,7 @@ def update_inventory_lot(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
     product_id = _resolve_or_create_product(db, scope["supermarket_id"], product_name)
-    next_status = _status_label(expiry_date)
+    next_status = _normalize_status_value(manual_status, expiry_date)
 
     db.execute(
         text(
@@ -1078,17 +1280,33 @@ async def import_inventory_lots_from_excel(
 
     rows = _read_import_rows(file, file_bytes)
     if not rows:
-        return {"success": True, "created": 0, "updated": 0, "failed": 0, "errors": []}
+        return {
+            "success": True,
+            "created": 0,
+            "updated": 0,
+            "failed": 0,
+            "errors": [],
+            "productsCreated": 0,
+            "productsUpdated": 0,
+            "lotsCreated": 0,
+            "lotsUpdated": 0,
+        }
 
-    created = 0
-    updated = 0
+    products_created = 0
+    products_updated = 0
+    lots_created = 0
+    lots_updated = 0
     errors: list[dict[str, object]] = []
 
     for idx, row in enumerate(rows, start=2):
         lot_code_raw = _pick_field(row, "lot_code", "lotcode", "ma_lo", "ma_lo_hang")
-        product_name_raw = _pick_field(row, "product_name", "product", "ten_san_pham", "san_pham")
+        product_name_raw = _pick_field(row, "product_name", "product", "name", "ten_san_pham", "san_pham")
         quantity_raw = _pick_field(row, "quantity", "qty", "so_luong")
         expiry_raw = _pick_field(row, "expiry_date", "expiry", "ngay_het_han", "han_su_dung")
+        status_raw = _pick_field(row, "status", "trang_thai")
+        sku_raw = _pick_field(row, "sku", "ma_sku")
+        base_price_raw = _pick_field(row, "base_price", "price", "don_gia", "gia")
+        category_raw = _pick_field(row, "category", "category_name", "danh_muc")
 
         try:
             lot_code = str(lot_code_raw or "").strip()
@@ -1101,7 +1319,20 @@ async def import_inventory_lots_from_excel(
                 raise ValueError("So luong phai >= 0")
 
             expiry_date = _parse_date_input(expiry_raw)
-            action = _upsert_inventory_lot(
+            product_id, product_action = _upsert_product_from_import(
+                db,
+                supermarket_id=scope["supermarket_id"],
+                product_name_raw=product_name,
+                sku_raw=sku_raw,
+                base_price_raw=base_price_raw,
+                category_name_raw=category_raw,
+            )
+            if product_action == "created":
+                products_created += 1
+            else:
+                products_updated += 1
+
+            lot_action = _upsert_inventory_lot(
                 db,
                 store_id=scope["store_id"],
                 supermarket_id=scope["supermarket_id"],
@@ -1109,12 +1340,14 @@ async def import_inventory_lots_from_excel(
                 product_name=product_name,
                 quantity=quantity,
                 expiry_date=expiry_date,
+                manual_status=status_raw,
+                product_id=product_id,
             )
 
-            if action == "created":
-                created += 1
+            if lot_action == "created":
+                lots_created += 1
             else:
-                updated += 1
+                lots_updated += 1
         except Exception as exc:  # noqa: BLE001
             errors.append({"row": idx, "message": str(exc)})
 
@@ -1122,8 +1355,115 @@ async def import_inventory_lots_from_excel(
 
     return {
         "success": True,
-        "created": created,
-        "updated": updated,
+        "created": lots_created,
+        "updated": lots_updated,
+        "failed": len(errors),
+        "errors": errors,
+        "productsCreated": products_created,
+        "productsUpdated": products_updated,
+        "lotsCreated": lots_created,
+        "lotsUpdated": lots_updated,
+    }
+
+
+@router.post("/products/import-excel")
+async def import_products_from_excel(
+    user_id: int = Query(..., ge=1),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    scope = _get_staff_scope(db, user_id)
+
+    file_bytes = await file.read()
+    if not file_bytes:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File trong")
+
+    rows = _read_import_rows(file, file_bytes)
+    if not rows:
+        return {
+            "success": True,
+            "productsCreated": 0,
+            "productsUpdated": 0,
+            "lotsCreated": 0,
+            "lotsUpdated": 0,
+            "failed": 0,
+            "errors": [],
+        }
+
+    products_created = 0
+    products_updated = 0
+    lots_created = 0
+    lots_updated = 0
+    errors: list[dict[str, object]] = []
+
+    for idx, row in enumerate(rows, start=2):
+        product_name_raw = _pick_field(row, "product_name", "product", "name", "ten_san_pham", "san_pham")
+        sku_raw = _pick_field(row, "sku", "ma_sku")
+        base_price_raw = _pick_field(row, "base_price", "price", "don_gia", "gia")
+        category_raw = _pick_field(row, "category", "category_name", "danh_muc")
+
+        lot_code_raw = _pick_field(row, "lot_code", "lotcode", "ma_lo", "ma_lo_hang")
+        quantity_raw = _pick_field(row, "quantity", "qty", "so_luong")
+        expiry_raw = _pick_field(row, "expiry_date", "expiry", "ngay_het_han", "han_su_dung")
+        status_raw = _pick_field(row, "status", "trang_thai")
+
+        try:
+            product_id, product_action = _upsert_product_from_import(
+                db,
+                supermarket_id=scope["supermarket_id"],
+                product_name_raw=product_name_raw,
+                sku_raw=sku_raw,
+                base_price_raw=base_price_raw,
+                category_name_raw=category_raw,
+            )
+            product_name = str(product_name_raw or "").strip()
+
+            if product_action == "created":
+                products_created += 1
+            else:
+                products_updated += 1
+
+            has_lot_data = any(
+                value not in (None, "")
+                for value in (lot_code_raw, quantity_raw, expiry_raw)
+            )
+            if has_lot_data:
+                lot_code = str(lot_code_raw or "").strip()
+                if not lot_code:
+                    raise ValueError("Thieu ma lo de tao ton kho")
+
+                quantity = int(quantity_raw)
+                if quantity < 0:
+                    raise ValueError("So luong phai >= 0")
+
+                expiry_date = _parse_date_input(expiry_raw)
+
+                lot_action = _upsert_inventory_lot(
+                    db,
+                    store_id=scope["store_id"],
+                    supermarket_id=scope["supermarket_id"],
+                    lot_code=lot_code,
+                    product_name=product_name,
+                    quantity=quantity,
+                    expiry_date=expiry_date,
+                    manual_status=status_raw,
+                    product_id=product_id,
+                )
+                if lot_action == "created":
+                    lots_created += 1
+                else:
+                    lots_updated += 1
+        except Exception as exc:  # noqa: BLE001
+            errors.append({"row": idx, "message": str(exc)})
+
+    db.commit()
+
+    return {
+        "success": True,
+        "productsCreated": products_created,
+        "productsUpdated": products_updated,
+        "lotsCreated": lots_created,
+        "lotsUpdated": lots_updated,
         "failed": len(errors),
         "errors": errors,
     }

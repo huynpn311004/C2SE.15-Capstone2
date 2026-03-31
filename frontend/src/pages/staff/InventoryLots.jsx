@@ -21,6 +21,8 @@ const badgeTextMap = {
   'Het Han': 'Hết Hạn',
 }
 
+const lotStatusOptions = ['Moi', 'Sap Het Han', 'Het Han']
+
 function getStatusLabel(status) {
   if (status === 'Moi') return 'Mới'
   if (status === 'Sap Het Han') return 'Sắp Hết Hạn'
@@ -57,6 +59,8 @@ export default function InventoryLots() {
     productName: '',
     quantity: '',
     expiryDate: '',
+    status: 'Moi',
+    actionNote: '',
   })
 
   useEffect(() => {
@@ -185,7 +189,8 @@ export default function InventoryLots() {
       productName: '',
       quantity: '',
       expiryDate: '',
-      status: 'Mới',
+      status: 'Moi',
+      actionNote: '',
     })
     setCreateError('')
     setCreateSuccess('')
@@ -232,14 +237,19 @@ export default function InventoryLots() {
 
     try {
       setIsSubmitting(true)
-      await createInventoryLot({
+      const response = await createInventoryLot({
         lotCode: createForm.lotCode.trim(),
         productName: createForm.productName.trim(),
         quantity: Number(createForm.quantity),
         expiryDate: createForm.expiryDate,
+        status: createForm.status,
+        actionNote: createForm.actionNote.trim(),
       })
       await loadLots()
-      setCreateSuccess('Đã tạo lô hàng mới thành công.')
+      const actionNoteMessage = response?.actionNote
+        ? ` (Thao tác: ${response.actionNote})`
+        : ''
+      setCreateSuccess(`Đã tạo lô hàng mới thành công.${actionNoteMessage}`)
       setTimeout(() => closeCreateModal(), 600)
     } catch (err) {
       console.error('Failed to create lot:', err)
@@ -273,6 +283,9 @@ export default function InventoryLots() {
       await loadLots()
 
       let message = `Import thành công: tạo mới ${result.created || 0}, cập nhật ${result.updated || 0}`
+      if (typeof result.productsCreated !== 'undefined' || typeof result.productsUpdated !== 'undefined') {
+        message += ` | sản phẩm tạo mới ${result.productsCreated || 0}, cập nhật ${result.productsUpdated || 0}`
+      }
       if (result.failed) {
         const firstError = result.errors?.[0]
         const detail = firstError
@@ -466,6 +479,32 @@ export default function InventoryLots() {
                       onChange={handleEditFormChange}
                       className="inventory-input"
                       required
+                    />
+                  </div>
+                  <div className="inventory-form-field">
+                    <label>Trạng Thái</label>
+                    <select
+                      name="status"
+                      value={createForm.status}
+                      onChange={handleCreateFormChange}
+                      className="inventory-input"
+                    >
+                      {lotStatusOptions.map((status) => (
+                        <option key={status} value={status}>
+                          {getStatusLabel(status)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="inventory-form-field">
+                    <label>Thao Tác</label>
+                    <input
+                      type="text"
+                      name="actionNote"
+                      value={createForm.actionNote}
+                      onChange={handleCreateFormChange}
+                      className="inventory-input"
+                      placeholder="VD: Ưu tiên nhập kho"
                     />
                   </div>
                 </div>

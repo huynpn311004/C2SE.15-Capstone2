@@ -275,6 +275,20 @@ export async function deleteProduct(productId) {
   return response.data
 }
 
+export async function importProducts(file) {
+  const userId = getUserId()
+  if (!userId) throw new Error('Không tìm thấy thông tin người dùng')
+
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const response = await API.post('/staff/products/import-excel', formData, {
+    params: { user_id: userId },
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return response.data
+}
+
 export async function fetchDonationRequests() {
   const userId = getUserId()
   if (!userId) throw new Error('Không tìm thấy thông tin người dùng')
