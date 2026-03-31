@@ -22,6 +22,12 @@
   border-bottom: 1px solid #e0efed;
 }
 
+.product-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
 .product-card-header h2 {
   margin: 0;
   color: #134e4a;
@@ -47,6 +53,27 @@
 .product-btn-add:hover {
   background: #0d5c56;
   border-color: #0d5c56;
+}
+
+.product-btn-import {
+  background: #f8fffe;
+  color: #0f766e;
+  border: 1px dashed #0f766e;
+  border-radius: 8px;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.product-btn-import:hover {
+  background: #e6f7f5;
+}
+
+.product-btn-import.is-disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .product-alert {
@@ -502,6 +529,16 @@
     flex-direction: column;
     gap: 0.75rem;
     align-items: flex-start;
+  }
+
+  .product-header-actions {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .product-btn-import {
+    text-align: center;
   }
 
   .product-btn-add {
