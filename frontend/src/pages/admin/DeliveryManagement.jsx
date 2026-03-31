@@ -92,9 +92,47 @@ export default function DeliveryManagement() {
     passwordStatus: 'active',
   })
 
-  const filteredDeliveries = deliveryPartners
+  const [searchQuery, setSearchQuery] = useState('')
+  const [vehicleTypeFilter, setVehicleTypeFilter] = useState('all')
+  const [accountFilter, setAccountFilter] = useState('all') // all | pending | created
+  const [lockFilter, setLockFilter] = useState('all') // all | locked | unlocked
 
   const pendingDeliveries = deliveryPartners.filter((delivery) => !delivery.accountCreated)
+
+  const vehicleTypes = Array.from(
+    new Set(deliveryPartners.map((d) => d.vehicleType).filter(Boolean)),
+  )
+
+  const filteredDeliveries = deliveryPartners.filter((delivery) => {
+    const q = searchQuery.trim().toLowerCase()
+
+    const matchesSearch =
+      !q ||
+      delivery.name.toLowerCase().includes(q) ||
+      delivery.manager.toLowerCase().includes(q) ||
+      delivery.email.toLowerCase().includes(q) ||
+      delivery.phone.toLowerCase().includes(q) ||
+      delivery.licensePlate.toLowerCase().includes(q)
+
+    const matchesVehicleType = vehicleTypeFilter === 'all' || delivery.vehicleType === vehicleTypeFilter
+
+    const matchesAccount =
+      accountFilter === 'all' ||
+      (accountFilter === 'pending' && !delivery.accountCreated) ||
+      (accountFilter === 'created' && delivery.accountCreated)
+
+    const matchesLock =
+      lockFilter === 'all' ||
+      (lockFilter === 'locked' && delivery.isLocked) ||
+      (lockFilter === 'unlocked' && !delivery.isLocked)
+
+    return matchesSearch && matchesVehicleType && matchesAccount && matchesLock
+  })
+
+  const totalCount = deliveryPartners.length
+  const pendingCount = pendingDeliveries.length
+  const createdCount = deliveryPartners.filter((d) => d.accountCreated).length
+  const lockedCount = deliveryPartners.filter((d) => d.isLocked).length
 
   function handleToggleLockDelivery(id) {
     setDeliveryPartners((prev) =>
@@ -402,15 +440,85 @@ export default function DeliveryManagement() {
       <div className="delivery-page">
         {/* TOOLBAR */}
         <div className="delivery-toolbar">
-          <button
-            className="delivery-btn-create delivery-toolbar-btn"
-            onClick={openCreateModal}
-            disabled={pendingDeliveries.length === 0}
-          >
-            Tạo tài khoản
-          </button>
+          <div className="delivery-toolbar-left">
+            <button
+              className="delivery-btn-create delivery-toolbar-btn"
+              onClick={openCreateModal}
+              disabled={pendingDeliveries.length === 0}
+            >
+              Tạo tài khoản
+            </button>
+          </div>
+
+          <div className="delivery-toolbar-filters">
+            <input
+              className="delivery-filter-input"
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Tìm theo tên/email/sđt/biển số..."
+              aria-label="Tìm kiếm đối tác delivery"
+            />
+
+            <select
+              className="delivery-filter-select"
+              value={vehicleTypeFilter}
+              onChange={(e) => setVehicleTypeFilter(e.target.value)}
+              aria-label="Lọc theo phương tiện"
+            >
+              <option value="all">Tất cả phương tiện</option>
+              {vehicleTypes.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+
+            <select
+              className="delivery-filter-select"
+              value={accountFilter}
+              onChange={(e) => setAccountFilter(e.target.value)}
+              aria-label="Lọc theo tài khoản"
+            >
+              <option value="all">Tất cả tài khoản</option>
+              <option value="pending">Chưa tạo tài khoản</option>
+              <option value="created">Đã tạo tài khoản</option>
+            </select>
+
+            <select
+              className="delivery-filter-select"
+              value={lockFilter}
+              onChange={(e) => setLockFilter(e.target.value)}
+              aria-label="Lọc theo khóa/mở khóa"
+            >
+              <option value="all">Tất cả trạng thái</option>
+              <option value="locked">Đang bị khóa</option>
+              <option value="unlocked">Đang hoạt động</option>
+            </select>
+          </div>
+
           <div className="delivery-toolbar-info">
-            Hiển thị {filteredDeliveries.length} đối tác delivery
+            Hiển thị {filteredDeliveries.length}/{totalCount}
+          </div>
+        </div>
+
+        {/* SUMMARY */}
+        <div className="delivery-summary">
+          <div className="delivery-summary-card">
+            <div className="delivery-summary-title">Tổng</div>
+            <div className="delivery-summary-value">{totalCount}</div>
+          </div>
+          <div className="delivery-summary-card delivery-summary-card-pending">
+            <div className="delivery-summary-title">Chưa tạo tài khoản</div>
+            <div className="delivery-summary-value">{pendingCount}</div>
+          </div>
+          <div className="delivery-summary-card delivery-summary-card-created">
+            <div className="delivery-summary-title">Đã tạo tài khoản</div>
+            <div className="delivery-summary-value">{createdCount}</div>
+          </div>
+          <div className="delivery-summary-card delivery-summary-card-locked">
+            <div className="delivery-summary-title">Đang bị khóa</div>
+            <div className="delivery-summary-value">{lockedCount}</div>
           </div>
         </div>
 

@@ -37,12 +37,97 @@
   border-radius: 9px;
   box-shadow: 0 2px 8px rgba(15, 118, 110, 0.06);
   flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.delivery-toolbar-left {
+  display: flex;
+  align-items: center;
+}
+
+.delivery-toolbar-filters {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  flex: 1;
+}
+
+.delivery-filter-input {
+  height: 34px;
+  min-width: 260px;
+  padding: 0 0.75rem;
+  border: 1.5px solid #d1e7e4;
+  border-radius: 9px;
+  outline: none;
+  font-size: 0.82rem;
+  color: var(--seims-ink);
+  background: #ffffff;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.delivery-filter-input:focus {
+  border-color: #0d9488;
+  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.12);
+}
+
+.delivery-filter-select {
+  height: 34px;
+  padding: 0 2.2rem 0 0.75rem;
+  border: 1.5px solid #d1e7e4;
+  border-radius: 9px;
+  outline: none;
+  font-size: 0.82rem;
+  color: var(--seims-ink);
+  background: #ffffff;
+  cursor: pointer;
 }
 
 .delivery-toolbar-info {
   font-size: 0.76rem;
   color: var(--seims-muted);
   white-space: nowrap;
+}
+
+/* SUMMARY CARDS */
+.delivery-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.delivery-summary-card {
+  background: var(--seims-card);
+  border: 1px solid var(--seims-border);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  box-shadow: 0 2px 8px rgba(15, 118, 110, 0.04);
+}
+
+.delivery-summary-title {
+  font-size: 0.74rem;
+  color: var(--seims-muted);
+  font-weight: 600;
+}
+
+.delivery-summary-value {
+  margin-top: 0.25rem;
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--seims-ink);
+}
+
+.delivery-summary-card-pending .delivery-summary-value {
+  color: var(--seims-warning);
+}
+
+.delivery-summary-card-created .delivery-summary-value {
+  color: var(--seims-success);
+}
+
+.delivery-summary-card-locked .delivery-summary-value {
+  color: var(--seims-error);
 }
 
 .delivery-toolbar-btn {
@@ -715,6 +800,20 @@
   .delivery-toolbar {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .delivery-toolbar-filters {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .delivery-filter-input {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .delivery-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .delivery-toolbar-btn {
