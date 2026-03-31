@@ -26,7 +26,8 @@ export default function Login() {
       store_staff: '/staff/dashboard',
       customer: '/customer/home',
       charity: '/charity/dashboard',
-      delivery_partner: '/',
+      delivery: '/delivery/dashboard',
+      delivery_partner: '/delivery/dashboard',
     }
     return routes[role] || '/'
   }
@@ -168,9 +169,6 @@ export default function Login() {
 
             <footer className="login-footer">
               Chưa có tài khoản? <Link to="/register">Đăng ký Khách Hàng</Link>
-              <br />
-              Đại diện siêu thị?{' '}
-              <a href="#dang-ky-sieu-thi">Gửi hồ sơ tham gia</a>
             </footer>
           </div>
         </div>

@@ -9,6 +9,9 @@ from app.routers.admin import router as admin_router
 from app.routers.supermarket_admin import router as supermarket_admin_router
 from app.routers.staff import router as staff_router
 from app.routers.charity import router as charity_router
+from app.routers.delivery import router as delivery_router
+from app.routers.customer import router as customer_router
+from app.routers.discount_policy import router as discount_policy_router
 
 
 def _ensure_users_lock_columns() -> None:
@@ -62,4 +65,7 @@ def create_app():
     app.include_router(supermarket_admin_router, prefix="/api")
     app.include_router(staff_router, prefix="/api")
     app.include_router(charity_router, prefix="/api")
+    app.include_router(delivery_router, prefix="/api")
+    app.include_router(customer_router, prefix="/api")
+    app.include_router(discount_policy_router, prefix="/api")
     return app
