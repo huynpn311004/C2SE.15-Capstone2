@@ -1,10 +1,8 @@
 import { useEffect, useState } from 'react'
 import StaffLayout from '../../components/layout/StaffLayout'
 import { useAuth } from '../../services/AuthContext'
-import { updateStaffProfile } from '../../services/staffApi'
+import { fetchStaffProfile, updateStaffProfile } from '../../services/staffApi'
 import './StaffSetting.css'
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 export default function StaffSetting() {
   const { user } = useAuth()
@@ -41,35 +39,22 @@ export default function StaffSetting() {
 
     try {
       setLoading(true)
-      const response = await fetch(`${API_URL}/staff/profile?user_id=${user.id}`)
-      const data = await response.json()
-
-      if (response.ok) {
-        setProfile({
-          fullName: data.fullName || user.full_name || '',
-          email: data.email || user.email || '',
-          phone: data.phone || user.phone || '',
-          store: data.store || '',
-          storeAddress: data.storeAddress || '',
-          role: data.role || 'store_staff',
-        })
-      } else {
-        setProfile({
-          fullName: user.full_name || '',
-          email: user.email || '',
-          phone: user.phone || '',
-          store: '',
-          storeAddress: '',
-          role: user.role || 'store_staff',
-        })
-      }
+      const data = await fetchStaffProfile()
+      setProfile({
+        fullName: data.fullName || user.full_name || '',
+        email: data.email || user.email || '',
+        phone: data.phone || user.phone || '',
+        store: data.storeName || data.store || '',
+        storeAddress: data.storeAddress || '',
+        role: data.role || user.role || 'store_staff',
+      })
     } catch (err) {
       setProfile({
         fullName: user.full_name || '',
         email: user.email || '',
         phone: user.phone || '',
-        store: '',
-        storeAddress: '',
+        store: user.storeName || '',
+        storeAddress: user.storeAddress || '',
         role: user.role || 'store_staff',
       })
     } finally {

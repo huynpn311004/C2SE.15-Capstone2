@@ -82,6 +82,36 @@
   white-space: nowrap;
 }
 
+.inventory-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.inventory-upload-btn {
+  min-height: 32px;
+  padding: 0.38rem 0.85rem;
+  border: 1px dashed var(--seims-teal);
+  border-radius: 8px;
+  color: var(--seims-teal);
+  font-size: 0.76rem;
+  font-weight: 700;
+  background: rgba(15, 118, 110, 0.06);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+}
+
+.inventory-upload-btn:hover {
+  background: rgba(15, 118, 110, 0.12);
+}
+
+.inventory-upload-btn.is-disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* CARD */
 .inventory-card {
   background: var(--seims-card);
@@ -470,6 +500,16 @@
 
   .inventory-toolbar-btn {
     width: 100%;
+  }
+
+  .inventory-toolbar-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .inventory-upload-btn {
+    width: 100%;
+    justify-content: center;
   }
 
   .inventory-filter-group {

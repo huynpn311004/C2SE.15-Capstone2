@@ -1,6 +1,12 @@
 import { useState, useEffect } from 'react'
 import StaffLayout from '../../components/layout/StaffLayout'
-import { fetchInventoryLots, createInventoryLot, updateInventoryLot, deleteInventoryLot } from '../../services/staffApi'
+import {
+  fetchInventoryLots,
+  createInventoryLot,
+  updateInventoryLot,
+  deleteInventoryLot,
+  importInventoryLots,
+} from '../../services/staffApi'
 import './InventoryLots.css'
 
 const statusColors = {
@@ -35,14 +41,19 @@ export default function InventoryLots() {
   const [editSuccess, setEditSuccess] = useState('')
   const [createError, setCreateError] = useState('')
   const [createSuccess, setCreateSuccess] = useState('')
+  const [importError, setImportError] = useState('')
+  const [importResult, setImportResult] = useState('')
+  const [isImporting, setIsImporting] = useState(false)
 
   const [editForm, setEditForm] = useState({
+    lotCode: '',
     productName: '',
     quantity: '',
     expiryDate: '',
   })
 
   const [createForm, setCreateForm] = useState({
+    lotCode: '',
     productName: '',
     quantity: '',
     expiryDate: '',
@@ -90,6 +101,7 @@ export default function InventoryLots() {
   function openEditModal(lot) {
     setSelectedLot(lot)
     setEditForm({
+      lotCode: lot.lotCode,
       productName: lot.productName,
       quantity: String(lot.quantity),
       expiryDate: lot.expiryDate,
@@ -118,6 +130,10 @@ export default function InventoryLots() {
     setEditError('')
     setEditSuccess('')
 
+    if (!editForm.lotCode.trim()) {
+      setEditError('Mã lô không được để trống.')
+      return
+    }
     if (!editForm.productName.trim()) {
       setEditError('Tên sản phẩm không được để trống.')
       return
@@ -134,6 +150,7 @@ export default function InventoryLots() {
     try {
       setIsSubmitting(true)
       await updateInventoryLot(selectedLot.id, {
+        lotCode: editForm.lotCode.trim(),
         productName: editForm.productName.trim(),
         quantity: Number(editForm.quantity),
         expiryDate: editForm.expiryDate,
@@ -144,6 +161,7 @@ export default function InventoryLots() {
           item.id === selectedLot.id
             ? {
                 ...item,
+                lotCode: editForm.lotCode.trim(),
                 productName: editForm.productName.trim(),
                 quantity: Number(editForm.quantity),
                 expiryDate: editForm.expiryDate,
@@ -195,6 +213,10 @@ export default function InventoryLots() {
     setCreateError('')
     setCreateSuccess('')
 
+    if (!createForm.lotCode.trim()) {
+      setCreateError('Mã lô không được để trống.')
+      return
+    }
     if (!createForm.productName.trim()) {
       setCreateError('Tên sản phẩm không được để trống.')
       return
@@ -210,12 +232,13 @@ export default function InventoryLots() {
 
     try {
       setIsSubmitting(true)
-      const newLot = await createInventoryLot({
+      await createInventoryLot({
+        lotCode: createForm.lotCode.trim(),
         productName: createForm.productName.trim(),
         quantity: Number(createForm.quantity),
         expiryDate: createForm.expiryDate,
       })
-      setLots((prev) => [newLot, ...prev])
+      await loadLots()
       setCreateSuccess('Đã tạo lô hàng mới thành công.')
       setTimeout(() => closeCreateModal(), 600)
     } catch (err) {
@@ -223,6 +246,45 @@ export default function InventoryLots() {
       setCreateError(err?.response?.data?.detail || 'Tạo lô hàng thất bại.')
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  async function handleImportFile(event) {
+    const selectedFile = event.target.files?.[0]
+    event.target.value = ''
+
+    if (!selectedFile) {
+      return
+    }
+
+    const fileName = selectedFile.name.toLowerCase()
+    if (!fileName.endsWith('.xlsx') && !fileName.endsWith('.csv')) {
+      setImportError('Chỉ hỗ trợ file .xlsx hoặc .csv')
+      setImportResult('')
+      return
+    }
+
+    try {
+      setIsImporting(true)
+      setImportError('')
+      setImportResult('')
+
+      const result = await importInventoryLots(selectedFile)
+      await loadLots()
+
+      let message = `Import thành công: tạo mới ${result.created || 0}, cập nhật ${result.updated || 0}`
+      if (result.failed) {
+        const firstError = result.errors?.[0]
+        const detail = firstError
+          ? ` Dòng lỗi đầu tiên: ${firstError.row} - ${firstError.message}`
+          : ''
+        message += `. Lỗi ${result.failed}.${detail}`
+      }
+      setImportResult(message)
+    } catch (err) {
+      setImportError(err?.response?.data?.detail || 'Import file thất bại.')
+    } finally {
+      setIsImporting(false)
     }
   }
 
@@ -254,13 +316,28 @@ export default function InventoryLots() {
             <option value="Het Han">Hết Hạn</option>
           </select>
         </div>
-        <button className="inventory-btn-create inventory-toolbar-btn" onClick={openCreateModal}>
-          + Tạo Lô Mới
-        </button>
+        <div className="inventory-toolbar-actions">
+          <label className={`inventory-upload-btn ${isImporting ? 'is-disabled' : ''}`}>
+            {isImporting ? 'Đang import...' : 'Upload Excel/CSV'}
+            <input
+              type="file"
+              accept=".xlsx,.csv"
+              onChange={handleImportFile}
+              disabled={isImporting}
+              hidden
+            />
+          </label>
+          <button className="inventory-btn-create inventory-toolbar-btn" onClick={openCreateModal}>
+            + Tạo Lô Mới
+          </button>
+        </div>
         <div className="inventory-toolbar-info">
           Hiển thị {filteredLots.length} lô hàng
         </div>
       </div>
+
+      {importError && <p className="inventory-error">{importError}</p>}
+      {importResult && <p className="inventory-success">{importResult}</p>}
 
       {/* TABLE */}
       <div className="inventory-card">
@@ -344,9 +421,12 @@ export default function InventoryLots() {
                     <label>Mã Lô</label>
                     <input
                       type="text"
-                      value={selectedLot.lotCode}
+                      name="lotCode"
+                      value={editForm.lotCode}
+                      onChange={handleEditFormChange}
                       className="inventory-input"
-                      disabled
+                      placeholder="VD: LOT-001"
+                      required
                     />
                   </div>
                   <div className="inventory-form-field">
@@ -420,6 +500,18 @@ export default function InventoryLots() {
             <form className="modal-body" onSubmit={submitCreateLot}>
               <div className="inventory-form-grid">
                 <div className="inventory-form-column">
+                  <div className="inventory-form-field">
+                    <label>Mã Lô</label>
+                    <input
+                      type="text"
+                      name="lotCode"
+                      value={createForm.lotCode}
+                      onChange={handleCreateFormChange}
+                      className="inventory-input"
+                      placeholder="VD: LOT-001"
+                      required
+                    />
+                  </div>
                   <div className="inventory-form-field">
                     <label>Tên Sản Phẩm</label>
                     <input
