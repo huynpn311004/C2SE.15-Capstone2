@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { mockProducts } from "../../services/mockProducts";
+import { fetchCustomerProductDetail } from "../../services/customerApi";
 import './CustomerHome.css';
 
 const CART_KEY = 'seims_customer_cart';
@@ -58,8 +58,25 @@ function Toast({ message, visible }) {
 const CustomerProductDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const product = mockProducts.find(p => p.id === parseInt(id));
+  const [product, setProduct] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [toast, setToast] = useState({ visible: false, message: '' });
+
+  useEffect(() => {
+    async function loadProduct() {
+      try {
+        setLoading(true);
+        const data = await fetchCustomerProductDetail(id);
+        setProduct(data);
+      } catch (err) {
+        setError('Không thể tải thông tin sản phẩm.');
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadProduct();
+  }, [id]);
 
   const showToast = (msg) => {
     setToast({ visible: true, message: msg });
@@ -72,15 +89,29 @@ const CustomerProductDetail = () => {
     showToast(`"${product.name}" đã thêm vào giỏ hàng!`);
   };
 
-  if (!product) return (
-    <div className="customer-page">
-      <div className="customer-products-section">
-        <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--seims-muted)' }}>
-          Không tìm thấy sản phẩm
+  if (loading) {
+    return (
+      <div className="customer-page">
+        <div className="customer-products-section">
+          <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--seims-muted)' }}>
+            Đang tải sản phẩm...
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  }
+
+  if (error || !product) {
+    return (
+      <div className="customer-page">
+        <div className="customer-products-section">
+          <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--seims-muted)' }}>
+            {error || 'Không tìm thấy sản phẩm'}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -118,18 +149,22 @@ const CustomerProductDetail = () => {
               justifyContent: 'center',
               minHeight: '300px'
             }}>
-              <img src={product.image} alt={product.name} style={{ maxWidth: '100%', maxHeight: '300px', mixBlendMode: 'multiply' }} />
+              <img 
+                src={product.image_url || product.image} 
+                alt={product.name} 
+                style={{ maxWidth: '100%', maxHeight: '300px', mixBlendMode: 'multiply' }} 
+              />
             </div>
 
             {/* Product Info */}
             <div style={{ flex: '1 1 300px', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <span className="customer-product-shop">{product.shop}</span>
+              <span className="customer-product-shop">{product.supermarket_name || product.shop}</span>
               <h1 style={{ margin: 0, fontSize: '1.75rem', fontWeight: '800', color: 'var(--seims-ink)' }}>{product.name}</h1>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', margin: '0.5rem 0' }}>
-                <span className="customer-price-original" style={{ fontSize: '1.1rem' }}>{product.originalPrice.toLocaleString()}đ</span>
-                <span className="customer-price-sale" style={{ fontSize: '1.75rem' }}>{product.salePrice.toLocaleString()}đ</span>
-                <span className="customer-discount-badge" style={{ fontSize: '0.85rem', padding: '0.35rem 0.6rem' }}>-{product.discount}%</span>
+                <span className="customer-price-original" style={{ fontSize: '1.1rem' }}>{(product.original_price || product.originalPrice || 0).toLocaleString()}đ</span>
+                <span className="customer-price-sale" style={{ fontSize: '1.75rem' }}>{(product.sale_price || product.salePrice || 0).toLocaleString()}đ</span>
+                <span className="customer-discount-badge" style={{ fontSize: '0.85rem', padding: '0.35rem 0.6rem' }}>-{product.discount || 0}%</span>
               </div>
 
               <div style={{
@@ -141,7 +176,7 @@ const CustomerProductDetail = () => {
                 gap: '0.5rem'
               }}>
                 <span style={{ fontSize: '1.25rem' }}>⏰</span>
-                <span style={{ fontWeight: '600', color: 'var(--seims-warning)' }}>Còn {product.daysLeft} ngày hết hạn</span>
+                <span style={{ fontWeight: '600', color: 'var(--seims-warning)' }}>Còn {product.days_left || product.daysLeft || 0} ngày hết hạn</span>
               </div>
 
               <button

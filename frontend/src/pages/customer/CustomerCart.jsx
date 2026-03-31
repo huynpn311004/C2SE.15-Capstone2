@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { mockProducts } from '../../services/mockProducts';
+import { fetchCustomerProducts } from '../../services/customerApi';
 import './CustomerCart.css';
 
 const CART_KEY = 'seims_customer_cart';
@@ -76,18 +76,9 @@ const CustomerCart = () => {
   const [toast, setToast] = useState({ visible: false, message: '' });
   const [cartInitialized, setCartInitialized] = useState(false);
 
-  // Initialize cart from localStorage on mount
   useEffect(() => {
     const stored = getCart();
-    // Seed cart with a sample product if empty
-    if (stored.length === 0) {
-      const sampleProduct = mockProducts[0];
-      const initialCart = [{ ...sampleProduct, quantity: 1 }];
-      saveCart(initialCart);
-      setCart(initialCart);
-    } else {
-      setCart(stored);
-    }
+    setCart(stored);
     setCartInitialized(true);
 
     const handleUpdate = () => setCart(getCart());
@@ -111,8 +102,16 @@ const CustomerCart = () => {
     showToast('Đã xóa toàn bộ giỏ hàng');
   };
 
-  const subtotal = cart.reduce((sum, item) => sum + item.salePrice * item.quantity, 0);
-  const totalSavings = cart.reduce((sum, item) => sum + (item.originalPrice - item.salePrice) * item.quantity, 0);
+  const subtotal = cart.reduce((sum, item) => {
+    const price = item.sale_price || item.salePrice || 0;
+    return sum + price * item.quantity;
+  }, 0);
+
+  const totalSavings = cart.reduce((sum, item) => {
+    const original = item.original_price || item.originalPrice || 0;
+    const sale = item.sale_price || item.salePrice || 0;
+    return sum + (original - sale) * item.quantity;
+  }, 0);
 
   if (!cartInitialized) {
     return (
@@ -170,18 +169,18 @@ const CustomerCart = () => {
               cart.map((item) => (
                 <div key={item.id} className="customer-product-card" style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.75rem' }}>
                   <div style={{ width: '80px', height: '80px', background: '#f9fafb', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <img src={item.image} alt={item.name} style={{ width: '60px', height: '60px', objectFit: 'contain' }} />
+                    <img src={item.image_url || item.image} alt={item.name} style={{ width: '60px', height: '60px', objectFit: 'contain' }} />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <h4 className="customer-product-name">{item.name}</h4>
-                    <p style={{ margin: '0.25rem 0', fontSize: '0.8rem', color: 'var(--seims-muted)' }}>Cửa hàng: {item.shop}</p>
+                    <p style={{ margin: '0.25rem 0', fontSize: '0.8rem', color: 'var(--seims-muted)' }}>Cửa hàng: {item.supermarket_name || item.shop}</p>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem' }}>
-                      <span className="customer-discount-badge">-{item.discount}%</span>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--seims-muted)' }}>Còn {item.daysLeft} ngày</span>
+                      <span className="customer-discount-badge">-{item.discount || 0}%</span>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--seims-muted)' }}>Còn {item.days_left || item.daysLeft || 0} ngày</span>
                     </div>
                   </div>
                   <div style={{ textAlign: 'center', flexShrink: 0 }}>
-                    <span className="customer-price-sale" style={{ fontSize: '1rem' }}>{(item.salePrice * item.quantity).toLocaleString()}đ</span>
+                    <span className="customer-price-sale" style={{ fontSize: '1rem' }}>{((item.sale_price || item.salePrice || 0) * item.quantity).toLocaleString()}đ</span>
                     <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.75rem', color: 'var(--seims-muted)' }}>x{item.quantity}</p>
                   </div>
                   <button
@@ -217,7 +216,7 @@ const CustomerCart = () => {
             {cart.length > 0 && cart.map(item => (
               <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.85rem' }}>
                 <span style={{ color: 'var(--seims-muted)', flex: 1 }}>{item.name} x{item.quantity}</span>
-                <span style={{ fontWeight: '600', marginLeft: '0.5rem' }}>{(item.salePrice * item.quantity).toLocaleString()}đ</span>
+                <span style={{ fontWeight: '600', marginLeft: '0.5rem' }}>{((item.sale_price || item.salePrice || 0) * item.quantity).toLocaleString()}đ</span>
               </div>
             ))}
 

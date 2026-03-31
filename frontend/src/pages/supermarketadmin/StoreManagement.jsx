@@ -161,7 +161,6 @@ export default function StoreManagement() {
               <tr>
                 <th>Tên Store</th>
                 <th>Địa Chỉ</th>
-                <th>Quản Lý</th>
                 <th>Điện Thoại</th>
                 <th>Staff</th>
                 <th>Trạng Thái</th>
@@ -171,14 +170,13 @@ export default function StoreManagement() {
             <tbody>
               {!loading && stores.length === 0 && (
                 <tr>
-                  <td colSpan="7">Chưa có store nào.</td>
+                  <td colSpan="6">Chưa có store nào.</td>
                 </tr>
               )}
               {stores.map(store => (
                 <tr key={store.id}>
                   <td><span className="sastore-name">{store.name}</span></td>
                   <td>{store.address}</td>
-                  <td>Không hiển thị</td>
                   <td>{store.phone}</td>
                   <td>{store.staffCount}</td>
                   <td><span className={`badge ${statusBadge[store.status] || 'badge-warning'}`}>{statusLabel[store.status] || store.status}</span></td>

@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { createCustomerOrder } from '../../services/customerApi';
 import './CustomerHome.css';
 
 const CART_KEY = 'seims_customer_cart';
-const ORDERS_KEY = 'seims_customer_orders';
-const PROFILE_KEY = 'seims_customer_profile';
 
 function getCart() {
   try {
@@ -13,18 +12,9 @@ function getCart() {
   } catch { return []; }
 }
 
-function getOrders() {
-  try {
-    const raw = localStorage.getItem(ORDERS_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch { return []; }
-}
-
-function getProfile() {
-  try {
-    const raw = localStorage.getItem(PROFILE_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch { return {}; }
+function clearCart() {
+  localStorage.removeItem(CART_KEY);
+  window.dispatchEvent(new Event('seims-cart-updated'));
 }
 
 function Toast({ message, visible }) {
@@ -67,7 +57,16 @@ const CustomerCheckout = () => {
   const navigate = useNavigate();
   const [cart, setCart] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState({ visible: false, message: '' });
+
+  const getProfile = () => {
+    try {
+      const authRaw = localStorage.getItem('seims_auth_user');
+      const authUser = authRaw ? JSON.parse(authRaw) : null;
+      return authUser || {};
+    } catch { return {}; }
+  };
 
   const profile = getProfile();
 
@@ -82,22 +81,29 @@ const CustomerCheckout = () => {
     const storedCart = getCart();
     setCart(storedCart);
 
-    if (profile.fullName) setFormData(prev => ({ ...prev, name: profile.fullName }));
+    if (profile.full_name || profile.fullName) setFormData(prev => ({ ...prev, name: profile.full_name || profile.fullName }));
     if (profile.phone) setFormData(prev => ({ ...prev, phone: profile.phone }));
-    if (profile.address) setFormData(prev => ({ ...prev, address: profile.address }));
 
     setLoading(false);
   }, []);
 
-  const subtotal = cart.reduce((sum, item) => sum + item.salePrice * item.quantity, 0);
-  const totalSavings = cart.reduce((sum, item) => sum + (item.originalPrice - item.salePrice) * item.quantity, 0);
+  const subtotal = cart.reduce((sum, item) => {
+    const price = item.sale_price || item.salePrice || 0;
+    return sum + price * item.quantity;
+  }, 0);
+
+  const totalSavings = cart.reduce((sum, item) => {
+    const original = item.original_price || item.originalPrice || 0;
+    const sale = item.sale_price || item.salePrice || 0;
+    return sum + (original - sale) * item.quantity;
+  }, 0);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (cart.length === 0) {
@@ -106,39 +112,37 @@ const CustomerCheckout = () => {
       return;
     }
 
-    // Build order
-    const newOrder = {
-      id: `ORD-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`,
-      items: cart.map(item => ({
-        name: item.name,
-        shop: item.shop,
+    try {
+      setSubmitting(true);
+
+      const items = cart.map(item => ({
+        productId: item.id,
         quantity: item.quantity,
-        salePrice: item.salePrice,
-      })),
-      status: 'processing',
-      total: subtotal,
-      savings: totalSavings,
-      date: new Date().toLocaleString('vi-VN'),
-      address: formData.address,
-      note: formData.note,
-    };
+        lotCode: item.lotCode || null,
+      }));
 
-    // Save order
-    const orders = getOrders();
-    orders.unshift(newOrder);
-    localStorage.setItem(ORDERS_KEY, JSON.stringify(orders));
+      const storeId = cart[0].storeId || cart[0].store_id || null;
 
-    // Clear cart
-    localStorage.removeItem(CART_KEY);
-    window.dispatchEvent(new Event('seims-cart-updated'));
-    window.dispatchEvent(new Event('seims-orders-updated'));
+      const result = await createCustomerOrder({
+        items,
+        storeId,
+        paymentMethod: 'cod',
+      });
 
-    // Show success toast then redirect
-    setToast({ visible: true, message: `Đặt hàng thành công!\nMã đơn: ${newOrder.id}` });
-    setTimeout(() => {
-      setToast(prev => ({ ...prev, visible: false }));
-      navigate('/customer/orders');
-    }, 2500);
+      clearCart();
+
+      setToast({ visible: true, message: `Đặt hàng thành công!\nMã đơn: ${result.orderCode || result.orderId}` });
+      setTimeout(() => {
+        setToast(prev => ({ ...prev, visible: false }));
+        navigate('/customer/orders');
+      }, 2500);
+    } catch (err) {
+      console.error('Failed to create order:', err);
+      setToast({ visible: true, message: err.response?.data?.detail || 'Đặt hàng thất bại. Vui lòng thử lại.' });
+      setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 3000);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (loading) {
@@ -246,9 +250,9 @@ const CustomerCheckout = () => {
               type="submit"
               className="customer-add-to-cart-btn"
               style={{ padding: '0.875rem', fontSize: '1rem' }}
-              disabled={cart.length === 0}
+              disabled={cart.length === 0 || submitting}
             >
-              💳 Xác nhận đặt hàng
+              {submitting ? '⏳ Đang xử lý...' : '💳 Xác nhận đặt hàng'}
             </button>
           </form>
         </div>
@@ -279,16 +283,18 @@ const CustomerCheckout = () => {
                 {cart.map(item => (
                   <div key={item.id} style={{ display: 'flex', gap: '0.75rem', paddingBottom: '1rem', borderBottom: '1px solid var(--seims-border)', marginBottom: '1rem' }}>
                     <div style={{ width: '60px', height: '60px', background: '#f9fafb', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <img src={item.image} alt={item.name} style={{ width: '50px', height: '50px', objectFit: 'contain' }} />
+                      <img src={item.image_url || item.image} alt={item.name} style={{ width: '50px', height: '50px', objectFit: 'contain' }} />
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ margin: 0, fontWeight: '600', color: 'var(--seims-ink)', fontSize: '0.85rem' }}>{item.name}</p>
-                      <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.78rem', color: 'var(--seims-muted)' }}>Cửa hàng: {item.shop}</p>
+                      <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.78rem', color: 'var(--seims-muted)' }}>Cửa hàng: {item.storeName || item.shop || 'Cửa hàng'}</p>
                       <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.78rem', color: 'var(--seims-muted)' }}>Số lượng: x{item.quantity}</p>
-                      <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.78rem', color: 'var(--seims-warning)', fontWeight: '600' }}>🏷 Giảm {item.discount}%</p>
+                      {item.discount > 0 && (
+                        <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.78rem', color: 'var(--seims-warning)', fontWeight: '600' }}>🏷 Giảm {item.discount}%</p>
+                      )}
                     </div>
                     <p style={{ fontWeight: '700', color: 'var(--seims-teal-dark)', fontSize: '0.9rem', margin: 0, flexShrink: 0 }}>
-                      {(item.salePrice * item.quantity).toLocaleString()}đ
+                      {((item.sale_price || item.salePrice || 0) * item.quantity).toLocaleString()}đ
                     </p>
                   </div>
                 ))}

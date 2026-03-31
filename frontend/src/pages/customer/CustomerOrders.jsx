@@ -1,65 +1,20 @@
 import React, { useState, useEffect } from 'react';
+import { fetchCustomerOrders, cancelCustomerOrder } from '../../services/customerApi';
 import './CustomerOrders.css';
 
-const ORDERS_KEY = 'seims_customer_orders';
-
-function getOrders() {
-  try {
-    const raw = localStorage.getItem(ORDERS_KEY);
-    if (raw) return JSON.parse(raw);
-    // Seed with sample orders
-    const sampleOrders = [
-      {
-        id: 'ORD-2026-001',
-        items: [
-          { name: 'Sua tuoi Vinamilk 1L', shop: 'VinMart', quantity: 1, salePrice: 15000 },
-          { name: 'Banh mi sandwich', shop: 'Circle K', quantity: 2, salePrice: 12000 },
-        ],
-        status: 'processing',
-        total: 39000,
-        savings: 26000,
-        date: '2026-03-27 10:30',
-        address: '123 Đường ABC, Quận 1, TP.HCM',
-      },
-      {
-        id: 'ORD-2026-002',
-        items: [
-          { name: 'Yaourt Vinamilk 4 hop', shop: 'Coopmart', quantity: 1, salePrice: 18000 },
-        ],
-        status: 'completed',
-        total: 18000,
-        savings: 12000,
-        date: '2026-03-25 14:00',
-        address: '456 Đường XYZ, Quận 3, TP.HCM',
-      },
-      {
-        id: 'ORD-2026-003',
-        items: [
-          { name: 'Banh quy Cosy goi 200g', shop: 'VinMart', quantity: 1, salePrice: 21000 },
-        ],
-        status: 'cancelled',
-        total: 21000,
-        savings: 14000,
-        date: '2026-03-24 09:15',
-        address: '789 Đường DEF, Quận 5, TP.HCM',
-      },
-    ];
-    localStorage.setItem(ORDERS_KEY, JSON.stringify(sampleOrders));
-    return sampleOrders;
-  } catch { return []; }
-}
-
 const STATUS_CONFIG = {
-  processing: { label: 'Đang xử lý', color: 'var(--seims-warning)', bg: 'rgba(245, 158, 11, 0.12)' },
+  pending: { label: 'Đang xử lý', color: 'var(--seims-warning)', bg: 'rgba(245, 158, 11, 0.12)' },
+  preparing: { label: 'Đang chuẩn bị', color: 'var(--seims-info)', bg: 'rgba(59, 130, 246, 0.12)' },
+  shipped: { label: 'Đang giao', color: 'var(--seims-teal)', bg: 'rgba(15, 118, 110, 0.12)' },
   completed: { label: 'Đã hoàn thành', color: 'var(--seims-success)', bg: 'rgba(16, 185, 129, 0.12)' },
   cancelled: { label: 'Đã hủy', color: 'var(--seims-error)', bg: 'rgba(185, 28, 28, 0.12)' },
 };
 
-const TABS = ['processing', 'completed', 'cancelled'];
-const TAB_LABELS = ['Đang xử lý', 'Đã hoàn thành', 'Đã hủy'];
+const TABS = ['pending', 'preparing', 'shipped', 'completed', 'cancelled'];
+const TAB_LABELS = ['Đang xử lý', 'Đang chuẩn bị', 'Đang giao', 'Đã hoàn thành', 'Đã hủy'];
 
-function OrderCard({ order }) {
-  const config = STATUS_CONFIG[order.status];
+function OrderCard({ order, onCancel, onCancelLoading }) {
+  const config = STATUS_CONFIG[order.status] || { label: order.status, color: 'var(--seims-muted)', bg: 'rgba(0,0,0,0.05)' };
 
   return (
     <div className="customer-product-card" style={{ padding: '1.25rem', marginBottom: '0.75rem' }}>
@@ -70,7 +25,7 @@ function OrderCard({ order }) {
             Mã đơn: {order.id}
           </p>
           <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.75rem', color: 'var(--seims-muted)' }}>
-            📅 {order.date}
+            📅 {order.createdAt}
           </p>
         </div>
         <span style={{
@@ -88,55 +43,67 @@ function OrderCard({ order }) {
 
       {/* Items */}
       <div style={{ marginBottom: '0.75rem' }}>
-        {order.items.map((item, idx) => (
+        {order.items && order.items.map((item, idx) => (
           <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
             <span style={{ fontSize: '0.875rem', color: 'var(--seims-ink)', fontWeight: '500' }}>
               {item.name} x{item.quantity}
             </span>
             <span style={{ fontSize: '0.875rem', fontWeight: '600', color: 'var(--seims-ink)' }}>
-              {(item.salePrice * item.quantity).toLocaleString()}đ
+              {((item.unitPrice || item.salePrice || 0) * item.quantity).toLocaleString()}đ
             </span>
           </div>
         ))}
       </div>
 
-      {/* Address */}
-      <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.78rem', color: 'var(--seims-muted)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-        📍 {order.address}
+      {/* Store Info */}
+      {order.storeName && (
+        <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.78rem', color: 'var(--seims-muted)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+          🏪 {order.storeName} {order.storeAddress && `- ${order.storeAddress}`}
+        </p>
+      )}
+
+      {/* Payment Info */}
+      <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.78rem', color: 'var(--seims-muted)' }}>
+        💳 Thanh toán: {order.paymentMethod === 'cod' ? 'Tiền mặt (COD)' : order.paymentMethod}
       </p>
 
       {/* Footer */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.75rem', borderTop: '1px solid var(--seims-border)' }}>
         <div>
-          <span style={{ fontSize: '0.75rem', color: 'var(--seims-muted)' }}>Tiết kiệm </span>
-          <span style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--seims-warning)' }}>
-            -{order.savings.toLocaleString()}đ
-          </span>
+          {order.paymentStatus && (
+            <span style={{ fontSize: '0.75rem', color: order.paymentStatus === 'paid' ? 'var(--seims-success)' : 'var(--seims-warning)' }}>
+              {order.paymentStatus === 'paid' ? '✅ Đã thanh toán' : '⏳ Chưa thanh toán'}
+            </span>
+          )}
         </div>
         <div style={{ textAlign: 'right' }}>
           <span style={{ fontWeight: '800', fontSize: '1.1rem', color: 'var(--seims-ink)' }}>
-            {order.total.toLocaleString()}đ
+            {order.totalAmount.toLocaleString()}đ
           </span>
         </div>
       </div>
 
       {/* Actions */}
-      {order.status === 'processing' && (
-        <button style={{
-          marginTop: '0.75rem',
-          width: '100%',
-          padding: '0.5rem',
-          background: 'rgba(185, 28, 28, 0.1)',
-          color: 'var(--seims-error)',
-          border: '1px solid rgba(185, 28, 28, 0.2)',
-          borderRadius: '6px',
-          cursor: 'pointer',
-          fontWeight: '600',
-          fontSize: '0.8rem',
-          transition: 'all 0.2s ease',
-        }}
-          onMouseOver={e => { e.currentTarget.style.background = 'var(--seims-error)'; e.currentTarget.style.color = 'white'; }}
+      {(order.status === 'pending' || order.status === 'preparing') && (
+        <button
+          style={{
+            marginTop: '0.75rem',
+            width: '100%',
+            padding: '0.5rem',
+            background: 'rgba(185, 28, 28, 0.1)',
+            color: 'var(--seims-error)',
+            border: '1px solid rgba(185, 28, 28, 0.2)',
+            borderRadius: '6px',
+            cursor: onCancelLoading ? 'wait' : 'pointer',
+            fontWeight: '600',
+            fontSize: '0.8rem',
+            transition: 'all 0.2s ease',
+            opacity: onCancelLoading ? 0.7 : 1,
+          }}
+          onMouseOver={e => { if (!onCancelLoading) { e.currentTarget.style.background = 'var(--seims-error)'; e.currentTarget.style.color = 'white'; } }}
           onMouseOut={e => { e.currentTarget.style.background = 'rgba(185, 28, 28, 0.1)'; e.currentTarget.style.color = 'var(--seims-error)'; }}
+          onClick={() => onCancel(order.orderId || order.id)}
+          disabled={onCancelLoading}
         >
           ❌ Hủy đơn hàng
         </button>
@@ -164,20 +131,49 @@ function OrderCard({ order }) {
 }
 
 const CustomerOrders = () => {
-  const [activeTab, setActiveTab] = useState('processing');
+  const [activeTab, setActiveTab] = useState('pending');
   const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [cancellingId, setCancellingId] = useState(null);
+
+  const loadOrders = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      const data = await fetchCustomerOrders('all');
+      setOrders(data || []);
+    } catch (err) {
+      console.error('Failed to load orders:', err);
+      setError('Không thể tải danh sách đơn hàng. Vui lòng thử lại.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    setOrders(getOrders());
-
-    const handleUpdate = () => setOrders(getOrders());
-    window.addEventListener('seims-orders-updated', handleUpdate);
-    return () => window.removeEventListener('seims-orders-updated', handleUpdate);
+    loadOrders();
   }, []);
+
+  const handleCancel = async (orderId) => {
+    if (!window.confirm('Bạn có chắc muốn hủy đơn hàng này?')) return;
+    try {
+      setCancellingId(orderId);
+      await cancelCustomerOrder(orderId);
+      await loadOrders();
+    } catch (err) {
+      console.error('Failed to cancel order:', err);
+      alert(err.response?.data?.detail || 'Không thể hủy đơn hàng.');
+    } finally {
+      setCancellingId(null);
+    }
+  };
 
   const filteredOrders = orders.filter(o => o.status === activeTab);
   const tabCounts = {
-    processing: orders.filter(o => o.status === 'processing').length,
+    pending: orders.filter(o => o.status === 'pending').length,
+    preparing: orders.filter(o => o.status === 'preparing').length,
+    shipped: orders.filter(o => o.status === 'shipped').length,
     completed: orders.filter(o => o.status === 'completed').length,
     cancelled: orders.filter(o => o.status === 'cancelled').length,
   };
@@ -224,7 +220,18 @@ const CustomerOrders = () => {
 
       {/* Orders List */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0', flex: 1, overflow: 'hidden' }}>
-        {filteredOrders.length === 0 ? (
+        {loading ? (
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--seims-muted)' }}>
+            <p>Đang tải đơn hàng...</p>
+          </div>
+        ) : error ? (
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--seims-error)', gap: '0.5rem', padding: '2rem' }}>
+            <p style={{ margin: 0 }}>{error}</p>
+            <button onClick={loadOrders} style={{ padding: '0.5rem 1rem', cursor: 'pointer', background: 'var(--seims-teal)', color: 'white', border: 'none', borderRadius: '6px' }}>
+              Thử lại
+            </button>
+          </div>
+        ) : filteredOrders.length === 0 ? (
           <div style={{
             flex: 1,
             display: 'flex',
@@ -240,7 +247,9 @@ const CustomerOrders = () => {
               Không có đơn hàng nào
             </p>
             <p style={{ margin: 0, fontSize: '0.85rem' }}>
-              {activeTab === 'processing' ? 'Bạn chưa có đơn hàng đang xử lý' :
+              {activeTab === 'pending' ? 'Bạn chưa có đơn hàng đang xử lý' :
+               activeTab === 'preparing' ? 'Chưa có đơn hàng đang chuẩn bị' :
+               activeTab === 'shipped' ? 'Chưa có đơn hàng đang giao' :
                activeTab === 'completed' ? 'Chưa có đơn hàng đã hoàn thành' :
                'Chưa có đơn hàng bị hủy'}
             </p>
@@ -248,7 +257,12 @@ const CustomerOrders = () => {
         ) : (
           <div style={{ overflowY: 'auto', paddingRight: '0.25rem' }}>
             {filteredOrders.map(order => (
-              <OrderCard key={order.id} order={order} />
+              <OrderCard
+                key={order.id || order.orderId}
+                order={order}
+                onCancel={handleCancel}
+                onCancelLoading={cancellingId === (order.orderId || order.id)}
+              />
             ))}
           </div>
         )}

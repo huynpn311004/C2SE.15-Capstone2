@@ -1,7 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './services/AuthContext';
-import ProtectedRoute from './components/ProtectedRoute';
-import { ROLES } from './services/AuthContext';
 
 import Home from './pages/Home.jsx';
 import Login from './pages/auth/Login.jsx';
@@ -45,6 +43,11 @@ import CustomerCheckout from './pages/customer/CustomerCheckout.jsx';
 import CustomerOrders from './pages/customer/CustomerOrders.jsx';
 import CustomerProductDetail from './pages/customer/CustomerProductDetail.jsx';
 import CustomerProfile from './pages/customer/CustomerProfile.jsx';
+import CustomerShop from './pages/customer/CustomerShop.jsx';
+import DeliveryDashboard from './pages/delivery/DeliveryDashboard.jsx';
+import DeliveryOrders from './pages/delivery/DeliveryOrders.jsx';
+import DeliveryHistory from './pages/delivery/DeliveryHistory.jsx';
+import DeliverySettings from './pages/delivery/DeliverySettings.jsx';
 import './App.css';
 
 function App() {
@@ -59,370 +62,63 @@ function App() {
           <Route path="/forgot-password" element={<ForgotPassword />} />
 
           {/* System Admin Routes */}
-          <Route
-            path="/admin"
-            element={
-              <ProtectedRoute allowedRoles={[ROLES.SYSTEM_ADMIN]}>
-                <Navigate to="/admin/dashboard" replace />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/dashboard"
-            element={
-              <ProtectedRoute allowedRoles={[ROLES.SYSTEM_ADMIN]}>
-                <SystemAdminDashboard />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/supermarkets"
-            element={
-              <ProtectedRoute allowedRoles={[ROLES.SYSTEM_ADMIN]}>
-                <SupermarketManagement />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/charities"
-            element={
-              <ProtectedRoute allowedRoles={[ROLES.SYSTEM_ADMIN]}>
-                <CharityManagement />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/delivery"
-            element={
-              <ProtectedRoute allowedRoles={[ROLES.SYSTEM_ADMIN]}>
-                <DeliveryManagement />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/users"
-            element={
-              <ProtectedRoute allowedRoles={[ROLES.SYSTEM_ADMIN]}>
-                <UserManagement />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/reports"
-            element={
-              <ProtectedRoute allowedRoles={[ROLES.SYSTEM_ADMIN]}>
-                <ReportsAnalytics />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/audit-logs"
-            element={
-              <ProtectedRoute allowedRoles={[ROLES.SYSTEM_ADMIN]}>
-                <AdminAuditLog />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/settings"
-            element={
-              <ProtectedRoute allowedRoles={[ROLES.SYSTEM_ADMIN]}>
-                <AdminSettings />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
+          <Route path="/admin/dashboard" element={<SystemAdminDashboard />} />
+          <Route path="/admin/supermarkets" element={<SupermarketManagement />} />
+          <Route path="/admin/charities" element={<CharityManagement />} />
+          <Route path="/admin/delivery" element={<DeliveryManagement />} />
+          <Route path="/admin/users" element={<UserManagement />} />
+          <Route path="/admin/reports" element={<ReportsAnalytics />} />
+          <Route path="/admin/audit-logs" element={<AdminAuditLog />} />
+          <Route path="/admin/settings" element={<AdminSettings />} />
 
           {/* Supermarket Admin Routes */}
-          <Route
-            path="/supermarketadmin"
-            element={
-              <ProtectedRoute allowedRoles={[ROLES.SUPERMARKET_ADMIN]}>
-                <Navigate to="/supermarketadmin/dashboard" replace />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/supermarketadmin/dashboard"
-            element={
-              <ProtectedRoute allowedRoles={[ROLES.SUPERMARKET_ADMIN]}>
-                <SupermarketAdminLayout>
-                  <SupermarketAdminDashboard />
-                </SupermarketAdminLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/supermarketadmin/stores"
-            element={
-              <ProtectedRoute allowedRoles={[ROLES.SUPERMARKET_ADMIN]}>
-                <SupermarketAdminLayout>
-                  <StoreManagement />
-                </SupermarketAdminLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/supermarketadmin/staff"
-            element={
-              <ProtectedRoute allowedRoles={[ROLES.SUPERMARKET_ADMIN]}>
-                <SupermarketAdminLayout>
-                  <StaffManagement />
-                </SupermarketAdminLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/supermarketadmin/policies"
-            element={
-              <ProtectedRoute allowedRoles={[ROLES.SUPERMARKET_ADMIN]}>
-                <SupermarketAdminLayout>
-                  <PolicyConfiguration />
-                </SupermarketAdminLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/supermarketadmin/reports"
-            element={
-              <ProtectedRoute allowedRoles={[ROLES.SUPERMARKET_ADMIN]}>
-                <SupermarketAdminLayout>
-                  <SupermarketReports />
-                </SupermarketAdminLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/supermarketadmin/donations"
-            element={
-              <ProtectedRoute allowedRoles={[ROLES.SUPERMARKET_ADMIN]}>
-                <SupermarketAdminLayout>
-                  <DonationMonitoring />
-                </SupermarketAdminLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/supermarketadmin/audit-logs"
-            element={
-              <ProtectedRoute allowedRoles={[ROLES.SUPERMARKET_ADMIN]}>
-                <SupermarketAdminLayout>
-                  <AuditLog />
-                </SupermarketAdminLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/supermarketadmin/settings"
-            element={
-              <ProtectedRoute allowedRoles={[ROLES.SUPERMARKET_ADMIN]}>
-                <SupermarketAdminLayout>
-                  <SupermarketAdminSettings />
-                </SupermarketAdminLayout>
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/supermarketadmin" element={<Navigate to="/supermarketadmin/dashboard" replace />} />
+          <Route path="/supermarketadmin/dashboard" element={<SupermarketAdminLayout><SupermarketAdminDashboard /></SupermarketAdminLayout>} />
+          <Route path="/supermarketadmin/stores" element={<SupermarketAdminLayout><StoreManagement /></SupermarketAdminLayout>} />
+          <Route path="/supermarketadmin/staff" element={<SupermarketAdminLayout><StaffManagement /></SupermarketAdminLayout>} />
+          <Route path="/supermarketadmin/policies" element={<SupermarketAdminLayout><PolicyConfiguration /></SupermarketAdminLayout>} />
+          <Route path="/supermarketadmin/reports" element={<SupermarketAdminLayout><SupermarketReports /></SupermarketAdminLayout>} />
+          <Route path="/supermarketadmin/donations" element={<SupermarketAdminLayout><DonationMonitoring /></SupermarketAdminLayout>} />
+          <Route path="/supermarketadmin/audit-logs" element={<SupermarketAdminLayout><AuditLog /></SupermarketAdminLayout>} />
+          <Route path="/supermarketadmin/settings" element={<SupermarketAdminLayout><SupermarketAdminSettings /></SupermarketAdminLayout>} />
 
           {/* Staff Routes */}
-          <Route
-            path="/staff"
-            element={
-              <ProtectedRoute allowedRoles={[ROLES.STORE_STAFF]}>
-                <Navigate to="/staff/dashboard" replace />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/staff/dashboard"
-            element={
-              <ProtectedRoute allowedRoles={[ROLES.STORE_STAFF]}>
-                <StaffDashboard />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/staff/inventory-lots"
-            element={
-              <ProtectedRoute allowedRoles={[ROLES.STORE_STAFF]}>
-                <InventoryLots />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/staff/expiry-tracking"
-            element={
-              <ProtectedRoute allowedRoles={[ROLES.STORE_STAFF]}>
-                <ExpiryTracking />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/staff/near-expiry"
-            element={
-              <ProtectedRoute allowedRoles={[ROLES.STORE_STAFF]}>
-                <NearExpiryProducts />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/staff/orders"
-            element={
-              <ProtectedRoute allowedRoles={[ROLES.STORE_STAFF]}>
-                <OrdersManagement />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/staff/donations"
-            element={
-              <ProtectedRoute allowedRoles={[ROLES.STORE_STAFF]}>
-                <DonationManagement />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/staff/notifications"
-            element={
-              <ProtectedRoute allowedRoles={[ROLES.STORE_STAFF]}>
-                <Notifications />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/staff/settings"
-            element={
-              <ProtectedRoute allowedRoles={[ROLES.STORE_STAFF]}>
-                <StaffSetting />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/staff/categories"
-            element={
-              <ProtectedRoute allowedRoles={[ROLES.STORE_STAFF]}>
-                <CategoryManagement />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/staff/products"
-            element={
-              <ProtectedRoute allowedRoles={[ROLES.STORE_STAFF]}>
-                <ProductManagement />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/staff" element={<Navigate to="/staff/dashboard" replace />} />
+          <Route path="/staff/dashboard" element={<StaffDashboard />} />
+          <Route path="/staff/inventory-lots" element={<InventoryLots />} />
+          <Route path="/staff/expiry-tracking" element={<ExpiryTracking />} />
+          <Route path="/staff/near-expiry" element={<NearExpiryProducts />} />
+          <Route path="/staff/orders" element={<OrdersManagement />} />
+          <Route path="/staff/donations" element={<DonationManagement />} />
+          <Route path="/staff/notifications" element={<Notifications />} />
+          <Route path="/staff/settings" element={<StaffSetting />} />
+          <Route path="/staff/categories" element={<CategoryManagement />} />
+          <Route path="/staff/products" element={<ProductManagement />} />
 
           {/* Charity Routes */}
-          <Route
-            path="/charity"
-            element={
-              <ProtectedRoute allowedRoles={[ROLES.CHARITY]}>
-                <Navigate to="/charity/dashboard" replace />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/charity/dashboard"
-            element={
-              <ProtectedRoute allowedRoles={[ROLES.CHARITY]}>
-                <CharityDashboard />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/charity/market"
-            element={
-              <ProtectedRoute allowedRoles={[ROLES.CHARITY]}>
-                <DonationMarket />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/charity/history"
-            element={
-              <ProtectedRoute allowedRoles={[ROLES.CHARITY]}>
-                <DonationHistory />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/charity/settings"
-            element={
-              <ProtectedRoute allowedRoles={[ROLES.CHARITY]}>
-                <CharitySettings />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/charity" element={<Navigate to="/charity/dashboard" replace />} />
+          <Route path="/charity/dashboard" element={<CharityDashboard />} />
+          <Route path="/charity/market" element={<DonationMarket />} />
+          <Route path="/charity/history" element={<DonationHistory />} />
+          <Route path="/charity/settings" element={<CharitySettings />} />
 
           {/* Customer Routes */}
-          <Route
-            path="/customer"
-            element={
-              <ProtectedRoute allowedRoles={[ROLES.CUSTOMER]}>
-                <Navigate to="/customer/home" replace />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/customer/home"
-            element={
-              <ProtectedRoute allowedRoles={[ROLES.CUSTOMER]}>
-                <CustomerLayout>
-                  <CustomerHome />
-                </CustomerLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/customer/cart"
-            element={
-              <ProtectedRoute allowedRoles={[ROLES.CUSTOMER]}>
-                <CustomerLayout>
-                  <CustomerCart />
-                </CustomerLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/customer/checkout"
-            element={
-              <ProtectedRoute allowedRoles={[ROLES.CUSTOMER]}>
-                <CustomerLayout>
-                  <CustomerCheckout />
-                </CustomerLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/customer/orders"
-            element={
-              <ProtectedRoute allowedRoles={[ROLES.CUSTOMER]}>
-                <CustomerLayout>
-                  <CustomerOrders />
-                </CustomerLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/customer/product/:id"
-            element={
-              <ProtectedRoute allowedRoles={[ROLES.CUSTOMER]}>
-                <CustomerLayout>
-                  <CustomerProductDetail />
-                </CustomerLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/customer/profile"
-            element={
-              <ProtectedRoute allowedRoles={[ROLES.CUSTOMER]}>
-                <CustomerLayout>
-                  <CustomerProfile />
-                </CustomerLayout>
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/customer" element={<Navigate to="/customer/home" replace />} />
+          <Route path="/customer/home" element={<CustomerLayout><CustomerHome /></CustomerLayout>} />
+          <Route path="/customer/shop" element={<CustomerLayout><CustomerShop /></CustomerLayout>} />
+          <Route path="/customer/cart" element={<CustomerLayout><CustomerCart /></CustomerLayout>} />
+          <Route path="/customer/checkout" element={<CustomerLayout><CustomerCheckout /></CustomerLayout>} />
+          <Route path="/customer/orders" element={<CustomerLayout><CustomerOrders /></CustomerLayout>} />
+          <Route path="/customer/product/:id" element={<CustomerLayout><CustomerProductDetail /></CustomerLayout>} />
+          <Route path="/customer/profile" element={<CustomerLayout><CustomerProfile /></CustomerLayout>} />
+
+          {/* Delivery Partner Routes */}
+          <Route path="/delivery" element={<Navigate to="/delivery/dashboard" replace />} />
+          <Route path="/delivery/dashboard" element={<DeliveryDashboard />} />
+          <Route path="/delivery/orders" element={<DeliveryOrders />} />
+          <Route path="/delivery/history" element={<DeliveryHistory />} />
+          <Route path="/delivery/settings" element={<DeliverySettings />} />
 
           {/* Catch all - redirect to home */}
           <Route path="*" element={<Navigate to="/" replace />} />
