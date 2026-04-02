@@ -1,0 +1,110 @@
+/* CustomerShop Styles */
+.customer-shop-header {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 1rem;
+}
+
+.customer-shop-filters {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.customer-shop-search {
+  flex: 1 1 200px;
+  padding: 0.75rem 1rem;
+  border: 1.5px solid var(--seims-border);
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.customer-shop-select {
+  padding: 0.75rem 1rem;
+  border: 1.5px solid var(--seims-border);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  min-width: 180px;
+}
+
+.customer-shop-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.customer-shop-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 3rem;
+  color: var(--seims-muted);
+}
+
+.customer-shop-empty-icon {
+  font-size: 3rem;
+  margin: 0 0 1rem 0;
+}
+
+.customer-shop-empty-text {
+  font-weight: 600;
+  margin: 0;
+}
+
+/* Toast */
+.customer-shop-toast {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  background: var(--seims-teal-dark);
+  color: white;
+  padding: 0.75rem 1.25rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.875rem;
+  box-shadow: 0 4px 16px rgba(15, 118, 110, 0.3);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  animation: slideInToast 0.3s ease;
+}
+
+@keyframes slideInToast {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* Cart Button */
+.customer-cart-btn {
+  position: relative;
+  padding: 0.75rem 1.25rem;
+  background: var(--seims-teal-dark);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.customer-cart-badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background: #ef4444;
+  color: white;
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}

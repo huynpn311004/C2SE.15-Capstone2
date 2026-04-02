@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchCustomerProducts, fetchCustomerCategories, fetchCustomerSupermarkets } from '../../services/customerApi';
-import './CustomerHome.css';
+import './CustomerShop.css';
 
 const CART_KEY = 'seims_customer_cart';
 
@@ -31,30 +31,8 @@ function addToCart(product) {
 function Toast({ message, visible }) {
   if (!visible) return null;
   return (
-    <div style={{
-      position: 'fixed',
-      bottom: '1.5rem',
-      right: '1.5rem',
-      background: 'var(--seims-teal-dark)',
-      color: 'white',
-      padding: '0.75rem 1.25rem',
-      borderRadius: '8px',
-      fontWeight: '600',
-      fontSize: '0.875rem',
-      boxShadow: '0 4px 16px rgba(15, 118, 110, 0.3)',
-      zIndex: 9999,
-      display: 'flex',
-      alignItems: 'center',
-      gap: '0.5rem',
-      animation: 'slideInToast 0.3s ease',
-    }}>
-      <style>{`
-        @keyframes slideInToast {
-          from { transform: translateY(20px); opacity: 0; }
-          to { transform: translateY(0); opacity: 1; }
-        }
-      `}</style>
-      ✅ {message}
+    <div className="customer-shop-toast">
+      &#10003; {message}
     </div>
   );
 }
@@ -122,40 +100,14 @@ const CustomerShop = () => {
   return (
     <div className="customer-page">
       {/* Header with cart button */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
+      <div className="customer-shop-header">
         <button 
           onClick={() => navigate('/customer/cart')}
-          style={{
-            position: 'relative',
-            padding: '0.75rem 1.25rem',
-            background: 'var(--seims-teal-dark)',
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            fontWeight: '600',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-          }}
+          className="customer-cart-btn"
         >
-          🛒 Giỏ hàng
+          &#128722; Giỏ hàng
           {cartCount > 0 && (
-            <span style={{
-              position: 'absolute',
-              top: '-8px',
-              right: '-8px',
-              background: '#ef4444',
-              color: 'white',
-              borderRadius: '50%',
-              width: '22px',
-              height: '22px',
-              fontSize: '0.75rem',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontWeight: '700',
-            }}>
+            <span className="customer-cart-badge">
               {cartCount}
             </span>
           )}
@@ -163,37 +115,19 @@ const CustomerShop = () => {
       </div>
 
       {/* Filters */}
-      <div style={{ 
-        display: 'flex', 
-        gap: '1rem', 
-        marginBottom: '1rem',
-        flexWrap: 'wrap',
-        alignItems: 'center',
-      }}>
+      <div className="customer-shop-filters">
         <input
           type="text"
           placeholder="Tìm kiếm sản phẩm..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          style={{
-            flex: '1 1 200px',
-            padding: '0.75rem 1rem',
-            border: '1.5px solid var(--seims-border)',
-            borderRadius: '8px',
-            fontSize: '0.9rem',
-          }}
+          className="customer-shop-search"
         />
 
         <select
           value={selectedSupermarket}
           onChange={(e) => setSelectedSupermarket(e.target.value)}
-          style={{
-            padding: '0.75rem 1rem',
-            border: '1.5px solid var(--seims-border)',
-            borderRadius: '8px',
-            fontSize: '0.9rem',
-            minWidth: '180px',
-          }}
+          className="customer-shop-select"
         >
           <option value="">Tất cả cửa hàng</option>
           {supermarkets.map((sm) => (
@@ -204,13 +138,7 @@ const CustomerShop = () => {
         <select
           value={selectedCategory}
           onChange={(e) => setSelectedCategory(e.target.value)}
-          style={{
-            padding: '0.75rem 1rem',
-            border: '1.5px solid var(--seims-border)',
-            borderRadius: '8px',
-            fontSize: '0.9rem',
-            minWidth: '180px',
-          }}
+          className="customer-shop-select"
         >
           <option value="">Tất cả danh mục</option>
           {categories.map((cat) => (
@@ -220,71 +148,51 @@ const CustomerShop = () => {
       </div>
 
       {/* Products Grid */}
-      <div style={{ 
-        display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', 
-        gap: '1rem',
-        overflowY: 'auto',
-        flex: 1,
-      }}>
+      <div className="customer-shop-grid">
         {products.length === 0 ? (
-          <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3rem', color: 'var(--seims-muted)' }}>
-            <p style={{ fontSize: '3rem', margin: '0 0 1rem 0' }}>📦</p>
-            <p style={{ fontWeight: '600', margin: 0 }}>Không có sản phẩm nào</p>
+          <div className="customer-shop-empty">
+            <p className="customer-shop-empty-icon">&#128230;</p>
+            <p className="customer-shop-empty-text">Không có sản phẩm nào</p>
           </div>
         ) : (
           products.map((product) => (
             <div 
               key={product.id} 
               className="customer-product-card"
-              style={{ 
-                display: 'flex', 
-                flexDirection: 'column',
-                cursor: 'pointer',
-              }}
               onClick={() => navigate(`/customer/product/${product.id}`)}
             >
-              <div style={{ 
-                height: '140px', 
-                background: '#f9fafb', 
-                borderRadius: '8px 8px 0 0',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                overflow: 'hidden',
-              }}>
+              <div className="customer-product-image">
                 <img 
-                  src={product.image_url || 'https://via.placeholder.com/120'} 
+                  src={product.imageUrl || 'https://via.placeholder.com/120'} 
                   alt={product.name}
-                  style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} 
                 />
               </div>
               
-              <div style={{ padding: '0.75rem', flex: 1, display: 'flex', flexDirection: 'column' }}>
-                <p style={{ fontSize: '0.7rem', color: 'var(--seims-muted)', margin: '0 0 0.25rem 0' }}>
-                  {product.supermarket_name || 'Cửa hàng'}
+              <div className="customer-product-content">
+                <p className="customer-product-shop">
+                  {product.storeName || 'Cửa hàng'}
                 </p>
-                <h4 className="customer-product-name" style={{ margin: '0 0 0.5rem 0', fontSize: '0.9rem' }}>
+                <h4 className="customer-product-name">
                   {product.name}
                 </h4>
                 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                  <span className="customer-price-sale" style={{ fontSize: '1rem', fontWeight: '700' }}>
-                    {(product.sale_price || 0).toLocaleString()}đ
+                <div className="customer-product-price-row">
+                  <span className="customer-price-sale">
+                    {(product.salePrice || 0).toLocaleString()}đ
                   </span>
-                  {(product.original_price || product.originalPrice) && (
-                    <span style={{ fontSize: '0.75rem', color: 'var(--seims-muted)', textDecoration: 'line-through' }}>
-                      {(product.original_price || 0).toLocaleString()}đ
+                  {product.originalPrice && (
+                    <span className="customer-price-original">
+                      {(product.originalPrice || 0).toLocaleString()}đ
                     </span>
                   )}
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto' }}>
+                <div className="customer-product-meta">
                   {product.discount > 0 && (
                     <span className="customer-discount-badge">-{product.discount}%</span>
                   )}
-                  <span style={{ fontSize: '0.7rem', color: 'var(--seims-muted)' }}>
-                    Còn {product.days_left || product.daysLeft || 0} ngày
+                  <span className="customer-days-left">
+                    Còn {product.daysLeft || 0} ngày
                   </span>
                 </div>
 
@@ -294,9 +202,8 @@ const CustomerShop = () => {
                     handleAddToCart(product);
                   }}
                   className="customer-add-to-cart-btn"
-                  style={{ marginTop: '0.5rem', padding: '0.5rem', fontSize: '0.8rem' }}
                 >
-                  🛒 Thêm vào giỏ
+                  &#128722; Thêm vào giỏ
                 </button>
               </div>
             </div>

@@ -1,12 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import StaffLayout from '../../components/layout/StaffLayout'
 import { useAuth } from '../../services/AuthContext'
-import { fetchStaffProfile, updateStaffProfile } from '../../services/staffApi'
+import { fetchStaffProfile, updateStaffProfile, changeStaffPassword } from '../../services/staffApi'
 import './StaffSetting.css'
 
 export default function StaffSetting() {
   const { user } = useAuth()
   const [profile, setProfile] = useState({
+    username: '',
     fullName: '',
     email: '',
     phone: '',
@@ -14,6 +15,7 @@ export default function StaffSetting() {
     storeAddress: '',
     role: 'store_staff',
   })
+  const [initialProfile, setInitialProfile] = useState(null)
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
     newPassword: '',
@@ -40,27 +42,38 @@ export default function StaffSetting() {
     try {
       setLoading(true)
       const data = await fetchStaffProfile()
-      setProfile({
+      const loadedProfile = {
+        username: data.username || user.username || '',
         fullName: data.fullName || user.full_name || '',
         email: data.email || user.email || '',
         phone: data.phone || user.phone || '',
         store: data.storeName || data.store || '',
         storeAddress: data.storeAddress || '',
         role: data.role || user.role || 'store_staff',
-      })
+      }
+      setProfile(loadedProfile)
+      setInitialProfile(loadedProfile)
     } catch (err) {
-      setProfile({
+      const loadedProfile = {
+        username: user.username || '',
         fullName: user.full_name || '',
         email: user.email || '',
         phone: user.phone || '',
         store: user.storeName || '',
         storeAddress: user.storeAddress || '',
         role: user.role || 'store_staff',
-      })
+      }
+      setProfile(loadedProfile)
+      setInitialProfile(loadedProfile)
     } finally {
       setLoading(false)
     }
   }
+
+  const isDirty = useMemo(() => {
+    if (!initialProfile) return false
+    return JSON.stringify(initialProfile) !== JSON.stringify(profile)
+  }, [profile, initialProfile])
 
   function handleProfileChange(event) {
     const { name, value } = event.target
@@ -94,6 +107,7 @@ export default function StaffSetting() {
         email: profile.email,
         phone: profile.phone,
       })
+      setInitialProfile({ ...profile })
       setSaveMessage('Đã lưu thay đổi thành công.')
     } catch (err) {
       setError(err.response?.data?.detail || 'Cập nhật thất bại.')
@@ -114,6 +128,11 @@ export default function StaffSetting() {
     setPasswordMessage('')
     setPasswordError('')
 
+    if (!passwordData.currentPassword) {
+      setPasswordError('Vui lòng nhập mật khẩu hiện tại.')
+      return
+    }
+
     if (passwordData.newPassword.length < 6) {
       setPasswordError('Mật khẩu mới phải có ít nhất 6 ký tự.')
       return
@@ -126,8 +145,7 @@ export default function StaffSetting() {
 
     try {
       setPasswordSaving(true)
-      await updateStaffProfile({
-        changePassword: true,
+      await changeStaffPassword({
         currentPassword: passwordData.currentPassword,
         newPassword: passwordData.newPassword,
       })
@@ -138,7 +156,7 @@ export default function StaffSetting() {
       })
       setPasswordMessage('Đổi mật khẩu thành công.')
     } catch (err) {
-      setPasswordError(err.response?.data?.detail || 'Đổi mật khẩu thất bại.')
+      setPasswordError(err.response?.data?.detail || err.message || 'Đổi mật khẩu thất bại.')
     } finally {
       setPasswordSaving(false)
     }
@@ -163,6 +181,18 @@ export default function StaffSetting() {
         <form className="settings-card" onSubmit={handleSave}>
           <h3 className="settings-section-title">Thông Tin Cá Nhân</h3>
           <div className="settings-grid">
+            <label className="settings-field">
+              <span>Tên Đăng Nhập</span>
+              <input
+                type="text"
+                name="username"
+                value={profile.username}
+                readOnly
+                disabled
+                placeholder="staff_01"
+              />
+            </label>
+
             <label className="settings-field">
               <span>Họ Và Tên</span>
               <input
@@ -235,7 +265,7 @@ export default function StaffSetting() {
           </div>
 
           <div className="settings-actions">
-            <button type="submit" className="settings-btn" disabled={saving}>
+            <button type="submit" className="settings-btn" disabled={!isDirty || saving}>
               {saving ? 'Đang lưu...' : 'Lưu Thay Đổi'}
             </button>
           </div>

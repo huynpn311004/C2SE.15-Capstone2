@@ -17,38 +17,24 @@ function OrderCard({ order, onCancel, onCancelLoading }) {
   const config = STATUS_CONFIG[order.status] || { label: order.status, color: 'var(--seims-muted)', bg: 'rgba(0,0,0,0.05)' };
 
   return (
-    <div className="customer-product-card" style={{ padding: '1.25rem', marginBottom: '0.75rem' }}>
+    <div className="order-card">
       {/* Order Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+      <div className="order-card-header">
         <div>
-          <p style={{ margin: 0, fontSize: '0.7rem', fontWeight: '700', color: 'var(--seims-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Mã đơn: {order.id}
-          </p>
-          <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.75rem', color: 'var(--seims-muted)' }}>
-            📅 {order.createdAt}
-          </p>
+          <p className="order-card-id">Mã đơn: {order.id}</p>
+          <p className="order-card-date">📅 {order.createdAt}</p>
         </div>
-        <span style={{
-          display: 'inline-block',
-          padding: '0.3rem 0.75rem',
-          fontSize: '0.75rem',
-          fontWeight: '600',
-          background: config.bg,
-          color: config.color,
-          borderRadius: '999px',
-        }}>
+        <span className="order-card-status" style={{ background: config.bg, color: config.color }}>
           {config.label}
         </span>
       </div>
 
       {/* Items */}
-      <div style={{ marginBottom: '0.75rem' }}>
+      <div className="order-card-items">
         {order.items && order.items.map((item, idx) => (
-          <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
-            <span style={{ fontSize: '0.875rem', color: 'var(--seims-ink)', fontWeight: '500' }}>
-              {item.name} x{item.quantity}
-            </span>
-            <span style={{ fontSize: '0.875rem', fontWeight: '600', color: 'var(--seims-ink)' }}>
+          <div key={idx} className="order-card-item-row">
+            <span className="order-card-item-name">{item.name} x{item.quantity}</span>
+            <span className="order-card-item-price">
               {((item.unitPrice || item.salePrice || 0) * item.quantity).toLocaleString()}đ
             </span>
           </div>
@@ -57,51 +43,30 @@ function OrderCard({ order, onCancel, onCancelLoading }) {
 
       {/* Store Info */}
       {order.storeName && (
-        <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.78rem', color: 'var(--seims-muted)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-          🏪 {order.storeName} {order.storeAddress && `- ${order.storeAddress}`}
-        </p>
+        <p className="order-card-store">🏪 {order.storeName} {order.storeAddress && `- ${order.storeAddress}`}</p>
       )}
 
       {/* Payment Info */}
-      <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.78rem', color: 'var(--seims-muted)' }}>
-        💳 Thanh toán: {order.paymentMethod === 'cod' ? 'Tiền mặt (COD)' : order.paymentMethod}
-      </p>
+      <p className="order-card-payment">💳 Thanh toán: {order.paymentMethod === 'cod' ? 'Tiền mặt (COD)' : order.paymentMethod}</p>
 
       {/* Footer */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.75rem', borderTop: '1px solid var(--seims-border)' }}>
+      <div className="order-card-footer">
         <div>
           {order.paymentStatus && (
-            <span style={{ fontSize: '0.75rem', color: order.paymentStatus === 'paid' ? 'var(--seims-success)' : 'var(--seims-warning)' }}>
+            <span className="order-card-payment-status" style={{ color: order.paymentStatus === 'paid' ? 'var(--seims-success)' : 'var(--seims-warning)' }}>
               {order.paymentStatus === 'paid' ? '✅ Đã thanh toán' : '⏳ Chưa thanh toán'}
             </span>
           )}
         </div>
-        <div style={{ textAlign: 'right' }}>
-          <span style={{ fontWeight: '800', fontSize: '1.1rem', color: 'var(--seims-ink)' }}>
-            {order.totalAmount.toLocaleString()}đ
-          </span>
+        <div className="order-card-total">
+          <span className="order-card-total-value">{order.totalAmount.toLocaleString()}đ</span>
         </div>
       </div>
 
       {/* Actions */}
       {(order.status === 'pending' || order.status === 'preparing') && (
         <button
-          style={{
-            marginTop: '0.75rem',
-            width: '100%',
-            padding: '0.5rem',
-            background: 'rgba(185, 28, 28, 0.1)',
-            color: 'var(--seims-error)',
-            border: '1px solid rgba(185, 28, 28, 0.2)',
-            borderRadius: '6px',
-            cursor: onCancelLoading ? 'wait' : 'pointer',
-            fontWeight: '600',
-            fontSize: '0.8rem',
-            transition: 'all 0.2s ease',
-            opacity: onCancelLoading ? 0.7 : 1,
-          }}
-          onMouseOver={e => { if (!onCancelLoading) { e.currentTarget.style.background = 'var(--seims-error)'; e.currentTarget.style.color = 'white'; } }}
-          onMouseOut={e => { e.currentTarget.style.background = 'rgba(185, 28, 28, 0.1)'; e.currentTarget.style.color = 'var(--seims-error)'; }}
+          className="order-card-cancel-btn"
           onClick={() => onCancel(order.orderId || order.id)}
           disabled={onCancelLoading}
         >
@@ -110,19 +75,7 @@ function OrderCard({ order, onCancel, onCancelLoading }) {
       )}
 
       {order.status === 'completed' && (
-        <button style={{
-          marginTop: '0.75rem',
-          width: '100%',
-          padding: '0.5rem',
-          background: 'rgba(15, 118, 110, 0.1)',
-          color: 'var(--seims-teal)',
-          border: '1px solid rgba(15, 118, 110, 0.2)',
-          borderRadius: '6px',
-          cursor: 'pointer',
-          fontWeight: '600',
-          fontSize: '0.8rem',
-          transition: 'all 0.2s ease',
-        }}>
+        <button className="order-card-review-btn">
           ⭐ Đánh giá đơn hàng
         </button>
       )}
@@ -182,71 +135,36 @@ const CustomerOrders = () => {
     <div className="customer-page">
       {/* Tabs */}
       <div className="customer-search-bar">
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+        <div className="order-tabs">
           {TABS.map((tab, idx) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              style={{
-                padding: '0.5rem 1rem',
-                fontWeight: activeTab === tab ? '700' : '500',
-                fontSize: '0.875rem',
-                color: activeTab === tab ? 'white' : 'var(--seims-ink)',
-                background: activeTab === tab ? 'var(--seims-teal)' : 'transparent',
-                border: activeTab === tab ? '1px solid var(--seims-teal)' : '1px solid var(--seims-border)',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.35rem',
-              }}
+              className={`order-tab ${activeTab === tab ? 'active' : ''}`}
             >
               {TAB_LABELS[idx]}
-              <span style={{
-                fontSize: '0.7rem',
-                background: activeTab === tab ? 'rgba(255,255,255,0.25)' : 'var(--seims-mint)',
-                color: activeTab === tab ? 'white' : 'var(--seims-teal-dark)',
-                padding: '0.1rem 0.4rem',
-                borderRadius: '999px',
-                fontWeight: '700',
-              }}>
-                {tabCounts[tab]}
-              </span>
+              <span className="order-tab-count">{tabCounts[tab]}</span>
             </button>
           ))}
         </div>
       </div>
 
       {/* Orders List */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0', flex: 1, overflow: 'hidden' }}>
+      <div className="order-list-container">
         {loading ? (
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--seims-muted)' }}>
+          <div className="order-loading">
             <p>Đang tải đơn hàng...</p>
           </div>
         ) : error ? (
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--seims-error)', gap: '0.5rem', padding: '2rem' }}>
-            <p style={{ margin: 0 }}>{error}</p>
-            <button onClick={loadOrders} style={{ padding: '0.5rem 1rem', cursor: 'pointer', background: 'var(--seims-teal)', color: 'white', border: 'none', borderRadius: '6px' }}>
-              Thử lại
-            </button>
+          <div className="order-error">
+            <p>{error}</p>
+            <button onClick={loadOrders} className="order-retry-btn">Thử lại</button>
           </div>
         ) : filteredOrders.length === 0 ? (
-          <div style={{
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'var(--seims-muted)',
-            gap: '0.5rem',
-            padding: '2rem',
-          }}>
-            <p style={{ fontSize: '3rem', margin: 0 }}>📦</p>
-            <p style={{ fontWeight: '600', margin: 0, color: 'var(--seims-ink)' }}>
-              Không có đơn hàng nào
-            </p>
-            <p style={{ margin: 0, fontSize: '0.85rem' }}>
+          <div className="order-empty">
+            <p className="order-empty-icon">📦</p>
+            <p className="order-empty-title">Không có đơn hàng nào</p>
+            <p className="order-empty-text">
               {activeTab === 'pending' ? 'Bạn chưa có đơn hàng đang xử lý' :
                activeTab === 'preparing' ? 'Chưa có đơn hàng đang chuẩn bị' :
                activeTab === 'shipped' ? 'Chưa có đơn hàng đang giao' :
@@ -255,7 +173,7 @@ const CustomerOrders = () => {
             </p>
           </div>
         ) : (
-          <div style={{ overflowY: 'auto', paddingRight: '0.25rem' }}>
+          <div className="order-list">
             {filteredOrders.map(order => (
               <OrderCard
                 key={order.id || order.orderId}

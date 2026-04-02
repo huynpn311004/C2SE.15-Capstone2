@@ -37,12 +37,12 @@ import DonationMarket from './pages/charity/DonationMarket.jsx';
 import DonationHistory from './pages/charity/DonationHistory.jsx';
 import CharitySettings from './pages/charity/CharitySettings.jsx';
 import CustomerLayout from './components/layout/CustomerLayout.jsx';
-import CustomerHome from './pages/customer/CustomerHome.jsx';
+import CustomerDashboard from './pages/customer/CustomerDashboard.jsx';
 import CustomerCart from './pages/customer/CustomerCart.jsx';
 import CustomerCheckout from './pages/customer/CustomerCheckout.jsx';
 import CustomerOrders from './pages/customer/CustomerOrders.jsx';
 import CustomerProductDetail from './pages/customer/CustomerProductDetail.jsx';
-import CustomerProfile from './pages/customer/CustomerProfile.jsx';
+import CustomerSetting from './pages/customer/CustomerSetting.jsx';
 import CustomerShop from './pages/customer/CustomerShop.jsx';
 import DeliveryDashboard from './pages/delivery/DeliveryDashboard.jsx';
 import DeliveryOrders from './pages/delivery/DeliveryOrders.jsx';
@@ -105,13 +105,13 @@ function App() {
 
           {/* Customer Routes */}
           <Route path="/customer" element={<Navigate to="/customer/home" replace />} />
-          <Route path="/customer/home" element={<CustomerLayout><CustomerHome /></CustomerLayout>} />
+          <Route path="/customer/home" element={<CustomerLayout><CustomerDashboard /></CustomerLayout>} />
           <Route path="/customer/shop" element={<CustomerLayout><CustomerShop /></CustomerLayout>} />
           <Route path="/customer/cart" element={<CustomerLayout><CustomerCart /></CustomerLayout>} />
           <Route path="/customer/checkout" element={<CustomerLayout><CustomerCheckout /></CustomerLayout>} />
           <Route path="/customer/orders" element={<CustomerLayout><CustomerOrders /></CustomerLayout>} />
           <Route path="/customer/product/:id" element={<CustomerLayout><CustomerProductDetail /></CustomerLayout>} />
-          <Route path="/customer/profile" element={<CustomerLayout><CustomerProfile /></CustomerLayout>} />
+          <Route path="/customer/profile" element={<CustomerLayout><CustomerSetting /></CustomerLayout>} />
 
           {/* Delivery Partner Routes */}
           <Route path="/delivery" element={<Navigate to="/delivery/dashboard" replace />} />

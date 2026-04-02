@@ -7,6 +7,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.database import get_db
+from app.core.security import get_password_hash, verify_password
 from app.models.delivery import Delivery
 from app.models.delivery_partner import DeliveryPartner
 from app.models.order import Order
@@ -472,3 +473,46 @@ def update_delivery_profile(
     db.commit()
 
     return {"message": "Cập nhật thông tin thành công!", "success": True}
+
+
+@router.post("/change-password", response_model=dict)
+def change_delivery_password(
+    user_id: int,
+    payload: dict,
+    db: Session = Depends(get_db)
+):
+    """Đổi mật khẩu delivery partner"""
+    get_delivery_partner_user(db, user_id)
+
+    current_password = payload.get("currentPassword") or ""
+    new_password = payload.get("newPassword") or ""
+
+    if not current_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Vui lòng nhập mật khẩu hiện tại"
+        )
+
+    if len(new_password) < 6:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Mật khẩu mới phải có ít nhất 6 ký tự"
+        )
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Không tìm thấy người dùng"
+        )
+
+    if not verify_password(current_password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Mật khẩu hiện tại không đúng"
+        )
+
+    user.password_hash = get_password_hash(new_password)
+    db.commit()
+
+    return {"message": "Đổi mật khẩu thành công!", "success": True}

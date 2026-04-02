@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { useAuth, ROLE_DISPLAY } from '../../services/AuthContext'
 import './StaffLayout.css'
 
 const STAFF_PROFILE_STORAGE_KEY = 'seims_staff_profile'
@@ -30,10 +31,12 @@ function getStoredStaffProfile() {
  * Cấu trúc: Sidebar (trái) + Header (trên) + Main Content (phải)
  */
 export default function StaffLayout({ children }) {
+  const { user } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [staffProfile, setStaffProfile] = useState(getStoredStaffProfile)
   const navigate = useNavigate()
   const location = useLocation()
+  const displayName = user?.full_name || staffProfile.fullName || 'Nhân Viên'
 
   useEffect(() => {
     function syncStaffProfile() {
@@ -65,11 +68,7 @@ export default function StaffLayout({ children }) {
       <aside className={`staff-sidebar ${sidebarOpen ? 'open' : 'closed'}`} aria-label="Điều hướng chính">
         <div className="staff-sidebar-header">
           <Link to="/staff/dashboard" className="staff-logo">
-            <span className="staff-logo-badge">S</span>
-            <span className="staff-logo-lines">
-              <span className="staff-logo-text">SEIMS</span>
-              <span className="staff-logo-subtext">Xin chào, {staffProfile.fullName}</span>
-            </span>
+            <span className="staff-logo-text">SEIMS</span>
           </Link>
           <button
             className="staff-sidebar-toggle"
@@ -195,16 +194,13 @@ export default function StaffLayout({ children }) {
             ☰
           </button>
           <div className="staff-header-title">
-            <h1>Bảng Điều Khiển Nhân Viên - SEIMS</h1>
+            <h1>Xin chào, {displayName}</h1>
           </div>
           <div className="staff-header-actions">
-            <button className="staff-header-btn" aria-label="Thông báo" title="Thông báo">
-              Thông Báo
-            </button>
             <div className="staff-user-menu">
-              <button className="staff-user-btn" aria-label="Menu người dùng">
-                {staffProfile.fullName}
-              </button>
+              <span className="staff-user-role">
+                {ROLE_DISPLAY[user?.role] || 'Nhân Viên'}
+              </span>
             </div>
           </div>
         </header>

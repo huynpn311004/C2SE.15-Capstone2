@@ -34,8 +34,8 @@ function requireCustomer() {
   return userId
 }
 
-// Profile APIs
-export async function fetchCustomerProfile() {
+// Setting APIs
+export async function fetchCustomerSetting() {
   const userId = requireCustomer()
   const response = await API.get('/customer/profile', {
     params: { user_id: userId },
@@ -43,7 +43,7 @@ export async function fetchCustomerProfile() {
   return response.data
 }
 
-export async function updateCustomerProfile(payload) {
+export async function updateCustomerSetting(payload) {
   const userId = requireCustomer()
   const response = await API.put('/customer/profile', payload, {
     params: { user_id: userId },
@@ -51,7 +51,16 @@ export async function updateCustomerProfile(payload) {
   return response.data
 }
 
+export async function changeCustomerPassword(payload) {
+  const userId = requireCustomer()
+  const response = await API.post('/customer/change-password', payload, {
+    params: { user_id: userId },
+  })
+  return response.data
+}
+
 // Products APIs
+// KHONG can dang nhap - moi nguoi deu xem duoc san pham
 export async function fetchCustomerProducts({ supermarketId, categoryId, search } = {}) {
   const params = {}
   if (supermarketId) params.supermarket_id = supermarketId
@@ -75,7 +84,7 @@ export async function fetchNearExpiryProducts({ supermarketId, maxDays = 7 } = {
   return response.data.items || []
 }
 
-// Categories & Supermarkets APIs
+// Categories & Supermarkets APIs - KHONG can dang nhap
 export async function fetchCustomerCategories(supermarketId) {
   const params = {}
   if (supermarketId) params.supermarket_id = supermarketId

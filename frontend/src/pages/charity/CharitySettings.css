@@ -21,7 +21,7 @@
   border: 1px solid var(--char-border);
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(15, 118, 110, 0.08);
-  padding: 1.5rem;
+  padding: 1rem;
   display: flex;
   flex-direction: column;
   gap: 1rem;
@@ -32,8 +32,6 @@
   color: var(--char-ink);
   font-size: 0.95rem;
   font-weight: 700;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid var(--char-border);
 }
 
 .chsettings-grid {
@@ -67,9 +65,6 @@
   font-size: 0.86rem;
   outline: none;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
-  font-family: inherit;
-  width: 100%;
-  box-sizing: border-box;
 }
 
 .chsettings-field input:focus {
@@ -86,9 +81,8 @@
 
 .chsettings-actions {
   display: flex;
-  justify-content: flex-end;
   gap: 0.6rem;
-  padding-top: 0.5rem;
+  justify-content: flex-end;
 }
 
 .chsettings-btn {
@@ -102,14 +96,15 @@
   background: var(--char-teal);
   color: #ffffff;
   border-color: var(--char-teal);
-  box-shadow: 0 4px 12px rgba(15, 118, 110, 0.2);
 }
 
-.chsettings-btn:hover {
+.chsettings-btn:hover:not(:disabled) {
   background: var(--char-teal-dark);
-  filter: brightness(1.04);
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(15, 118, 110, 0.28);
+}
+
+.chsettings-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .chsettings-msg-success {
@@ -117,10 +112,6 @@
   color: var(--char-success);
   font-size: 0.82rem;
   font-weight: 600;
-  padding: 0.5rem 0.75rem;
-  background: rgba(16, 185, 129, 0.1);
-  border: 1px solid rgba(16, 185, 129, 0.3);
-  border-radius: 8px;
 }
 
 .chsettings-msg-error {
@@ -128,10 +119,6 @@
   color: #b91c1c;
   font-size: 0.82rem;
   font-weight: 600;
-  padding: 0.5rem 0.75rem;
-  background: rgba(185, 28, 28, 0.08);
-  border: 1px solid rgba(185, 28, 28, 0.2);
-  border-radius: 8px;
 }
 
 /* LOADING */

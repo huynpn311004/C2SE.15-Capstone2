@@ -12,6 +12,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.security import get_password_hash, verify_password
 
 router = APIRouter(prefix="/staff", tags=["staff"])
 
@@ -542,6 +543,54 @@ def update_staff_profile(
     )
     db.commit()
     return {"success": True}
+
+
+@router.post("/change-password")
+def change_staff_password(
+    payload: dict,
+    user_id: int = Query(..., ge=1),
+    db: Session = Depends(get_db),
+):
+    """Đổi mật khẩu nhân viên"""
+    current_password = payload.get("currentPassword") or ""
+    new_password = payload.get("newPassword") or ""
+
+    if not current_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Vui lòng nhập mật khẩu hiện tại"
+        )
+
+    if len(new_password) < 6:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Mật khẩu mới phải có ít nhất 6 ký tự"
+        )
+
+    row = db.execute(
+        text("SELECT password_hash FROM users WHERE id = :user_id LIMIT 1"),
+        {"user_id": user_id}
+    ).first()
+
+    if not row:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Không tìm thấy người dùng"
+        )
+
+    if not verify_password(current_password, row.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Mật khẩu hiện tại không đúng"
+        )
+
+    db.execute(
+        text("UPDATE users SET password_hash = :password_hash WHERE id = :user_id"),
+        {"password_hash": get_password_hash(new_password), "user_id": user_id}
+    )
+    db.commit()
+
+    return {"message": "Đổi mật khẩu thành công!", "success": True}
 
 
 @router.get("/orders")

@@ -16,7 +16,6 @@ const DEFAULT_ADMIN_PROFILE = {
 }
 
 export default function AdminSettings() {
-  const usernamePattern = /^[a-zA-Z0-9._-]{3,100}$/
   const { user } = useAuth()
   const [formData, setFormData] = useState(DEFAULT_ADMIN_PROFILE)
   const [saveMessage, setSaveMessage] = useState('')
@@ -71,15 +70,8 @@ export default function AdminSettings() {
       return
     }
 
-    const normalizedUsername = (formData.username || '').trim()
-    if (!usernamePattern.test(normalizedUsername)) {
-      setSaveMessage('Username phải từ 3-100 ký tự và chỉ gồm chữ, số, dấu chấm, gạch dưới, gạch ngang.')
-      return
-    }
-
     try {
       await updateAdminUser(user.id, {
-        username: normalizedUsername,
         fullName: formData.fullName,
         email: formData.email,
         phone: formData.phone,
@@ -87,7 +79,9 @@ export default function AdminSettings() {
 
       const nextFormData = {
         ...formData,
-        username: normalizedUsername,
+        fullName: formData.fullName.trim(),
+        email: formData.email.trim().toLowerCase(),
+        phone: formData.phone.trim(),
       }
       setFormData(nextFormData)
       localStorage.setItem(ADMIN_PROFILE_STORAGE_KEY, JSON.stringify(nextFormData))
@@ -95,10 +89,9 @@ export default function AdminSettings() {
         AUTH_STORAGE_KEY,
         JSON.stringify({
           ...user,
-          username: normalizedUsername,
-          full_name: formData.fullName,
-          email: formData.email,
-          phone: formData.phone,
+          full_name: nextFormData.fullName,
+          email: nextFormData.email,
+          phone: nextFormData.phone,
         }),
       )
       window.dispatchEvent(new Event('seims-admin-profile-updated'))
@@ -165,9 +158,10 @@ export default function AdminSettings() {
                 type="text"
                 name="username"
                 value={formData.username}
-                onChange={handleChange}
                 placeholder="vd: admin_seims"
-                required
+                readOnly
+                disabled
+                title="Tên đăng nhập không thể thay đổi"
               />
             </label>
 

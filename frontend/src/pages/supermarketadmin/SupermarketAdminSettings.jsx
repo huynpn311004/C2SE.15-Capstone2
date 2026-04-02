@@ -15,7 +15,6 @@ const DEFAULT_ADMIN_PROFILE = {
 }
 
 export default function SupermarketAdminSettings() {
-  const usernamePattern = /^[a-zA-Z0-9._-]{3,100}$/
   const { user } = useAuth()
   const [formData, setFormData] = useState(DEFAULT_ADMIN_PROFILE)
   const [initialFormData, setInitialFormData] = useState(DEFAULT_ADMIN_PROFILE)
@@ -102,20 +101,15 @@ export default function SupermarketAdminSettings() {
       return
     }
 
-    const normalizedUsername = (formData.username || '').trim()
-    if (!usernamePattern.test(normalizedUsername)) {
-      setSaveMessage('Tên đăng nhập phải từ 3-100 ký tự và chỉ gồm chữ, số, dấu chấm, gạch dưới, gạch ngang.')
-      return
-    }
-
     const nextProfile = {
       ...formData,
-      username: normalizedUsername,
+      fullName: formData.fullName.trim(),
+      email: formData.email.trim().toLowerCase(),
+      phone: formData.phone.trim(),
     }
 
     try {
       await updateAdminUser(user.id, {
-        username: normalizedUsername,
         fullName: nextProfile.fullName,
         email: nextProfile.email,
         phone: nextProfile.phone,
@@ -126,7 +120,6 @@ export default function SupermarketAdminSettings() {
         AUTH_STORAGE_KEY,
         JSON.stringify({
           ...user,
-          username: normalizedUsername,
           full_name: nextProfile.fullName,
           email: nextProfile.email,
           phone: nextProfile.phone,
@@ -197,10 +190,9 @@ export default function SupermarketAdminSettings() {
               type="text"
               name="username"
               value={formData.username}
-              onChange={handleChange}
-              placeholder="vd: manager_sm"
-              disabled={loadingProfile}
-              required
+              readOnly
+              disabled
+              title="Tên đăng nhập không thể thay đổi"
             />
           </label>
 

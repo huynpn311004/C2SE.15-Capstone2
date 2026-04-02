@@ -51,7 +51,7 @@
 }
 
 .charity-sidebar-header {
-  padding: 0.6rem 0.85rem;
+  padding: 0.75rem 0.75rem;
   height: 64px;
   box-sizing: border-box;
   border-bottom: 1px solid var(--char-border);
@@ -64,40 +64,19 @@
 .charity-logo {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  justify-content: center;
   text-decoration: none;
   flex: 1;
-}
-
-.charity-logo-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  background: linear-gradient(135deg, var(--char-teal), var(--char-teal-light));
-  color: white;
-  border-radius: 6px;
-  font-weight: 700;
-  font-size: 0.7rem;
-}
-
-.charity-logo-lines {
-  display: flex;
-  flex-direction: column;
-  gap: 0.08rem;
-  min-width: 0;
+  gap: 0.75rem;
+  padding: 0.4rem 0.5rem;
 }
 
 .charity-logo-text {
-  font-weight: 700;
+  font-weight: 800;
   color: var(--char-teal);
-  font-size: 0.88rem;
-  line-height: 1.1;
-}
-
-.charity-logo-subtext {
-  font-size: 0.68rem;
+  font-size: 1.8rem;
+  line-height: 1;
+  letter-spacing: 0.05em;
   color: var(--char-muted);
   line-height: 1.1;
 }
@@ -325,7 +304,22 @@
   background: linear-gradient(135deg, rgba(15, 118, 110, 0.15), rgba(20, 184, 166, 0.15));
   border-color: var(--char-teal);
 }
+.charity-user-role {
+  background: linear-gradient(135deg, rgba(15, 118, 110, 0.1), rgba(20, 184, 166, 0.1));
+  border: 1px solid var(--char-border);
+  padding: 0.42rem 0.75rem;
+  border-radius: 6px;
+  font-weight: 600;
+  color: var(--char-teal-dark);
+  font-size: 0.82rem;
+  display: inline-block;
+  transition: all 0.2s ease;
+}
 
+.charity-user-role:hover {
+  background: linear-gradient(135deg, rgba(15, 118, 110, 0.15), rgba(20, 184, 166, 0.15));
+  border-color: var(--char-teal);
+}
 /* MAIN CONTENT */
 .charity-content {
   flex: 1;

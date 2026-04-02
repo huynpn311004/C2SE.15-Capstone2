@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
+import { useAuth, ROLE_DISPLAY } from '../../services/AuthContext'
 import './CharityLayout.css'
 
 const CHARITY_PROFILE_STORAGE_KEY = 'seims_charity_profile'
@@ -22,9 +23,11 @@ function getStoredCharityProfile() {
 }
 
 export default function CharityLayout({ children }) {
+  const { user } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [charityProfile, setCharityProfile] = useState(getStoredCharityProfile)
   const navigate = useNavigate()
+  const displayName = user?.full_name || charityProfile.fullName || 'Tổ Chức Tờng Thiện'
 
   useEffect(() => {
     function syncCharityProfile() {
@@ -48,11 +51,7 @@ export default function CharityLayout({ children }) {
       <aside className={`charity-sidebar ${sidebarOpen ? 'open' : 'closed'}`} aria-label="Điều hướng chính">
         <div className="charity-sidebar-header">
           <Link to="/charity/dashboard" className="charity-logo">
-            <span className="charity-logo-badge">C</span>
-            <span className="charity-logo-lines">
-              <span className="charity-logo-text">SEIMS</span>
-              <span className="charity-logo-subtext">Cổng Charity</span>
-            </span>
+            <span className="charity-logo-text">SEIMS</span>
           </Link>
           <button
             className="charity-sidebar-toggle"
@@ -130,13 +129,13 @@ export default function CharityLayout({ children }) {
             ☰
           </button>
           <div className="charity-header-title">
-            <h1>Cổng thông tin Charity — SEIMS</h1>
+            <h1>Xin chào, {displayName}</h1>
           </div>
           <div className="charity-header-actions">
             <div className="charity-user-menu">
-              <button className="charity-user-btn" aria-label="Menu người dùng">
-                {charityProfile.fullName}
-              </button>
+              <span className="charity-user-role">
+                {ROLE_DISPLAY[user?.role] || 'Tổ Chức Tờng Thiện'}
+              </span>
             </div>
           </div>
         </header>

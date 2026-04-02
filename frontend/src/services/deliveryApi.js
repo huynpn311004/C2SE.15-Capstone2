@@ -111,3 +111,14 @@ export async function fetchDeliveryStats() {
   })
   return response.data
 }
+
+// Đổi mật khẩu delivery partner
+export async function changeDeliveryPassword(payload) {
+  const userId = getUserId()
+  if (!userId) throw new Error('Không tìm thấy thông tin người dùng')
+
+  const response = await API.post('/delivery/change-password', payload, {
+    params: { user_id: userId },
+  })
+  return response.data
+}

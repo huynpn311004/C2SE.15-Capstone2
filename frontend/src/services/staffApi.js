@@ -42,6 +42,16 @@ export async function updateStaffProfile(payload) {
   return response.data
 }
 
+export async function changeStaffPassword(payload) {
+  const userId = getUserId()
+  if (!userId) throw new Error('Không tìm thấy thông tin người dùng')
+
+  const response = await API.post('/staff/change-password', payload, {
+    params: { user_id: userId },
+  })
+  return response.data
+}
+
 export async function fetchInventoryLots(statusFilter = 'all') {
   const userId = getUserId()
   if (!userId) throw new Error('Không tìm thấy thông tin người dùng')

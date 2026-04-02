@@ -1,13 +1,6 @@
-.csettings-page {
-  --cs-teal: #0f766e;
-  --cs-teal-dark: #0d5c56;
-  --cs-ink: #134e4a;
-  --cs-muted: #5b7573;
-  --cs-card: #ffffff;
-  --cs-border: #d1e7e4;
-  --cs-bg: #f8fffe;
-  --cs-success: #10b981;
+/* CustomerSetting Styles */
 
+.customer-setting-page {
   max-width: 100%;
   padding: 1rem;
   display: flex;
@@ -15,9 +8,9 @@
   gap: 0.9rem;
 }
 
-.csettings-card {
-  background: var(--cs-card);
-  border: 1px solid var(--cs-border);
+.customer-setting-card {
+  background: var(--seims-card);
+  border: 1px solid var(--seims-border);
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(15, 118, 110, 0.08);
   padding: 1rem;
@@ -26,70 +19,77 @@
   gap: 1rem;
 }
 
-.csettings-section-title {
+.customer-setting-title {
   margin: 0;
-  color: var(--cs-ink);
+  color: var(--seims-ink);
   font-size: 0.95rem;
   font-weight: 700;
 }
 
-.csettings-grid {
+.customer-setting-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.85rem;
 }
 
-.csettings-grid-single {
+.customer-setting-grid-single {
   grid-template-columns: 1fr;
 }
 
-.csettings-field {
+.customer-setting-field {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
 }
 
-.csettings-field-full {
+.customer-setting-field-full {
   grid-column: 1 / -1;
 }
 
-.csettings-field span {
-  color: var(--cs-ink);
+.customer-setting-field span {
+  color: var(--seims-ink);
   font-size: 0.82rem;
   font-weight: 600;
 }
 
-.csettings-field input,
-.csettings-field textarea {
-  border: 1px solid var(--cs-border);
-  background: var(--cs-bg);
+.customer-setting-field input,
+.customer-setting-field textarea {
+  border: 1px solid var(--seims-border);
+  background: var(--seims-bg);
   border-radius: 8px;
   padding: 0.58rem 0.68rem;
-  color: var(--cs-ink);
+  color: var(--seims-ink);
   font-size: 0.86rem;
   outline: none;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
   font-family: inherit;
 }
 
-.csettings-field textarea {
+.customer-setting-field textarea {
   resize: vertical;
   min-height: 88px;
 }
 
-.csettings-field input:focus,
-.csettings-field textarea:focus {
-  border-color: var(--cs-teal);
+.customer-setting-field input:focus,
+.customer-setting-field textarea:focus {
+  border-color: var(--seims-teal);
   box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.15);
 }
 
-.csettings-actions {
+.customer-setting-field input:disabled {
+  background: #eef4f4;
+  color: var(--seims-muted);
+  border-color: #d9e7e6;
+  cursor: not-allowed;
+}
+
+.customer-setting-actions {
   display: flex;
   gap: 0.6rem;
   justify-content: flex-end;
 }
 
-.csettings-btn {
+.customer-setting-btn {
   border-radius: 8px;
   border: 1px solid transparent;
   padding: 0.5rem 0.85rem;
@@ -97,28 +97,28 @@
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
-  background: var(--cs-teal);
+  background: var(--seims-teal);
   color: #ffffff;
-  border-color: var(--cs-teal);
+  border-color: var(--seims-teal);
 }
 
-.csettings-btn:hover:not(:disabled) {
-  background: var(--cs-teal-dark);
+.customer-setting-btn:hover:not(:disabled) {
+  background: var(--seims-teal-dark);
 }
 
-.csettings-btn:disabled {
+.customer-setting-btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
 
-.csettings-msg-success {
+.customer-setting-msg-success {
   margin: 0;
-  color: var(--cs-success);
+  color: var(--seims-success);
   font-size: 0.82rem;
   font-weight: 600;
 }
 
-.csettings-msg-error {
+.customer-setting-msg-error {
   margin: 0;
   color: #b91c1c;
   font-size: 0.82rem;
@@ -126,15 +126,15 @@
 }
 
 @media (max-width: 768px) {
-  .csettings-grid {
+  .customer-setting-grid {
     grid-template-columns: 1fr;
   }
 
-  .csettings-actions {
+  .customer-setting-actions {
     justify-content: stretch;
   }
 
-  .csettings-btn {
+  .customer-setting-btn {
     width: 100%;
   }
 }

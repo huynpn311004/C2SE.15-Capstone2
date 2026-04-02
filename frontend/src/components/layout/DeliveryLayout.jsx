@@ -31,10 +31,11 @@ function getStoredDeliveryProfile() {
  * Cấu trúc: Sidebar (trái) + Header (trên) + Main Content (phải)
  */
 export default function DeliveryLayout({ children }) {
+  const { user } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [deliveryProfile, setDeliveryProfile] = useState(getStoredDeliveryProfile)
-  const { user } = useAuth()
   const navigate = useNavigate()
+  const displayName = user?.full_name || deliveryProfile.fullName || 'Đối Tác Giao Hàng'
 
   useEffect(() => {
     function syncDeliveryProfile() {
@@ -60,11 +61,7 @@ export default function DeliveryLayout({ children }) {
       <aside className={`delivery-sidebar ${sidebarOpen ? 'open' : 'closed'}`} aria-label="Điều hướng chính">
         <div className="delivery-sidebar-header">
           <Link to="/" className="delivery-logo">
-            <span className="delivery-logo-badge">D</span>
-            <span className="delivery-logo-lines">
-              <span className="delivery-logo-text">SEIMS</span>
-              <span className="delivery-logo-subtext">Xin chào, {deliveryProfile.fullName}</span>
-            </span>
+            <span className="delivery-logo-text">SEIMS</span>
           </Link>
           <button
             className="delivery-sidebar-toggle"
@@ -142,7 +139,7 @@ export default function DeliveryLayout({ children }) {
             ☰
           </button>
           <div className="delivery-header-title">
-            <h1>Hệ thống giao hàng SEIMS</h1>
+            <h1>Xin chào, {displayName}</h1>
           </div>
           <div className="delivery-header-actions">
             <div className="delivery-user-menu">
