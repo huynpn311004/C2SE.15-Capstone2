@@ -97,73 +97,80 @@ export default function CategoryManagement() {
   return (
     <StaffLayout>
       <div className="category-page">
-        <div className="category-card">
-          <div className="category-card-header">
-            <h2>Quản Lý Danh Mục Sản Phẩm</h2>
-            <button className="category-btn-add" onClick={openAddModal}>
-              <span className="category-icon">+</span>
+        {/* TOOLBAR */}
+        <div className="category-toolbar">
+          <div className="category-toolbar-info">
+            Hiển thị {categories.length} danh mục
+          </div>
+          <div className="category-toolbar-actions">
+            <button className="category-btn-add category-toolbar-btn" onClick={openAddModal}>
               Thêm Danh Mục
             </button>
           </div>
+        </div>
 
-          {error && <div className="category-alert category-alert-error">{error}</div>}
-          {success && <div className="category-alert category-alert-success">{success}</div>}
+        {error && <div className="category-alert category-alert-error">{error}</div>}
+        {success && <div className="category-alert category-alert-success">{success}</div>}
 
-          {loading ? (
-            <div className="category-loading">Đang tải danh sách danh mục...</div>
-          ) : (
-            <div className="category-table-wrapper">
-              <table className="category-table">
-                <thead>
+        {/* CARD + TABLE */}
+        <div className="category-card">
+          <div className="category-table-wrapper">
+            <table className="category-table">
+              <thead>
+                <tr>
+                  <th>STT</th>
+                  <th>Tên Danh Mục</th>
+                  <th>Số Sản Phẩm</th>
+                  <th>Thao Tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
                   <tr>
-                    <th>STT</th>
-                    <th>Tên Danh Mục</th>
-                    <th>Số Sản Phẩm</th>
-                    <th>Thao Tác</th>
+                    <td colSpan="4" className="category-empty-cell">
+                      Đang tải danh sách danh mục...
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {categories.length === 0 ? (
-                    <tr>
-                      <td colSpan="4" className="category-empty">
-                        Chưa có danh mục nào. Hãy thêm danh mục đầu tiên!
+                ) : categories.length === 0 ? (
+                  <tr>
+                    <td colSpan="4" className="category-empty-cell">
+                      Chưa có danh mục nào. Hãy thêm danh mục đầu tiên!
+                    </td>
+                  </tr>
+                ) : (
+                  categories.map((cat, index) => (
+                    <tr key={cat.id}>
+                      <td>{index + 1}</td>
+                      <td>{cat.name}</td>
+                      <td>
+                        <span className="category-count-badge">{cat.productCount}</span>
+                      </td>
+                      <td className="category-actions">
+                        <button
+                          className="category-btn-edit"
+                          onClick={() => openEditModal(cat)}
+                        >
+                          <svg className="category-icon" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+                          </svg>
+                          Sửa
+                        </button>
+                        <button
+                          className="category-btn-delete"
+                          onClick={() => setDeleteConfirm(cat)}
+                        >
+                          <svg className="category-icon" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                          </svg>
+                          Xóa
+                        </button>
                       </td>
                     </tr>
-                  ) : (
-                    categories.map((cat, index) => (
-                      <tr key={cat.id}>
-                        <td>{index + 1}</td>
-                        <td>{cat.name}</td>
-                        <td>
-                          <span className="category-count-badge">{cat.productCount}</span>
-                        </td>
-                        <td className="category-actions">
-                          <button
-                            className="category-btn-edit"
-                            onClick={() => openEditModal(cat)}
-                          >
-                            <svg className="category-icon" viewBox="0 0 24 24" fill="currentColor">
-                              <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
-                            </svg>
-                            Sửa
-                          </button>
-                          <button
-                            className="category-btn-delete"
-                            onClick={() => setDeleteConfirm(cat)}
-                          >
-                            <svg className="category-icon" viewBox="0 0 24 24" fill="currentColor">
-                              <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-                            </svg>
-                            Xóa
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 

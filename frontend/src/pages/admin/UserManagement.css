@@ -22,64 +22,25 @@
   overflow: hidden;
 }
 
-/* HEADER */
-.users-header {
-  background: linear-gradient(135deg, var(--seims-teal) 0%, var(--seims-teal-dark) 100%);
-  color: white;
-  padding: 1rem 1.1rem;
-  border-radius: 10px;
-  box-shadow: 0 4px 16px rgba(15, 118, 110, 0.15);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+/* ALERTS */
+.users-alert {
+  padding: 0.6rem 0.85rem;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
   flex-shrink: 0;
 }
 
-@media (max-width: 768px) {
-  .users-header {
-    flex-direction: column;
-    text-align: center;
-  }
+.users-alert-error {
+  color: var(--seims-error);
+  background: rgba(185, 28, 28, 0.07);
+  border: 1px solid rgba(185, 28, 28, 0.18);
 }
 
-.users-header h2 {
-  margin: 0 0 0.2rem 0;
-  font-size: 1.12rem;
-  font-weight: 700;
-}
-
-.users-header p {
-  margin: 0;
-  opacity: 0.95;
-  font-size: 0.8rem;
-}
-
-.header-stats {
-  display: flex;
-  gap: 0.9rem;
-}
-
-@media (max-width: 768px) {
-  .header-stats {
-    margin-top: 1rem;
-    gap: 1.5rem;
-  }
-}
-
-.stat {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.stat-number {
-  font-size: 1.2rem;
-  font-weight: 700;
-}
-
-.stat-label {
-  font-size: 0.68rem;
-  opacity: 0.9;
+.users-alert-success {
+  color: var(--seims-teal);
+  background: rgba(15, 118, 110, 0.07);
+  border: 1px solid rgba(15, 118, 110, 0.2);
 }
 
 /* FILTERS */
@@ -133,25 +94,6 @@
   white-space: nowrap;
 }
 
-@media (max-width: 768px) {
-  .users-filters {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .filter-group {
-    flex-direction: column;
-  }
-
-  .filter-select {
-    width: 100%;
-  }
-
-  .filter-info {
-    margin-left: 0;
-  }
-}
-
 /* TABLE */
 .users-card {
   background: var(--seims-card);
@@ -161,6 +103,13 @@
   box-shadow: 0 2px 8px rgba(15, 118, 110, 0.06);
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.table-responsive {
+  overflow-x: auto;
+  overflow-y: auto;
   flex: 1;
   min-height: 0;
 }
@@ -191,6 +140,14 @@
   border-bottom: 1px solid var(--seims-border);
   color: var(--seims-ink);
   font-size: 0.83rem;
+  vertical-align: middle;
+}
+
+
+/* Ô bảng giữ display: table-cell — flex chỉ đặt trên div bên trong (tránh vỡ border-collapse) */
+.users-actions-cell {
+  vertical-align: middle;
+  white-space: nowrap;
 }
 
 .users-table tbody tr:hover {
@@ -213,6 +170,7 @@
   align-items: center;
   gap: 0.75rem;
   margin-bottom: 0.25rem;
+  font-weight: 600;
 }
 
 .users-username {
@@ -233,73 +191,73 @@
 }
 
 /* ACTION BUTTONS */
-.action-group {
+.users-actions {
   display: flex;
-  gap: 0.28rem;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.4rem;
 }
 
-.action-btn {
-  min-width: 40px;
-  padding: 0.26rem 0.48rem;
-  background: none;
-  border: 1px solid var(--seims-border);
+.users-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+
+.users-btn-lock {
+  background: #ffffff;
   border-radius: 6px;
-  font-size: 0.72rem;
-  font-weight: 600;
-  line-height: 1.2;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.8rem;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
+  gap: 0.3rem;
+  line-height: 1.2;
 }
 
-.action-btn:hover {
-  transform: translateY(-1px);
-}
-
-.icon-action-btn {
-  width: 30px;
-  min-width: 30px;
-  height: 30px;
-  padding: 0;
-  border-radius: 8px;
-}
-
-.icon-action-btn svg {
-  width: 15px;
-  height: 15px;
-  fill: currentColor;
-}
-
-.btn-lock-small {
+.users-btn-lock-active {
   color: #9a3412;
-  border-color: #d97706;
+  border: 1px solid #d97706;
 }
 
-.btn-lock-small:hover {
+.users-btn-lock-active:hover {
   background: #d97706;
   border-color: #d97706;
   color: #ffffff;
 }
 
-.btn-unlock-small {
+.users-btn-unlock-active {
   color: #065f46;
-  border-color: #0f766e;
+  border: 1px solid #0f766e;
 }
 
-.btn-unlock-small:hover {
+.users-btn-unlock-active:hover {
   background: #0f766e;
   border-color: #0f766e;
   color: #ffffff;
 }
 
-.btn-delete-small {
+.users-btn-delete {
+  background: #ffffff;
   color: #b91c1c;
-  border-color: #b91c1c;
+  border: 1px solid #fca5a5;
+  border-radius: 6px;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  line-height: 1.2;
 }
 
-.btn-delete-small:hover {
+.users-btn-delete:hover {
   background: #b91c1c;
   border-color: #b91c1c;
   color: #ffffff;
@@ -311,14 +269,14 @@
   color: var(--seims-muted);
 }
 
-/* MODAL - Similar to SupermarketManagement Edit Modal */
+/* MODAL */
 .modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.4);
+  background: rgba(15, 118, 110, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -435,7 +393,7 @@
   color: var(--seims-muted);
 }
 
-/* DETAIL GRID - 2 Columns */
+/* DETAIL GRID */
 .detail-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -475,7 +433,7 @@
   text-decoration: underline;
 }
 
-/* BUTTONS */
+/* MODAL BUTTONS */
 .btn-large {
   min-width: 110px;
   height: 38px;
@@ -560,11 +518,14 @@
     padding: 0;
   }
 
-  .action-btn {
-    width: 28px;
-    height: 28px;
-    min-width: 28px;
-    padding: 0;
+  .users-actions-cell {
+    white-space: normal;
+  }
+
+  .users-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.3rem;
   }
 
   .users-avatar {
@@ -597,10 +558,5 @@
   .detail-grid {
     grid-template-columns: 1fr;
     gap: 0.85rem;
-  }
-
-  .header-stats {
-    width: 100%;
-    justify-content: center;
   }
 }

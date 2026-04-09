@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+import os
 from sqlalchemy import inspect, text
 
 from app.core.database import Base, engine
@@ -58,6 +60,12 @@ def create_app():
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    uploads_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads")
+    os.makedirs(uploads_dir, exist_ok=True)
+    if os.path.exists(uploads_dir):
+        app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
+
     Base.metadata.create_all(bind=engine)
     _ensure_users_lock_columns()
     app.include_router(auth_router, prefix="/api")

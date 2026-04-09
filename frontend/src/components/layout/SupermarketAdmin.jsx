@@ -24,10 +24,11 @@ function getStoredProfile() {
 
 export default function SupermarketAdminLayout({ children }) {
   const { user } = useAuth()
-  const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [profile, setProfile] = useState(getStoredProfile)
   const navigate = useNavigate()
-  const displayName = user?.full_name || profile.fullName || 'Người dùng'
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [profile, setProfile] = useState(getStoredProfile)
+
+  const displayName = user?.full_name || profile.fullName || 'Quản Lý SM'
 
   useEffect(() => {
     function sync() { setProfile(getStoredProfile()) }

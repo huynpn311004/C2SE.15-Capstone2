@@ -1,28 +1,28 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
-import { useAuth } from '../../services/AuthContext'
+import { useAuth, ROLE_DISPLAY } from '../../services/AuthContext'
 import './CustomerLayout.css'
 
-const CUSTOMER_PROFILE_STORAGE_KEY = 'seims_customer_profile'
+const CUSTOMER_SETTING_STORAGE_KEY = 'seims_customer_setting'
 
-const DEFAULT_CUSTOMER_PROFILE = {
+const DEFAULT_CUSTOMER_SETTING = {
   fullName: 'Khách hàng',
   email: 'customer@seims.vn',
 }
 
-function getStoredCustomerProfile() {
+function getStoredCustomerSetting() {
   try {
-    const raw = localStorage.getItem(CUSTOMER_PROFILE_STORAGE_KEY)
-    if (!raw) return DEFAULT_CUSTOMER_PROFILE
-    return { ...DEFAULT_CUSTOMER_PROFILE, ...JSON.parse(raw) }
+    const raw = localStorage.getItem(CUSTOMER_SETTING_STORAGE_KEY)
+    if (!raw) return DEFAULT_CUSTOMER_SETTING
+    return { ...DEFAULT_CUSTOMER_SETTING, ...JSON.parse(raw) }
   } catch {
-    return DEFAULT_CUSTOMER_PROFILE
+    return DEFAULT_CUSTOMER_SETTING
   }
 }
 
 export default function CustomerLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [customerProfile, setCustomerProfile] = useState(getStoredCustomerProfile)
+  const [customerSetting, setCustomerSetting] = useState(getStoredCustomerSetting)
   const { user } = useAuth()
   const navigate = useNavigate()
 
@@ -30,20 +30,20 @@ export default function CustomerLayout({ children }) {
     user?.full_name ||
     user?.fullName ||
     user?.name ||
-    customerProfile.fullName ||
+    customerSetting.fullName ||
     'Khách hàng'
 
   useEffect(() => {
-    function syncProfile() {
-      setCustomerProfile(getStoredCustomerProfile())
+    function syncSetting() {
+      setCustomerSetting(getStoredCustomerSetting())
     }
 
-    window.addEventListener('storage', syncProfile)
-    window.addEventListener('seims-customer-profile-updated', syncProfile)
+    window.addEventListener('storage', syncSetting)
+    window.addEventListener('seims-customer-setting-updated', syncSetting)
 
     return () => {
-      window.removeEventListener('storage', syncProfile)
-      window.removeEventListener('seims-customer-profile-updated', syncProfile)
+      window.removeEventListener('storage', syncSetting)
+      window.removeEventListener('seims-customer-setting-updated', syncSetting)
     }
   }, [])
 
@@ -60,13 +60,7 @@ export default function CustomerLayout({ children }) {
       >
         <div className="customer-sidebar-header">
           <Link to="/customer/shop" className="customer-logo">
-            <span className="customer-logo-badge">S</span>
-            <span className="customer-logo-lines">
-              <span className="customer-logo-text">SEIMS</span>
-              <span className="customer-logo-subtext">
-                Xin chào, {displayName}
-              </span>
-            </span>
+            <span className="customer-logo-text">SEIMS</span>
           </Link>
           <button
             className="customer-sidebar-toggle"
@@ -165,13 +159,10 @@ export default function CustomerLayout({ children }) {
             <h1>Xin chào, {displayName}</h1>
           </div>
           <div className="customer-header-actions">
-            <button className="customer-header-btn" aria-label="Thông báo" title="Thông báo">
-              Thông báo
-            </button>
             <div className="customer-user-menu">
-              <button className="customer-user-btn" aria-label="Menu người dùng">
-                {displayName}
-              </button>
+              <span className="customer-user-role">
+                {ROLE_DISPLAY[user?.role] || 'Khách Hàng'}
+              </span>
             </div>
           </div>
         </header>

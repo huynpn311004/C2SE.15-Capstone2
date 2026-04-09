@@ -1,54 +1,17 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth, ROLE_DISPLAY } from '../../services/AuthContext'
 import './SystemAdminLayout.css'
-
-const ADMIN_PROFILE_STORAGE_KEY = 'seims_admin_profile'
-
-const DEFAULT_ADMIN_PROFILE = {
-  fullName: 'Admin',
-  email: 'admin@seims.vn',
-  phone: '0900000000',
-  position: 'System Admin',
-}
-
-function getStoredAdminProfile() {
-  try {
-    const raw = localStorage.getItem(ADMIN_PROFILE_STORAGE_KEY)
-    if (!raw) return DEFAULT_ADMIN_PROFILE
-    const parsed = JSON.parse(raw)
-    return {
-      ...DEFAULT_ADMIN_PROFILE,
-      ...parsed,
-    }
-  } catch {
-    return DEFAULT_ADMIN_PROFILE
-  }
-}
 
 /**
  * Layout chính cho System Admin
  * Cấu trúc: Sidebar (trái) + Header (trên) + Main Content (phải)
  */
 export default function SystemAdminLayout({ children }) {
-  const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [adminProfile, setAdminProfile] = useState(getStoredAdminProfile)
   const { user } = useAuth()
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const displayName = user?.full_name || 'Admin'
   const navigate = useNavigate()
-
-  useEffect(() => {
-    function syncAdminProfile() {
-      setAdminProfile(getStoredAdminProfile())
-    }
-
-    window.addEventListener('storage', syncAdminProfile)
-    window.addEventListener('seims-admin-profile-updated', syncAdminProfile)
-
-    return () => {
-      window.removeEventListener('storage', syncAdminProfile)
-      window.removeEventListener('seims-admin-profile-updated', syncAdminProfile)
-    }
-  }, [])
 
   function handleLogout() {
     // TODO: gọi API logout, xóa token
@@ -61,11 +24,7 @@ export default function SystemAdminLayout({ children }) {
       <aside className={`admin-sidebar ${sidebarOpen ? 'open' : 'closed'}`} aria-label="Điều hướng chính">
         <div className="admin-sidebar-header">
           <Link to="/" className="admin-logo">
-            <span className="admin-logo-badge">S</span>
-            <span className="admin-logo-lines">
-              <span className="admin-logo-text">SEIMS</span>
-              <span className="admin-logo-subtext">Xin chào, {adminProfile.fullName}</span>
-            </span>
+            <span className="admin-logo-text">SEIMS</span>
           </Link>
           <button
             className="admin-sidebar-toggle"
@@ -175,7 +134,7 @@ export default function SystemAdminLayout({ children }) {
             ☰
           </button>
           <div className="admin-header-title">
-            <h1>Hệ thống quản trị SEIMS</h1>
+            <h1>Xin chào, {displayName}</h1>
           </div>
           <div className="admin-header-actions">
             <div className="admin-user-menu">

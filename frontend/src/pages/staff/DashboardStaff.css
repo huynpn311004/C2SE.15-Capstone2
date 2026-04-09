@@ -23,31 +23,6 @@
   overflow: hidden;
 }
 
-/* WELCOME BANNER */
-.dashboard-welcome {
-  background: linear-gradient(135deg, var(--seims-teal) 0%, var(--seims-teal-dark) 100%);
-  color: white;
-  padding: 1.1rem 1.2rem;
-  border-radius: 10px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  box-shadow: 0 4px 16px rgba(15, 118, 110, 0.15);
-  flex-shrink: 0;
-}
-
-.dashboard-welcome h2 {
-  margin: 0 0 0.25rem 0;
-  font-size: 1.12rem;
-  font-weight: 700;
-}
-
-.dashboard-welcome p {
-  margin: 0;
-  opacity: 0.95;
-  font-size: 0.8rem;
-}
-
 /* STATS GRID */
 .dashboard-stats {
   display: grid;

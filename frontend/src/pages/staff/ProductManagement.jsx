@@ -7,7 +7,9 @@ import {
   updateProduct,
   deleteProduct,
   importProducts,
+  uploadProductImage,
 } from '../../services/staffApi'
+import { getProductImageUrl } from '../../services/staffApi'
 import './ProductManagement.css'
 
 export default function ProductManagement() {
@@ -32,6 +34,8 @@ export default function ProductManagement() {
     categoryId: '',
     imageUrl: '',
   })
+  const [selectedImage, setSelectedImage] = useState(null)
+  const [imagePreview, setImagePreview] = useState('')
 
   useEffect(() => {
     loadData()
@@ -67,20 +71,25 @@ export default function ProductManagement() {
   function openAddModal() {
     setEditingProduct(null)
     setFormData({ name: '', sku: '', basePrice: '', categoryId: '', imageUrl: '' })
+    setSelectedImage(null)
+    setImagePreview('')
     setError('')
     setSuccess('')
     setShowModal(true)
   }
 
   function openEditModal(product) {
+    const fullImageUrl = getProductImageUrl(product.imageUrl)
     setEditingProduct(product)
     setFormData({
       name: product.name,
       sku: product.sku,
       basePrice: product.basePrice.toString(),
       categoryId: product.categoryId ? product.categoryId.toString() : '',
-      imageUrl: product.imageUrl || '',
+      imageUrl: fullImageUrl || '',
     })
+    setSelectedImage(null)
+    setImagePreview('')
     setError('')
     setSuccess('')
     setShowModal(true)
@@ -89,6 +98,11 @@ export default function ProductManagement() {
   function closeModal() {
     setShowModal(false)
     setEditingProduct(null)
+    if (imagePreview) {
+      URL.revokeObjectURL(imagePreview)
+    }
+    setImagePreview('')
+    setSelectedImage(null)
     setError('')
   }
 
@@ -96,6 +110,31 @@ export default function ProductManagement() {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
     setError('')
+  }
+
+  function handleImageFileChange(e) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      setError('Vui lòng chọn file hình ảnh')
+      return
+    }
+    setSelectedImage(file)
+    setImagePreview(URL.createObjectURL(file))
+    setFormData(prev => ({ ...prev, imageUrl: '' }))
+    setError('')
+  }
+
+  function clearSelectedImage(keepFormUrl = false) {
+    setSelectedImage(null)
+    if (imagePreview) {
+      URL.revokeObjectURL(imagePreview)
+    }
+    setImagePreview('')
+    if (!keepFormUrl) {
+      setFormData(prev => ({ ...prev, imageUrl: '' }))
+    }
   }
 
   async function handleSubmit(e) {
@@ -115,15 +154,28 @@ export default function ProductManagement() {
       return
     }
 
-    const payload = {
-      name: formData.name.trim(),
-      basePrice: Number(formData.basePrice),
-      categoryId: formData.categoryId ? parseInt(formData.categoryId) : null,
-      imageUrl: formData.imageUrl.trim(),
-    }
-
     try {
       setSaving(true)
+      let imageUrl = formData.imageUrl.trim()
+
+      // Nếu có chọn ảnh từ máy, upload ảnh lên server trước
+      if (selectedImage) {
+        try {
+          imageUrl = await uploadProductImage(selectedImage)
+        } catch (uploadErr) {
+          setError('Không thể upload hình ảnh. Vui lòng thử lại.')
+          setSaving(false)
+          return
+        }
+      }
+
+      const payload = {
+        name: formData.name.trim(),
+        basePrice: Number(formData.basePrice),
+        categoryId: formData.categoryId ? parseInt(formData.categoryId) : null,
+        imageUrl: imageUrl,
+      }
+
       if (editingProduct) {
         await updateProduct(editingProduct.id, payload)
         setSuccess('Cập nhật sản phẩm thành công')
@@ -198,33 +250,9 @@ export default function ProductManagement() {
   return (
     <StaffLayout>
       <div className="product-page">
-        <div className="product-card">
-          <div className="product-card-header">
-            <h2>Quản Lý Sản Phẩm</h2>
-            <div className="product-header-actions">
-              <label className={`product-btn-import ${isImporting ? 'is-disabled' : ''}`}>
-                {isImporting ? 'Đang import...' : 'Upload Excel/CSV'}
-                <input
-                  type="file"
-                  accept=".xlsx,.csv"
-                  onChange={handleImportFile}
-                  disabled={isImporting}
-                  hidden
-                />
-              </label>
-              <button className="product-btn-add" onClick={openAddModal}>
-                <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-                  <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
-                </svg>
-                Thêm Sản Phẩm
-              </button>
-            </div>
-          </div>
-
-          {error && <div className="product-alert product-alert-error">{error}</div>}
-          {success && <div className="product-alert product-alert-success">{success}</div>}
-
-          <div className="product-toolbar">
+        {/* TOOLBAR */}
+        <div className="product-toolbar">
+          <div className="product-toolbar-filters">
             <div className="product-search-box">
               <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
                 <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
@@ -236,9 +264,10 @@ export default function ProductManagement() {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <div className="product-filter-box">
+            <div className="product-filter-group">
               <label>Lọc theo danh mục:</label>
               <select
+                className="product-filter-select"
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
               >
@@ -249,50 +278,97 @@ export default function ProductManagement() {
               </select>
             </div>
           </div>
+          <div className="product-toolbar-actions">
+            <label className={`product-upload-btn ${isImporting ? 'is-disabled' : ''}`}>
+              {isImporting ? 'Đang import...' : 'Upload Excel/CSV'}
+              <input
+                type="file"
+                accept=".xlsx,.csv"
+                onChange={handleImportFile}
+                disabled={isImporting}
+                hidden
+              />
+            </label>
+            <button className="product-btn-create product-toolbar-btn" onClick={openAddModal}>
+              Thêm Sản Phẩm
+            </button>
+          </div>
+          <div className="product-toolbar-info">
+            Hiển thị {filteredProducts.length} sản phẩm
+          </div>
+        </div>
 
-          {loading ? (
-            <div className="product-loading">Đang tải dữ liệu...</div>
-          ) : (
-            <div className="product-table-wrapper">
-              <table className="product-table">
-                <thead>
+        {error && <div className="product-alert product-alert-error">{error}</div>}
+        {success && <div className="product-alert product-alert-success">{success}</div>}
+
+        {/* CARD + TABLE */}
+        <div className="product-card">
+          <div className="product-table-wrapper">
+            <table className="product-table">
+              <thead>
+                <tr>
+                  <th>Hình</th>
+                  <th>SKU</th>
+                  <th>Tên Sản Phẩm</th>
+                  <th>Danh Mục</th>
+                  <th>Giá</th>
+                  <th>Tồn Kho</th>
+                  <th>Thao Tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
                   <tr>
-                    <th>SKU</th>
-                    <th>Tên Sản Phẩm</th>
-                    <th>Danh Mục</th>
-                    <th>Giá</th>
-                    <th>Tồn Kho</th>
-                    <th>Thao Tác</th>
+                    <td colSpan="7" className="product-empty-cell">
+                      Đang tải dữ liệu...
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {filteredProducts.length === 0 ? (
-                    <tr>
-                      <td colSpan="6" className="product-empty">
-                        Không có sản phẩm nào
+                ) : filteredProducts.length === 0 ? (
+                  <tr>
+                    <td colSpan="7" className="product-empty-cell">
+                      Không có sản phẩm nào
+                    </td>
+                  </tr>
+                ) : (
+                  filteredProducts.map((product) => (
+                    <tr key={product.id}>
+                      <td>
+                        {product.imageUrl ? (
+                          <img
+                            src={getProductImageUrl(product.imageUrl)}
+                            alt={product.name}
+                            className="product-image-thumb"
+                            onError={(e) => {
+                              e.target.style.display = 'none'
+                              e.target.nextSibling.style.display = 'flex'
+                            }}
+                          />
+                        ) : null}
+                        <div className={`product-image-placeholder ${product.imageUrl ? 'hidden' : ''}`}>
+                          <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+                            <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" />
+                          </svg>
+                        </div>
                       </td>
-                    </tr>
-                  ) : (
-                    filteredProducts.map((product) => (
-                      <tr key={product.id}>
-                        <td>
-                          <span className="product-sku">{product.sku}</span>
-                        </td>
-                        <td>{product.name}</td>
-                        <td>
-                          <span className="product-category-badge">
-                            {product.categoryName}
-                          </span>
-                        </td>
-                        <td className="product-price">
-                          {formatCurrency(product.basePrice)}
-                        </td>
-                        <td>
-                          <span className={`product-stock ${product.totalStock > 0 ? 'in-stock' : 'out-stock'}`}>
-                            {product.totalStock}
-                          </span>
-                        </td>
-                        <td className="product-actions">
+                      <td>
+                        <span className="product-sku">{product.sku}</span>
+                      </td>
+                      <td>{product.name}</td>
+                      <td>
+                        <span className="product-category-badge">
+                          {product.categoryName}
+                        </span>
+                      </td>
+                      <td className="product-price">
+                        {formatCurrency(product.basePrice)}
+                      </td>
+                      <td>
+                        <span className={`product-stock ${product.totalStock > 0 ? 'in-stock' : 'out-stock'}`}>
+                          {product.totalStock}
+                        </span>
+                      </td>
+                      <td className="product-actions-cell">
+                        <div className="product-actions">
                           <button
                             className="product-btn-edit"
                             onClick={() => openEditModal(product)}
@@ -311,17 +387,13 @@ export default function ProductManagement() {
                             </svg>
                             Xóa
                           </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          <div className="product-table-footer">
-            Hiển thị {filteredProducts.length} / {products.length} sản phẩm
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -387,14 +459,48 @@ export default function ProductManagement() {
                   </label>
                 </div>
                 <label className="product-field product-field-full">
-                  <span>URL Hình Ảnh</span>
-                  <input
-                    type="text"
-                    name="imageUrl"
-                    value={formData.imageUrl}
-                    onChange={handleInputChange}
-                    placeholder="https://example.com/image.jpg"
-                  />
+                  <span>Hình Ảnh Sản Phẩm</span>
+                  <div className="product-image-upload-wrapper">
+                    <label className="product-btn-select-image">
+                      <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+                        <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" />
+                      </svg>
+                      Chọn Ảnh từ Máy
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageFileChange}
+                        hidden
+                      />
+                    </label>
+                    <span className="product-image-or">hoặc</span>
+                    <input
+                      type="text"
+                      name="imageUrl"
+                      value={formData.imageUrl}
+                      onChange={handleInputChange}
+                      placeholder="Nhập URL hình ảnh"
+                      className="product-image-url-input"
+                    />
+                  </div>
+                  {(imagePreview || formData.imageUrl) && (
+                    <div className="product-image-preview-wrapper">
+                      {imagePreview ? (
+                        <img src={imagePreview} alt="Preview" className="product-image-preview" />
+                      ) : formData.imageUrl ? (
+                        <img src={formData.imageUrl} alt="Preview" className="product-image-preview"
+                          onError={(e) => { e.target.style.display = 'none' }} />
+                      ) : null}
+                      <button
+                        type="button"
+                        className="product-btn-remove-image"
+                        onClick={() => clearSelectedImage(false)}
+                        title="Xóa ảnh"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  )}
                 </label>
                 {error && <p className="product-error">{error}</p>}
               </div>

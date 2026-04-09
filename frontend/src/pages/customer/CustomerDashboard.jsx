@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from "react-router-dom";
 import { fetchCustomerProducts, fetchNearExpiryProducts, fetchCustomerSupermarkets } from "../../services/customerApi";
-import './CustomerHome.css';
+import './CustomerDashboard.css';
 
-const CustomerHome = () => {
+const CustomerDashboard = () => {
   const navigate = useNavigate();
   const [stats, setStats] = useState({
     totalProducts: 0,
@@ -28,8 +28,8 @@ const CustomerHome = () => {
           : 0;
         const expiringSoon = nearExpiry.length;
         const totalSavings = products.reduce((sum, p) => {
-          const original = p.original_price || p.originalPrice || 0;
-          const sale = p.sale_price || p.salePrice || 0;
+          const original = p.originalPrice || 0;
+          const sale = p.salePrice || 0;
           return sum + (original - sale);
         }, 0);
 
@@ -56,41 +56,41 @@ const CustomerHome = () => {
   return (
     <div className="customer-page">
       {/* Stats Grid */}
-      <div className="customer-stats">
-        <div className="customer-stat-card">
-          <div className="customer-stat-header">
-            <span className="customer-stat-icon">📦</span>
-            <span className="customer-stat-change">+{stats.totalProducts}</span>
+      <div className="customer-dashboard-stats">
+        <div className="customer-dashboard-stat-card">
+          <div className="customer-dashboard-stat-header">
+            <span className="customer-dashboard-stat-icon">📦</span>
+            <span className="customer-dashboard-stat-change">+{stats.totalProducts}</span>
           </div>
-          <div className="customer-stat-value">{stats.totalProducts}</div>
-          <div className="customer-stat-label">Sản phẩm khả dụng</div>
+          <div className="customer-dashboard-stat-value">{stats.totalProducts}</div>
+          <div className="customer-dashboard-stat-label">Sản phẩm khả dụng</div>
         </div>
 
-        <div className="customer-stat-card">
-          <div className="customer-stat-header">
-            <span className="customer-stat-icon">📉</span>
-            <span className="customer-stat-change">+{stats.avgDiscount}%</span>
+        <div className="customer-dashboard-stat-card">
+          <div className="customer-dashboard-stat-header">
+            <span className="customer-dashboard-stat-icon">📉</span>
+            <span className="customer-dashboard-stat-change">+{stats.avgDiscount}%</span>
           </div>
-          <div className="customer-stat-value">{stats.avgDiscount}%</div>
-          <div className="customer-stat-label">Giảm giá trung bình</div>
+          <div className="customer-dashboard-stat-value">{stats.avgDiscount}%</div>
+          <div className="customer-dashboard-stat-label">Giảm giá trung bình</div>
         </div>
 
-        <div className="customer-stat-card customer-stat-card-warning">
-          <div className="customer-stat-header">
-            <span className="customer-stat-icon">⏰</span>
-            <span className="customer-stat-change">{stats.expiringSoon}</span>
+        <div className="customer-dashboard-stat-card customer-dashboard-stat-warning">
+          <div className="customer-dashboard-stat-header">
+            <span className="customer-dashboard-stat-icon">⏰</span>
+            <span className="customer-dashboard-stat-change">{stats.expiringSoon}</span>
           </div>
-          <div className="customer-stat-value">{stats.expiringSoon}</div>
-          <div className="customer-stat-label">Sắp hết hạn (≤ 2 ngày)</div>
+          <div className="customer-dashboard-stat-value">{stats.expiringSoon}</div>
+          <div className="customer-dashboard-stat-label">Sắp hết hạn (≤ 2 ngày)</div>
         </div>
 
-        <div className="customer-stat-card">
-          <div className="customer-stat-header">
-            <span className="customer-stat-icon">💰</span>
-            <span className="customer-stat-change">+{(stats.totalSavings / 1000).toFixed(0)}K</span>
+        <div className="customer-dashboard-stat-card">
+          <div className="customer-dashboard-stat-header">
+            <span className="customer-dashboard-stat-icon">💰</span>
+            <span className="customer-dashboard-stat-change">+{(stats.totalSavings / 1000).toFixed(0)}K</span>
           </div>
-          <div className="customer-stat-value">{(stats.totalSavings / 1000).toFixed(0)}K</div>
-          <div className="customer-stat-label">Tiết kiệm tối đa</div>
+          <div className="customer-dashboard-stat-value">{(stats.totalSavings / 1000).toFixed(0)}K</div>
+          <div className="customer-dashboard-stat-label">Tiết kiệm tối đa</div>
         </div>
       </div>
 
@@ -104,16 +104,16 @@ const CustomerHome = () => {
         </div>
 
         <div style={{ padding: '1rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem' }}>
-          <button className="customer-add-to-cart-btn" onClick={() => navigate('/customer/shop')}>
+          <button className="customer-dashboard-btn" onClick={() => navigate('/customer/shop')}>
             🛍 Mua sắm
           </button>
-          <button className="customer-add-to-cart-btn" onClick={() => navigate('/customer/cart')}>
+          <button className="customer-dashboard-btn" onClick={() => navigate('/customer/cart')}>
             🛒 Xem giỏ hàng
           </button>
-          <button className="customer-add-to-cart-btn" onClick={() => navigate('/customer/orders')}>
+          <button className="customer-dashboard-btn" onClick={() => navigate('/customer/orders')}>
             📦 Theo dõi đơn hàng
           </button>
-          <button className="customer-add-to-cart-btn" onClick={() => navigate('/customer/profile')}>
+          <button className="customer-dashboard-btn" onClick={() => navigate('/customer/profile')}>
             👤 Cập nhật tài khoản
           </button>
         </div>
@@ -122,4 +122,4 @@ const CustomerHome = () => {
   );
 };
 
-export default CustomerHome;
+export default CustomerDashboard;

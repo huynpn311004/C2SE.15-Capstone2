@@ -32,7 +32,6 @@ export default function DeliveryManagement() {
   const [editError, setEditError] = useState('')
   const [editSuccess, setEditSuccess] = useState('')
   const [editForm, setEditForm] = useState({
-    name: '',
     manager: '',
     email: '',
     phone: '',
@@ -52,7 +51,7 @@ export default function DeliveryManagement() {
     password: '',
     confirmPassword: '',
     requestDate: getTodayDate(),
-    passwordStatus: 'active',
+    activityStatus: 'active',
   })
 
   async function loadDeliveries() {
@@ -114,7 +113,7 @@ export default function DeliveryManagement() {
       password: '',
       confirmPassword: '',
       requestDate: getTodayDate(),
-      passwordStatus: 'active',
+      activityStatus: 'active',
     })
     setCreateError('')
     setCreateSuccess('')
@@ -197,7 +196,7 @@ export default function DeliveryManagement() {
         vehicleType: createForm.vehicleType.trim(),
         licensePlate: createForm.licensePlate.trim(),
         password: createForm.password,
-        passwordStatus: createForm.passwordStatus,
+        activityStatus: createForm.activityStatus,
       }
 
       if (delivery) {
@@ -226,7 +225,6 @@ export default function DeliveryManagement() {
   function openDetail(delivery) {
     setSelectedDelivery(delivery)
     setEditForm({
-      name: delivery.name,
       manager: delivery.manager,
       email: delivery.email,
       phone: delivery.phone,
@@ -265,11 +263,6 @@ export default function DeliveryManagement() {
       return
     }
 
-    if (!editForm.name.trim()) {
-      setEditError('Tên đối tác không được để trống.')
-      return
-    }
-
     if (!editForm.manager.trim()) {
       setEditError('Người phụ trách không được để trống.')
       return
@@ -301,7 +294,6 @@ export default function DeliveryManagement() {
     }
 
     const nextData = {
-      name: editForm.name.trim(),
       manager: editForm.manager.trim(),
       email: editForm.email.trim(),
       phone: editForm.phone.trim(),
@@ -331,7 +323,7 @@ export default function DeliveryManagement() {
             Tạo tài khoản
           </button>
           <div className="delivery-toolbar-info">
-            Hiển thị {filteredDeliveries.length} đối tác delivery
+            Hiển thị {filteredDeliveries.length} đối tác giao hàng
           </div>
         </div>
 
@@ -343,7 +335,6 @@ export default function DeliveryManagement() {
             <table className="delivery-table">
               <thead>
                 <tr>
-                  <th>Tên Đối Tác</th>
                   <th>Người Phụ Trách</th>
                   <th>Email</th>
                   <th>Điện Thoại</th>
@@ -357,9 +348,6 @@ export default function DeliveryManagement() {
                 {filteredDeliveries.length > 0 ? (
                   filteredDeliveries.map((delivery) => (
                     <tr key={delivery.id}>
-                      <td>
-                        <div className="delivery-name">{delivery.name}</div>
-                      </td>
                       <td>{delivery.manager}</td>
                       <td>
                         <a href={`mailto:${delivery.email}`}>{delivery.email}</a>
@@ -368,43 +356,48 @@ export default function DeliveryManagement() {
                       <td>{delivery.vehicleType}</td>
                       <td>{delivery.licensePlate}</td>
                       <td>{new Date(delivery.requestDate).toLocaleDateString('vi-VN')}</td>
-                      <td>
-                        <div className="action-group">
+                      <td className="delivery-actions-cell">
+                        <div className="delivery-actions">
                           <button
-                            className="action-btn icon-action-btn btn-edit"
+                            className="delivery-btn-edit"
                             onClick={() => openDetail(delivery)}
                             title="Chỉnh sửa"
-                            aria-label="Chỉnh sửa"
                           >
-                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                              <path d="m3 17.25 8.06-8.06 2.75 2.75L5.75 20H3v-2.75Zm13.71-9.04 1.04-1.04a1 1 0 0 0 0-1.41l-1.55-1.55a1 1 0 0 0-1.41 0l-1.04 1.04 2.96 2.96Z" />
+                            <svg className="delivery-btn-icon" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="m3 17.25 8.06-8.06 2.75 2.75L5.75 20H3v-2.75Zm13.71-9.04 1.04-1.04a1 1 0 0 0 0-1.41l-1.55-1.55a1 1 0 0 0-1.41 0l-1.04 1.04 2.96 2.96Z"/>
                             </svg>
+                            Sửa
                           </button>
                           <button
-                            className={`action-btn icon-action-btn ${delivery.isLocked ? 'btn-unlock-small' : 'btn-lock-small'}`}
+                            className={`delivery-btn-lock ${delivery.isLocked ? 'delivery-btn-unlock' : 'delivery-btn-lock-active'}`}
                             onClick={() => handleToggleLockDelivery(delivery.id)}
                             title={delivery.isLocked ? 'Mở khóa đối tác' : 'Khóa đối tác'}
-                            aria-label={delivery.isLocked ? 'Mở khóa đối tác' : 'Khóa đối tác'}
                           >
                             {delivery.isLocked ? (
-                              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                                <path d="M17 9h-7V7a3 3 0 0 1 5.8-1.2l1.9-.6A5 5 0 0 0 8 7v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm0 10H7v-8h10v8Z" />
-                              </svg>
+                              <>
+                                <svg className="delivery-btn-icon" viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M17 9h-7V7a3 3 0 0 1 5.8-1.2l1.9-.6A5 5 0 0 0 8 7v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm0 10H7v-8h10v8Z"/>
+                                </svg>
+                                Mở khóa
+                              </>
                             ) : (
-                              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                                <path d="M17 9h-1V7a4 4 0 1 0-8 0v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm-7-2a2 2 0 1 1 4 0v2h-4V7Zm7 12H7v-8h10v8Z" />
-                              </svg>
+                              <>
+                                <svg className="delivery-btn-icon" viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M17 9h-1V7a4 4 0 1 0-8 0v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm-7-2a2 2 0 1 1 4 0v2h-4V7Zm7 12H7v-8h10v8Z"/>
+                                </svg>
+                                Khóa
+                              </>
                             )}
                           </button>
                           <button
-                            className="action-btn icon-action-btn btn-delete-small"
+                            className="delivery-btn-delete"
                             onClick={() => handleDeleteDelivery(delivery.id)}
                             title="Xóa đối tác"
-                            aria-label="Xóa đối tác"
                           >
-                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                              <path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-2 6h10l-1 11a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2L7 9Zm3 2v8h2v-8h-2Zm4 0v8h2v-8h-2Z" />
+                            <svg className="delivery-btn-icon" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
                             </svg>
+                            Xóa
                           </button>
                         </div>
                       </td>
@@ -422,30 +415,18 @@ export default function DeliveryManagement() {
           </div>
         </div>
 
-        {/* DETAIL MODAL */}
+        {/* EDIT MODAL */}
         {showDetailModal && selectedDelivery && (
           <div className="delivery-modal-overlay" onClick={closeDetail}>
-            <div className="delivery-modal delivery-edit-modal" onClick={(e) => e.stopPropagation()}>
-              <div className="modal-header">
+            <div className="delivery-modal delivery-create-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="delivery-modal-header">
                 <h3>Chỉnh Sửa Đối Tác Giao Hàng</h3>
-                <button className="modal-close" onClick={closeDetail}>✕</button>
+                <button className="delivery-modal-close" onClick={closeDetail}>×</button>
               </div>
-              <form className="modal-body delivery-edit-form" onSubmit={submitEditDelivery}>
-                <div className="create-form-grid">
-                  <div className="create-form-column">
-                    <div className="create-form-field">
-                      <label>Tên Đối Tác</label>
-                      <input
-                        type="text"
-                        name="name"
-                        value={editForm.name}
-                        onChange={handleEditFormChange}
-                        className="delivery-input"
-                        placeholder="Nhập tên đối tác"
-                        required
-                      />
-                    </div>
-                    <div className="create-form-field">
+              <form onSubmit={submitEditDelivery}>
+                <div className="delivery-modal-body">
+                  <div className="delivery-create-grid">
+                    <div className="delivery-form-field">
                       <label>Người Phụ Trách</label>
                       <input
                         type="text"
@@ -457,7 +438,8 @@ export default function DeliveryManagement() {
                         required
                       />
                     </div>
-                    <div className="create-form-field">
+
+                    <div className="delivery-form-field">
                       <label>Email</label>
                       <input
                         type="email"
@@ -469,10 +451,8 @@ export default function DeliveryManagement() {
                         required
                       />
                     </div>
-                  </div>
 
-                  <div className="create-form-column">
-                    <div className="create-form-field">
+                    <div className="delivery-form-field">
                       <label>Điện Thoại</label>
                       <input
                         type="text"
@@ -484,7 +464,8 @@ export default function DeliveryManagement() {
                         required
                       />
                     </div>
-                    <div className="create-form-field">
+
+                    <div className="delivery-form-field">
                       <label>Loại Phương Tiện</label>
                       <input
                         type="text"
@@ -496,7 +477,8 @@ export default function DeliveryManagement() {
                         required
                       />
                     </div>
-                    <div className="create-form-field">
+
+                    <div className="delivery-form-field">
                       <label>Biển Số Xe</label>
                       <input
                         type="text"
@@ -508,7 +490,8 @@ export default function DeliveryManagement() {
                         required
                       />
                     </div>
-                    <div className="create-form-field">
+
+                    <div className="delivery-form-field">
                       <label>Ngày Đăng Ký</label>
                       <input
                         type="date"
@@ -520,20 +503,18 @@ export default function DeliveryManagement() {
                       />
                     </div>
                   </div>
+
+                  {editError && <p className="delivery-error">{editError}</p>}
+                  {editSuccess && <p className="delivery-success">{editSuccess}</p>}
                 </div>
 
-                {editError && <p className="delivery-error">{editError}</p>}
-                {editSuccess && <p className="delivery-success">{editSuccess}</p>}
-
-                <div className="create-form-footer">
-                  <div className="create-form-actions">
-                    <button type="submit" className="btn-large delivery-btn-create">
-                      Lưu thay đổi
-                    </button>
-                    <button type="button" className="btn-large btn-close" onClick={closeDetail}>
-                      Hủy
-                    </button>
-                  </div>
+                <div className="delivery-modal-footer">
+                  <button type="submit" className="delivery-btn-create">
+                    Lưu Thay Đổi
+                  </button>
+                  <button type="button" className="delivery-btn-cancel" onClick={closeDetail}>
+                    Hủy
+                  </button>
                 </div>
               </form>
             </div>
@@ -543,15 +524,14 @@ export default function DeliveryManagement() {
         {showCreateModal && (
           <div className="delivery-modal-overlay" onClick={closeCreateModal}>
             <div className="delivery-modal delivery-create-modal" onClick={(e) => e.stopPropagation()}>
-              <div className="modal-header">
-                <h3>Tạo Tài khoản Đối Tác Giao Hàng</h3>
-                <button className="modal-close" onClick={closeCreateModal}>✕</button>
+              <div className="delivery-modal-header">
+                <h3>Tạo Tài Khoản Đối Tác Giao Hàng</h3>
+                <button className="delivery-modal-close" onClick={closeCreateModal}>×</button>
               </div>
-
-              <form className="modal-body delivery-create-form" onSubmit={submitCreateAccount}>
-                <div className="create-form-grid">
-                  <div className="create-form-column">
-                    <div className="create-form-field">
+              <form onSubmit={submitCreateAccount}>
+                <div className="delivery-modal-body">
+                  <div className="delivery-create-grid">
+                    <div className="delivery-form-field">
                       <label>Người Phụ Trách</label>
                       <input
                         type="text"
@@ -564,7 +544,7 @@ export default function DeliveryManagement() {
                       />
                     </div>
 
-                    <div className="create-form-field">
+                    <div className="delivery-form-field">
                       <label>Email</label>
                       <input
                         type="email"
@@ -577,7 +557,7 @@ export default function DeliveryManagement() {
                       />
                     </div>
 
-                    <div className="create-form-field">
+                    <div className="delivery-form-field">
                       <label>Điện Thoại</label>
                       <input
                         type="text"
@@ -590,7 +570,7 @@ export default function DeliveryManagement() {
                       />
                     </div>
 
-                    <div className="create-form-field">
+                    <div className="delivery-form-field">
                       <label>Loại Phương Tiện</label>
                       <input
                         type="text"
@@ -602,10 +582,8 @@ export default function DeliveryManagement() {
                         required
                       />
                     </div>
-                  </div>
 
-                  <div className="create-form-column">
-                    <div className="create-form-field">
+                    <div className="delivery-form-field">
                       <label>Biển Số Xe</label>
                       <input
                         type="text"
@@ -618,7 +596,7 @@ export default function DeliveryManagement() {
                       />
                     </div>
 
-                    <div className="create-form-field">
+                    <div className="delivery-form-field">
                       <label>Mật Khẩu</label>
                       <input
                         type="password"
@@ -631,7 +609,7 @@ export default function DeliveryManagement() {
                       />
                     </div>
 
-                    <div className="create-form-field">
+                    <div className="delivery-form-field">
                       <label>Xác Nhận Mật Khẩu</label>
                       <input
                         type="password"
@@ -644,7 +622,7 @@ export default function DeliveryManagement() {
                       />
                     </div>
 
-                    <div className="create-form-field">
+                    <div className="delivery-form-field">
                       <label>Ngày Đăng Ký</label>
                       <input
                         type="date"
@@ -656,11 +634,11 @@ export default function DeliveryManagement() {
                       />
                     </div>
 
-                    <div className="create-form-field">
+                    <div className="delivery-form-field">
                       <label>Trạng Thái Hoạt Động</label>
                       <select
-                        name="passwordStatus"
-                        value={createForm.passwordStatus}
+                        name="activityStatus"
+                        value={createForm.activityStatus}
                         onChange={handleCreateFormChange}
                         className="delivery-input"
                       >
@@ -674,15 +652,13 @@ export default function DeliveryManagement() {
                 {createError && <p className="delivery-error">{createError}</p>}
                 {createSuccess && <p className="delivery-success">{createSuccess}</p>}
 
-                <div className="create-form-footer">
-                  <div className="create-form-actions">
-                    <button type="submit" className="btn-large delivery-btn-create">
-                      Tạo Mới
-                    </button>
-                    <button type="button" className="btn-large btn-close" onClick={closeCreateModal}>
-                      Hủy
-                    </button>
-                  </div>
+                <div className="delivery-modal-footer">
+                  <button type="submit" className="delivery-btn-create">
+                    Tạo Mới
+                  </button>
+                  <button type="button" className="delivery-btn-cancel" onClick={closeCreateModal}>
+                    Hủy
+                  </button>
                 </div>
               </form>
             </div>

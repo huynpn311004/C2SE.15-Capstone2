@@ -6,6 +6,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.security import get_password_hash, verify_password
 
 router = APIRouter(prefix="/customer", tags=["customer"])
 
@@ -116,6 +117,45 @@ def update_customer_profile(
     db.commit()
 
     return {"success": True, "message": "Cap nhat thanh cong"}
+
+
+@router.post("/change-password")
+def change_customer_password(
+    payload: dict,
+    user_id: int = Query(..., ge=1),
+    db: Session = Depends(get_db),
+):
+    current_password = payload.get("currentPassword") or ""
+    new_password = payload.get("newPassword") or ""
+
+    if len(new_password) < 6:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Mat khau moi phai co it nhat 6 ky tu.",
+        )
+
+    row = db.execute(
+        text("SELECT password_hash FROM users WHERE id = :user_id AND role = 'customer' LIMIT 1"),
+        {"user_id": user_id},
+    ).first()
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Khong tim thay tai khoan")
+
+    if not verify_password(current_password, row.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Mat khau hien tai khong dung.",
+        )
+
+    db.execute(
+        text(
+            "UPDATE users SET password_hash = :password_hash WHERE id = :user_id"
+        ),
+        {"password_hash": get_password_hash(new_password), "user_id": user_id},
+    )
+    db.commit()
+
+    return {"success": True, "message": "Doi mat khau thanh cong"}
 
 
 @router.get("/products")

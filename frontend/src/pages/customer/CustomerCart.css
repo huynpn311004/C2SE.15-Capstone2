@@ -121,3 +121,235 @@
     overflow-y: auto;
   }
 }
+
+/* Cart specific */
+.customer-cart-layout {
+  display: flex;
+  gap: 1rem;
+  flex: 1;
+  overflow: hidden;
+}
+
+.customer-cart-items-section {
+  flex: 2;
+  display: flex;
+  flex-direction: column;
+}
+
+.customer-cart-summary-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.customer-cart-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+  padding: 0.75rem;
+  background: var(--seims-bg);
+  border: 1px solid var(--seims-border);
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.customer-cart-item:hover {
+  border-color: var(--seims-teal);
+  box-shadow: 0 4px 12px rgba(15, 118, 110, 0.1);
+}
+
+.customer-cart-item-image {
+  width: 80px;
+  height: 80px;
+  background: #f9fafb;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.customer-cart-item-image img {
+  width: 60px;
+  height: 60px;
+  object-fit: contain;
+}
+
+.customer-cart-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.customer-cart-item-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--seims-ink);
+  margin: 0 0 0.25rem 0;
+}
+
+.customer-cart-item-store {
+  font-size: 0.8rem;
+  color: var(--seims-muted);
+  margin: 0.25rem 0;
+}
+
+.customer-cart-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.customer-cart-item-price {
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.customer-cart-item-price-value {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--seims-teal-dark);
+}
+
+.customer-cart-item-price-qty {
+  font-size: 0.75rem;
+  color: var(--seims-muted);
+  margin: 0.2rem 0 0 0;
+}
+
+.customer-cart-item-remove {
+  padding: 0.5rem;
+  background: rgba(185, 28, 28, 0.1);
+  border: 1px solid rgba(185, 28, 28, 0.2);
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--seims-error);
+  font-size: 1rem;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.customer-cart-item-remove:hover {
+  background: var(--seims-error);
+  color: white;
+}
+
+/* Cart Summary */
+.customer-cart-summary-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.customer-cart-summary-label {
+  color: var(--seims-muted);
+  font-weight: 500;
+}
+
+.customer-cart-summary-value {
+  font-weight: 600;
+}
+
+.customer-cart-summary-savings {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.75rem;
+  background: rgba(245, 158, 11, 0.1);
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+
+.customer-cart-grand-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 1rem;
+  border-top: 1px dashed var(--seims-border);
+}
+
+.customer-cart-grand-total-label {
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.customer-cart-grand-total-value {
+  font-weight: 800;
+  font-size: 1.5rem;
+  color: var(--seims-teal-dark);
+}
+
+/* Empty Cart */
+.customer-cart-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 2rem;
+  color: var(--seims-muted);
+}
+
+.customer-cart-empty-icon {
+  font-size: 3rem;
+  margin: 0 0 1rem 0;
+}
+
+.customer-cart-empty-title {
+  font-weight: 600;
+  margin: 0 0 0.5rem 0;
+  color: var(--seims-ink);
+}
+
+.customer-cart-empty-text {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+/* Clear Cart Button */
+.customer-cart-clear-btn {
+  font-size: 0.8rem;
+  color: var(--seims-error);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.customer-cart-clear-btn:hover {
+  opacity: 0.8;
+}
+
+/* Cart Content Scroll */
+.customer-cart-content {
+  padding: 1rem;
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* Toast */
+.customer-cart-toast {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  background: var(--seims-teal-dark);
+  color: white;
+  padding: 0.75rem 1.25rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.875rem;
+  box-shadow: 0 4px 16px rgba(15, 118, 110, 0.3);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  animation: slideInToast 0.3s ease;
+}
+
+@keyframes slideInToast {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}

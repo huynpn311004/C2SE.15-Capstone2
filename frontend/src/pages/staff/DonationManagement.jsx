@@ -172,7 +172,7 @@ export default function DonationManagement() {
           onClick={openCreateModal}
           className="donation-toolbar-btn"
         >
-          + Tạo Đề Nghị Quyên Góp
+          Tạo Đề Nghị Quyên Góp
         </button>
       </div>
 
@@ -226,9 +226,6 @@ export default function DonationManagement() {
             ) : (
               <div className="donation-empty">
                 <p>Chưa có đề nghị quyên góp nào.</p>
-                <button onClick={openCreateModal} className="donation-empty-btn">
-                  Tạo đề nghị đầu tiên
-                </button>
               </div>
             )}
           </div>

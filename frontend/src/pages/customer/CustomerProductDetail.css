@@ -1,0 +1,128 @@
+/* CustomerProductDetail Styles */
+.customer-product-detail-back {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--seims-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  padding: 0.5rem 0;
+  margin-bottom: 0.5rem;
+}
+
+.customer-product-detail-card {
+  padding: 1.5rem;
+  display: flex;
+  gap: 2rem;
+  flex-wrap: wrap;
+}
+
+.customer-product-detail-image {
+  flex: 1 1 300px;
+  background: #f9fafb;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+}
+
+.customer-product-detail-image img {
+  max-width: 100%;
+  max-height: 300px;
+  mix-blendMode: multiply;
+}
+
+.customer-product-detail-info {
+  flex: 1 1 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.customer-product-detail-shop {
+  font-size: 0.85rem;
+  color: var(--seims-muted);
+  font-weight: 500;
+}
+
+.customer-product-detail-name {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: var(--seims-ink);
+}
+
+.customer-product-detail-pricing {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: 0.5rem 0;
+}
+
+.customer-product-detail-original {
+  font-size: 1.1rem;
+  color: var(--seims-muted);
+  text-decoration: line-through;
+}
+
+.customer-product-detail-sale {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--seims-teal-dark);
+}
+
+.customer-product-detail-expiry {
+  padding: 0.875rem;
+  background: rgba(245, 158, 11, 0.1);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  color: var(--seims-warning);
+}
+
+.customer-product-detail-add-btn {
+  padding: 1rem;
+  font-size: 1rem;
+  margin-top: auto;
+  background: var(--seims-teal);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.customer-product-detail-add-btn:hover {
+  background: var(--seims-teal-dark);
+}
+
+/* Toast */
+.customer-product-detail-toast {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  background: var(--seims-teal-dark);
+  color: white;
+  padding: 0.75rem 1.25rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.875rem;
+  box-shadow: 0 4px 16px rgba(15, 118, 110, 0.3);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  animation: slideInToast 0.3s ease;
+}
+
+@keyframes slideInToast {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}

@@ -11,6 +11,7 @@ export default function UserManagement() {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
 
   const [filterRole, setFilterRole] = useState('all')
   const [filterStatus, setFilterStatus] = useState('all')
@@ -42,23 +43,23 @@ export default function UserManagement() {
   async function handleToggleLock(id) {
     try {
       await toggleAdminUserLock(id)
+      setSuccess('Cập nhật trạng thái tài khoản thành công')
       await loadUsers()
     } catch (err) {
-      window.alert(err?.response?.data?.detail || 'Không thể cập nhật trạng thái tài khoản.')
+      setError(err?.response?.data?.detail || 'Không thể cập nhật trạng thái tài khoản.')
     }
   }
 
   async function handleDeleteUser(id) {
-    if (window.confirm('Bạn có chắc muốn xóa người dùng này?')) {
-      try {
-        await deleteAdminUser(id)
-        await loadUsers()
-        if (selectedUser?.id === id) {
-          closeDetail()
-        }
-      } catch (err) {
-        window.alert(err?.response?.data?.detail || 'Không thể xóa người dùng.')
+    try {
+      await deleteAdminUser(id)
+      setSuccess('Xóa người dùng thành công')
+      await loadUsers()
+      if (selectedUser?.id === id) {
+        closeDetail()
       }
+    } catch (err) {
+      setError(err?.response?.data?.detail || 'Không thể xóa người dùng.')
     }
   }
 
@@ -133,10 +134,11 @@ export default function UserManagement() {
           </div>
         </div>
 
+        {error && <div className="users-alert users-alert-error">{error}</div>}
+        {success && <div className="users-alert users-alert-success">{success}</div>}
+
         {/* TABLE */}
         <div className="users-card">
-          {loading && <div className="empty-cell">Đang tải dữ liệu...</div>}
-          {error && <div className="empty-cell">{error}</div>}
           <div className="table-responsive">
             <table className="users-table">
               <thead>
@@ -169,33 +171,38 @@ export default function UserManagement() {
                       </td>
                       <td>{new Date(user.joinDate).toLocaleDateString('vi-VN')}</td>
                       <td>{user.lastLogin}</td>
-                      <td>
-                        <div className="action-group">
+                      <td className="users-actions-cell">
+                        <div className="users-actions">
                           <button
-                            className={`action-btn icon-action-btn ${user.status === 'active' ? 'btn-lock-small' : 'btn-unlock-small'}`}
+                            className={`users-btn-lock ${user.status === 'active' ? 'users-btn-lock-active' : 'users-btn-unlock-active'}`}
                             onClick={() => handleToggleLock(user.id)}
                             title={user.status === 'active' ? 'Khóa tài khoản' : 'Mở khóa tài khoản'}
-                            aria-label={user.status === 'active' ? 'Khóa tài khoản' : 'Mở khóa tài khoản'}
                           >
                             {user.status === 'active' ? (
-                              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                                <path d="M17 9h-1V7a4 4 0 1 0-8 0v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm-7-2a2 2 0 1 1 4 0v2h-4V7Zm7 12H7v-8h10v8Z" />
-                              </svg>
+                              <>
+                                <svg className="users-icon" viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M17 9h-1V7a4 4 0 1 0-8 0v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm-7-2a2 2 0 1 1 4 0v2h-4V7Zm7 12H7v-8h10v8Z"/>
+                                </svg>
+                                Khóa
+                              </>
                             ) : (
-                              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                                <path d="M17 9h-7V7a3 3 0 0 1 5.8-1.2l1.9-.6A5 5 0 0 0 8 7v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm0 10H7v-8h10v8Z" />
-                              </svg>
+                              <>
+                                <svg className="users-icon" viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M17 9h-7V7a3 3 0 0 1 5.8-1.2l1.9-.6A5 5 0 0 0 8 7v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm0 10H7v-8h10v8Z"/>
+                                </svg>
+                                Mở khóa
+                              </>
                             )}
                           </button>
                           <button
-                            className="action-btn icon-action-btn btn-delete-small"
+                            className="users-btn-delete"
                             onClick={() => handleDeleteUser(user.id)}
                             title="Xóa người dùng"
-                            aria-label="Xóa người dùng"
                           >
-                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                              <path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-2 6h10l-1 11a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2L7 9Zm3 2v8h2v-8h-2Zm4 0v8h2v-8h-2Z" />
+                            <svg className="users-icon" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
                             </svg>
+                            Xóa
                           </button>
                         </div>
                       </td>

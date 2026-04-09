@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import DeliveryLayout from '../../components/layout/DeliveryLayout'
 import { useAuth } from '../../services/AuthContext'
+import { changeDeliveryPassword } from '../../services/deliveryApi'
 import './DeliverySettings.css'
 
 const DELIVERY_PROFILE_STORAGE_KEY = 'seims_delivery_profile'
@@ -25,6 +26,7 @@ export default function DeliverySettings() {
   })
   const [passwordMessage, setPasswordMessage] = useState('')
   const [passwordError, setPasswordError] = useState('')
+  const [isChangingPassword, setIsChangingPassword] = useState(false)
 
   useEffect(() => {
     const profile = {
@@ -72,7 +74,9 @@ export default function DeliverySettings() {
     try {
       const nextFormData = {
         ...formData,
-        username: formData.username.trim(),
+        fullName: formData.fullName.trim(),
+        email: formData.email.trim().toLowerCase(),
+        phone: formData.phone.trim(),
       }
       setFormData(nextFormData)
       localStorage.setItem(DELIVERY_PROFILE_STORAGE_KEY, JSON.stringify(nextFormData))
@@ -80,10 +84,9 @@ export default function DeliverySettings() {
         AUTH_STORAGE_KEY,
         JSON.stringify({
           ...user,
-          username: formData.username.trim(),
-          full_name: formData.fullName,
-          email: formData.email,
-          phone: formData.phone,
+          full_name: nextFormData.fullName,
+          email: nextFormData.email,
+          phone: nextFormData.phone,
         }),
       )
       window.dispatchEvent(new Event('seims-delivery-profile-updated'))
@@ -121,8 +124,17 @@ export default function DeliverySettings() {
       return
     }
 
+    if (!passwordData.currentPassword) {
+      setPasswordError('Vui lòng nhập mật khẩu hiện tại.')
+      return
+    }
+
     try {
-      await new Promise((resolve) => setTimeout(resolve, 800))
+      setIsChangingPassword(true)
+      await changeDeliveryPassword({
+        currentPassword: passwordData.currentPassword,
+        newPassword: passwordData.newPassword,
+      })
       setPasswordData({
         currentPassword: '',
         newPassword: '',
@@ -130,7 +142,9 @@ export default function DeliverySettings() {
       })
       setPasswordMessage('Đổi mật khẩu thành công.')
     } catch (err) {
-      setPasswordError(err?.response?.data?.detail || 'Đổi mật khẩu thất bại.')
+      setPasswordError(err?.response?.data?.detail || err.message || 'Đổi mật khẩu thất bại.')
+    } finally {
+      setIsChangingPassword(false)
     }
   }
 
@@ -146,9 +160,10 @@ export default function DeliverySettings() {
                 type="text"
                 name="username"
                 value={formData.username}
-                onChange={handleChange}
                 placeholder="vd: driver_seims"
-                required
+                readOnly
+                disabled
+                title="Tên đăng nhập không thể thay đổi"
               />
             </label>
 
@@ -251,8 +266,8 @@ export default function DeliverySettings() {
           </div>
 
           <div className="settings-actions">
-            <button type="submit" className="settings-btn">
-              Cập Nhật Mật Khẩu
+            <button type="submit" className="settings-btn" disabled={isChangingPassword}>
+              {isChangingPassword ? 'Đang xử lý...' : 'Cập Nhật Mật Khẩu'}
             </button>
           </div>
 

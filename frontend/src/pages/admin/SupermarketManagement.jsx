@@ -346,43 +346,48 @@ export default function SupermarketManagement() {
                       </td>
                       <td>{sm.phone}</td>
                       <td>{new Date(sm.requestDate).toLocaleDateString('vi-VN')}</td>
-                      <td>
-                        <div className="action-group">
+                      <td className="supermarkets-actions-cell">
+                        <div className="supermarkets-actions">
                           <button
-                            className="action-btn icon-action-btn btn-edit"
+                            className="supermarkets-btn-edit"
                             onClick={() => openDetail(sm)}
                             title="Chỉnh sửa"
-                            aria-label="Chỉnh sửa"
                           >
-                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                              <path d="m3 17.25 8.06-8.06 2.75 2.75L5.75 20H3v-2.75Zm13.71-9.04 1.04-1.04a1 1 0 0 0 0-1.41l-1.55-1.55a1 1 0 0 0-1.41 0l-1.04 1.04 2.96 2.96Z" />
+                            <svg className="supermarkets-btn-icon" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="m3 17.25 8.06-8.06 2.75 2.75L5.75 20H3v-2.75Zm13.71-9.04 1.04-1.04a1 1 0 0 0 0-1.41l-1.55-1.55a1 1 0 0 0-1.41 0l-1.04 1.04 2.96 2.96Z"/>
                             </svg>
+                            Sửa
                           </button>
                           <button
-                            className={`action-btn icon-action-btn ${sm.isLocked ? 'btn-unlock-small' : 'btn-lock-small'}`}
+                            className={`supermarkets-btn-lock ${sm.isLocked ? 'supermarkets-btn-unlock' : 'supermarkets-btn-lock-active'}`}
                             onClick={() => handleToggleLockSupermarket(sm.id)}
                             title={sm.isLocked ? 'Mở khóa siêu thị' : 'Khóa siêu thị'}
-                            aria-label={sm.isLocked ? 'Mở khóa siêu thị' : 'Khóa siêu thị'}
                           >
                             {sm.isLocked ? (
-                              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                                <path d="M17 9h-7V7a3 3 0 0 1 5.8-1.2l1.9-.6A5 5 0 0 0 8 7v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm0 10H7v-8h10v8Z" />
-                              </svg>
+                              <>
+                                <svg className="supermarkets-btn-icon" viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M17 9h-7V7a3 3 0 0 1 5.8-1.2l1.9-.6A5 5 0 0 0 8 7v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm0 10H7v-8h10v8Z"/>
+                                </svg>
+                                Mở khóa
+                              </>
                             ) : (
-                              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                                <path d="M17 9h-1V7a4 4 0 1 0-8 0v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm-7-2a2 2 0 1 1 4 0v2h-4V7Zm7 12H7v-8h10v8Z" />
-                              </svg>
+                              <>
+                                <svg className="supermarkets-btn-icon" viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M17 9h-1V7a4 4 0 1 0-8 0v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm-7-2a2 2 0 1 1 4 0v2h-4V7Zm7 12H7v-8h10v8Z"/>
+                                </svg>
+                                Khóa
+                              </>
                             )}
                           </button>
                           <button
-                            className="action-btn icon-action-btn btn-delete-small"
+                            className="supermarkets-btn-delete"
                             onClick={() => handleDeleteSupermarket(sm.id)}
                             title="Xóa siêu thị"
-                            aria-label="Xóa siêu thị"
                           >
-                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                              <path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-2 6h10l-1 11a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2L7 9Zm3 2v8h2v-8h-2Zm4 0v8h2v-8h-2Z" />
+                            <svg className="supermarkets-btn-icon" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
                             </svg>
+                            Xóa
                           </button>
                         </div>
                       </td>
@@ -400,18 +405,18 @@ export default function SupermarketManagement() {
           </div>
         </div>
 
-        {/* DETAIL MODAL */}
+        {/* EDIT MODAL */}
         {showDetailModal && selectedSupermarket && (
           <div className="supermarkets-modal-overlay" onClick={closeDetail}>
-            <div className="supermarkets-modal supermarkets-edit-modal" onClick={(e) => e.stopPropagation()}>
-              <div className="modal-header">
+            <div className="supermarkets-modal supermarkets-create-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="supermarkets-modal-header">
                 <h3>Chỉnh Sửa Siêu Thị</h3>
-                <button className="modal-close" onClick={closeDetail}>✕</button>
+                <button className="supermarkets-modal-close" onClick={closeDetail}>×</button>
               </div>
-              <form className="modal-body supermarkets-edit-form" onSubmit={submitEditSupermarket}>
-                <div className="create-form-grid">
-                  <div className="create-form-column">
-                    <div className="create-form-field">
+              <form onSubmit={submitEditSupermarket}>
+                <div className="supermarkets-modal-body">
+                  <div className="supermarkets-create-grid">
+                    <div className="supermarkets-form-field">
                       <label>Tên Siêu Thị</label>
                       <input
                         type="text"
@@ -423,7 +428,8 @@ export default function SupermarketManagement() {
                         required
                       />
                     </div>
-                    <div className="create-form-field">
+
+                    <div className="supermarkets-form-field">
                       <label>Người Đại Diện</label>
                       <input
                         type="text"
@@ -435,7 +441,8 @@ export default function SupermarketManagement() {
                         required
                       />
                     </div>
-                    <div className="create-form-field">
+
+                    <div className="supermarkets-form-field">
                       <label>Email</label>
                       <input
                         type="email"
@@ -447,10 +454,8 @@ export default function SupermarketManagement() {
                         required
                       />
                     </div>
-                  </div>
 
-                  <div className="create-form-column">
-                    <div className="create-form-field">
+                    <div className="supermarkets-form-field">
                       <label>Điện Thoại</label>
                       <input
                         type="text"
@@ -462,7 +467,8 @@ export default function SupermarketManagement() {
                         required
                       />
                     </div>
-                    <div className="create-form-field">
+
+                    <div className="supermarkets-form-field">
                       <label>Địa Chỉ</label>
                       <input
                         type="text"
@@ -474,7 +480,8 @@ export default function SupermarketManagement() {
                         required
                       />
                     </div>
-                    <div className="create-form-field">
+
+                    <div className="supermarkets-form-field">
                       <label>Ngày Đăng Ký</label>
                       <input
                         type="date"
@@ -486,20 +493,18 @@ export default function SupermarketManagement() {
                       />
                     </div>
                   </div>
+
+                  {editError && <p className="supermarkets-error">{editError}</p>}
+                  {editSuccess && <p className="supermarkets-success">{editSuccess}</p>}
                 </div>
 
-                {editError && <p className="supermarkets-error">{editError}</p>}
-                {editSuccess && <p className="supermarkets-success">{editSuccess}</p>}
-
-                <div className="create-form-footer">
-                  <div className="create-form-actions">
-                    <button type="submit" className="btn-large supermarkets-btn-create">
-                      Lưu Thay Đổi
-                    </button>
-                    <button type="button" className="btn-large btn-close" onClick={closeDetail}>
-                      Hủy
-                    </button>
-                  </div>
+                <div className="supermarkets-modal-footer">
+                  <button type="submit" className="supermarkets-btn-create">
+                    Lưu Thay Đổi
+                  </button>
+                  <button type="button" className="supermarkets-btn-cancel" onClick={closeDetail}>
+                    Hủy
+                  </button>
                 </div>
               </form>
             </div>
@@ -509,15 +514,14 @@ export default function SupermarketManagement() {
         {showCreateModal && (
           <div className="supermarkets-modal-overlay" onClick={closeCreateModal}>
             <div className="supermarkets-modal supermarkets-create-modal" onClick={(e) => e.stopPropagation()}>
-              <div className="modal-header">
+              <div className="supermarkets-modal-header">
                 <h3>Tạo Tài Khoản Siêu Thị</h3>
-                <button className="modal-close" onClick={closeCreateModal}>✕</button>
+                <button className="supermarkets-modal-close" onClick={closeCreateModal}>×</button>
               </div>
-
-              <form className="modal-body supermarkets-create-form" onSubmit={submitCreateAccount}>
-                <div className="create-form-grid">
-                  <div className="create-form-column">
-                    <div className="create-form-field">
+              <form onSubmit={submitCreateAccount}>
+                <div className="supermarkets-modal-body">
+                  <div className="supermarkets-create-grid">
+                    <div className="supermarkets-form-field">
                       <label>Tên Siêu Thị</label>
                       <input
                         type="text"
@@ -530,7 +534,7 @@ export default function SupermarketManagement() {
                       />
                     </div>
 
-                    <div className="create-form-field">
+                    <div className="supermarkets-form-field">
                       <label>Người Đại Diện</label>
                       <input
                         type="text"
@@ -543,7 +547,7 @@ export default function SupermarketManagement() {
                       />
                     </div>
 
-                    <div className="create-form-field">
+                    <div className="supermarkets-form-field">
                       <label>Email</label>
                       <input
                         type="email"
@@ -556,7 +560,7 @@ export default function SupermarketManagement() {
                       />
                     </div>
 
-                    <div className="create-form-field">
+                    <div className="supermarkets-form-field">
                       <label>Điện Thoại</label>
                       <input
                         type="text"
@@ -568,10 +572,8 @@ export default function SupermarketManagement() {
                         required
                       />
                     </div>
-                  </div>
 
-                  <div className="create-form-column">
-                    <div className="create-form-field">
+                    <div className="supermarkets-form-field">
                       <label>Mật Khẩu</label>
                       <input
                         type="password"
@@ -584,7 +586,7 @@ export default function SupermarketManagement() {
                       />
                     </div>
 
-                    <div className="create-form-field">
+                    <div className="supermarkets-form-field">
                       <label>Xác Nhận Mật Khẩu</label>
                       <input
                         type="password"
@@ -597,7 +599,7 @@ export default function SupermarketManagement() {
                       />
                     </div>
 
-                    <div className="create-form-field">
+                    <div className="supermarkets-form-field">
                       <label>Ngày Đăng Ký</label>
                       <input
                         type="date"
@@ -609,7 +611,7 @@ export default function SupermarketManagement() {
                       />
                     </div>
 
-                    <div className="create-form-field">
+                    <div className="supermarkets-form-field">
                       <label>Trạng Thái Hoạt Động</label>
                       <select
                         name="activityStatus"
@@ -622,20 +624,18 @@ export default function SupermarketManagement() {
                       </select>
                     </div>
                   </div>
+
+                  {createError && <p className="supermarkets-error">{createError}</p>}
+                  {createSuccess && <p className="supermarkets-success">{createSuccess}</p>}
                 </div>
 
-                {createError && <p className="supermarkets-error">{createError}</p>}
-                {createSuccess && <p className="supermarkets-success">{createSuccess}</p>}
-
-                <div className="create-form-footer">
-                  <div className="create-form-actions">
-                    <button type="submit" className="btn-large supermarkets-btn-create">
-                      Tạo Mới
-                    </button>
-                    <button type="button" className="btn-large btn-close" onClick={closeCreateModal}>
-                      Hủy
-                    </button>
-                  </div>
+                <div className="supermarkets-modal-footer">
+                  <button type="submit" className="supermarkets-btn-create">
+                    Tạo Mới
+                  </button>
+                  <button type="button" className="supermarkets-btn-cancel" onClick={closeCreateModal}>
+                    Hủy
+                  </button>
                 </div>
               </form>
             </div>

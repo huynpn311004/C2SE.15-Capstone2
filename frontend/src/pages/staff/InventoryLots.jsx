@@ -341,7 +341,7 @@ export default function InventoryLots() {
             />
           </label>
           <button className="inventory-btn-create inventory-toolbar-btn" onClick={openCreateModal}>
-            + Tạo Lô Mới
+            Tạo Lô Mới
           </button>
         </div>
         <div className="inventory-toolbar-info">
@@ -382,26 +382,24 @@ export default function InventoryLots() {
                       </span>
                     </td>
                     <td>
-                      <div className="action-group">
+                      <div className="inventory-actions">
                         <button
-                          className="action-btn icon-action-btn btn-edit"
+                          className="inventory-btn-edit"
                           onClick={() => openEditModal(lot)}
-                          title="Chỉnh sửa"
-                          aria-label="Chỉnh sửa"
                         >
-                          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                            <path d="m3 17.25 8.06-8.06 2.75 2.75L5.75 20H3v-2.75Zm13.71-9.04 1.04-1.04a1 1 0 0 0 0-1.41l-1.55-1.55a1 1 0 0 0-1.41 0l-1.04 1.04 2.96 2.96Z" />
+                          <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+                            <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
                           </svg>
+                          Sửa
                         </button>
                         <button
-                          className="action-btn icon-action-btn btn-delete-small"
+                          className="inventory-btn-delete"
                           onClick={() => handleDeleteLot(lot.id)}
-                          title="Xóa lô hàng"
-                          aria-label="Xóa lô hàng"
                         >
-                          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                            <path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-2 6h10l-1 11a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2L7 9Zm3 2v8h2v-8h-2Zm4 0v8h2v-8h-2Z" />
+                          <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+                            <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
                           </svg>
+                          Xóa
                         </button>
                       </div>
                     </td>
