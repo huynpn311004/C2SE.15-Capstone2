@@ -1,5 +1,19 @@
 import API from './api'
-import { useAuth } from './AuthContext'
+
+function getImageBaseUrl() {
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api'
+  return baseUrl.replace(/\/api\/?$/, '')
+}
+
+function getProductImageUrl(imageUrl) {
+  if (!imageUrl) return null
+  if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+    return imageUrl
+  }
+  return `${getImageBaseUrl()}${imageUrl.startsWith('/') ? '' : '/'}${imageUrl}`
+}
+
+export { getProductImageUrl }
 
 function getUserId() {
   try {
@@ -128,6 +142,16 @@ export async function updateOrderStatus(orderId, newStatus) {
   return response.data
 }
 
+export async function fetchOrderDetail(orderId) {
+  const userId = getUserId()
+  if (!userId) throw new Error('Không tìm thấy thông tin người dùng')
+
+  const response = await API.get(`/staff/orders/${orderId}`, {
+    params: { user_id: userId },
+  })
+  return response.data
+}
+
 export async function fetchNotifications() {
   const userId = getUserId()
   if (!userId) throw new Error('Không tìm thấy thông tin người dùng')
@@ -253,6 +277,20 @@ export async function fetchProductCategories() {
     params: { user_id: userId },
   })
   return response.data.items || []
+}
+
+export async function uploadProductImage(file) {
+  const userId = getUserId()
+  if (!userId) throw new Error('Không tìm thấy thông tin người dùng')
+
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const response = await API.post('/staff/upload-product-image', formData, {
+    params: { user_id: userId },
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return response.data.image_url || response.data.url || response.data
 }
 
 export async function createProduct(payload) {

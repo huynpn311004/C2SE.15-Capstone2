@@ -54,13 +54,6 @@ export default function Dashboard() {
   return (
     <StaffLayout>
       <div className="dashboard-page">
-        <div className="dashboard-welcome">
-          <div className="welcome-content">
-            <h2>Chào Mừng, Nhân Viên Cửa Hàng!</h2>
-            <p>Theo dõi hoạt động kho hàng và đơn hàng của bạn</p>
-          </div>
-        </div>
-
         <div className="dashboard-stats">
           {statCards.map((stat, idx) => (
             <div key={idx} className={`stat-card ${stat.tone === 'warning' ? 'stat-card-warning' : ''}`}>

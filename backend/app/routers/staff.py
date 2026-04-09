@@ -3,12 +3,15 @@ from __future__ import annotations
 import csv
 from datetime import date, datetime
 from io import BytesIO, StringIO
+import os
 import re
 import unicodedata
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi.staticfiles import StaticFiles
 from openpyxl import load_workbook
-from sqlalchemy import text
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -604,7 +607,7 @@ def list_staff_orders(
     rows = db.execute(
         text(
             """
-            SELECT o.id, o.status, o.total_amount, o.payment_status, o.created_at,
+            SELECT o.id, o.status, o.total_amount, o.payment_status, o.created_at, o.delivered_at,
                    u.full_name AS customer_name
             FROM orders o
             JOIN users u ON u.id = o.customer_id
@@ -626,6 +629,7 @@ def list_staff_orders(
             "amount": f"{float(row.total_amount or 0):,.0f} VNĐ" if row.total_amount else "0 VNĐ",
             "paymentStatus": row.payment_status,
             "createdAt": row.created_at.strftime("%d/%m/%Y %H:%M"),
+            "deliveredAt": row.delivered_at.strftime("%d/%m/%Y %H:%M") if row.delivered_at else None,
         })
 
     return {"items": items}
@@ -645,22 +649,87 @@ def update_staff_order_status(
     if new_status not in valid_statuses:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Trạng thái không hợp lệ")
 
-    result = db.execute(
-        text(
-            """
-            UPDATE orders
-            SET status = :status
-            WHERE id = :order_id AND store_id = :store_id
-            """
-        ),
-        {"status": new_status, "order_id": order_id, "store_id": scope["store_id"]},
-    )
+    params = {"status": new_status, "order_id": order_id, "store_id": scope["store_id"]}
+    if new_status == "completed":
+        update_sql = text("UPDATE orders SET status = :status, delivered_at = NOW() WHERE id = :order_id AND store_id = :store_id")
+    else:
+        update_sql = text("UPDATE orders SET status = :status WHERE id = :order_id AND store_id = :store_id")
+
+    result = db.execute(update_sql, params)
     db.commit()
 
     if (result.rowcount or 0) == 0:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Đơn hàng không tồn tại")
 
     return {"success": True, "status": new_status}
+
+
+@router.get("/orders/{order_id}")
+def get_staff_order_detail(
+    order_id: int,
+    user_id: int = Query(..., ge=1),
+    db: Session = Depends(get_db),
+):
+    scope = _get_staff_scope(db, user_id)
+    store_id = scope["store_id"]
+
+    # Lấy thông tin đơn hàng + khách hàng
+    order_row = db.execute(
+        text(
+            """
+            SELECT o.id, o.status, o.total_amount, o.payment_method, o.payment_status,
+                   o.created_at, o.delivered_at,
+                   u.full_name AS customer_name,
+                   u.phone AS customer_phone
+            FROM orders o
+            JOIN users u ON u.id = o.customer_id
+            WHERE o.id = :order_id AND o.store_id = :store_id
+            """
+        ),
+        {"order_id": order_id, "store_id": store_id},
+    ).fetchone()
+
+    if not order_row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Đơn hàng không tồn tại")
+
+    # Lấy danh sách sản phẩm trong đơn hàng
+    item_rows = db.execute(
+        text(
+            """
+            SELECT oi.quantity, oi.unit_price,
+                   p.name AS product_name
+            FROM order_items oi
+            JOIN products p ON p.id = oi.product_id
+            WHERE oi.order_id = :order_id
+            """
+        ),
+        {"order_id": order_id},
+    ).all()
+
+    items = []
+    for row in item_rows:
+        items.append({
+            "productName": row.product_name,
+            "quantity": row.quantity,
+            "unitPrice": f"{float(row.unit_price):,.0f} VNĐ",
+            "subtotal": f"{float(row.unit_price * row.quantity):,.0f} VNĐ",
+        })
+
+    return {
+        "id": f"DH-{order_row.id}",
+        "orderId": order_row.id,
+        "customer": order_row.customer_name,
+        "phone": order_row.customer_phone or "—",
+        "status": order_row.status,
+        "amount": f"{float(order_row.total_amount or 0):,.0f} VNĐ" if order_row.total_amount else "0 VNĐ",
+        "paymentMethod": order_row.payment_method or "—",
+        "paymentMethodText": "Tiền mặt" if order_row.payment_method == "cod"
+                             else ("MoMo" if order_row.payment_method == "momo" else "—"),
+        "paymentStatus": order_row.payment_status,
+        "createdAt": order_row.created_at.strftime("%d/%m/%Y %H:%M"),
+        "deliveredAt": order_row.delivered_at.strftime("%d/%m/%Y %H:%M") if order_row.delivered_at else None,
+        "items": items,
+    }
 
 
 @router.get("/notifications")
@@ -1516,3 +1585,45 @@ async def import_products_from_excel(
         "failed": len(errors),
         "errors": errors,
     }
+
+
+@router.post("/upload-product-image")
+async def upload_product_image(
+    user_id: int = Query(..., ge=1),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    _get_staff_scope(db, user_id)
+
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Chi chap nhan file hinh anh"
+        )
+
+    file_ext = os.path.splitext(file.filename or "")[1] or ".jpg"
+    if file_ext.lower() not in (".jpg", ".jpeg", ".png", ".gif", ".webp"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Chi chap nhan dinh dang jpg, png, gif, webp"
+        )
+
+    uploads_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads", "products")
+    os.makedirs(uploads_dir, exist_ok=True)
+
+    unique_name = f"{uuid4()}{file_ext}"
+    file_path = os.path.join(uploads_dir, unique_name)
+
+    contents = await file.read()
+    max_size = 5 * 1024 * 1024
+    if len(contents) > max_size:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File qua lon (toi da 5MB)"
+        )
+
+    with open(file_path, "wb") as f:
+        f.write(contents)
+
+    image_url = f"/uploads/products/{unique_name}"
+    return {"url": image_url, "image_url": image_url}

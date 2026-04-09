@@ -278,22 +278,6 @@
   font-size: 0.875rem;
 }
 
-.donation-empty-btn {
-  background: var(--seims-teal);
-  color: white;
-  border: none;
-  border-radius: 8px;
-  padding: 0.5rem 1rem;
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.donation-empty-btn:hover {
-  background: var(--seims-teal-dark);
-}
-
 /* ITEM DESCRIPTION */
 .donation-item-description {
   font-size: 0.75rem;
