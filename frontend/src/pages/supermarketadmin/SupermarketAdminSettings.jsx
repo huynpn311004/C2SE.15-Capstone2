@@ -192,7 +192,6 @@ export default function SupermarketAdminSettings() {
               value={formData.username}
               readOnly
               disabled
-              title="Tên đăng nhập không thể thay đổi"
             />
           </label>
 
@@ -203,7 +202,6 @@ export default function SupermarketAdminSettings() {
               name="fullName"
               value={formData.fullName}
               onChange={handleChange}
-              placeholder="Nhập Họ Và Tên"
               disabled={loadingProfile}
               required
             />
@@ -217,7 +215,6 @@ export default function SupermarketAdminSettings() {
               value={formData.supermarket}
               readOnly
               disabled
-              aria-label="Siêu thị hiện tại"
             />
           </label>
 
@@ -228,7 +225,6 @@ export default function SupermarketAdminSettings() {
               name="email"
               value={formData.email}
               onChange={handleChange}
-              placeholder="manager@supermarket.vn"
               disabled={loadingProfile}
               required
             />
@@ -241,7 +237,6 @@ export default function SupermarketAdminSettings() {
               name="phone"
               value={formData.phone}
               onChange={handleChange}
-              placeholder="0900000000"
               disabled={loadingProfile}
               required
             />

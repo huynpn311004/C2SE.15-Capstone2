@@ -173,13 +173,13 @@ export default function PolicyConfiguration() {
       {/* ALERTS */}
       {error && (
         <div className="sapolicy-alert sapolicy-alert-error">
-          <span>❌</span> {error}
+          {error}
           <button onClick={() => setError('')} className="sapolicy-alert-close">✕</button>
         </div>
       )}
       {success && (
         <div className="sapolicy-alert sapolicy-alert-success">
-          <span>✅</span> {success}
+          {success}
           <button onClick={() => setSuccess('')} className="sapolicy-alert-close">✕</button>
         </div>
       )}
@@ -199,7 +199,6 @@ export default function PolicyConfiguration() {
                   <th>TÊN CHÍNH SÁCH</th>
                   <th>SỐ NGÀY ÁP DỤNG</th>
                   <th>GIẢM GIÁ</th>
-                  <th>VÍ DỤ (100.000đ)</th>
                   <th>TRẠNG THÁI</th>
                   <th>THAO TÁC</th>
                 </tr>
@@ -219,41 +218,36 @@ export default function PolicyConfiguration() {
                       <span className="sapolicy-discount">-{policy.discountPercent}%</span>
                     </td>
                     <td>
-                      <span className="sapolicy-example">
-                        {Math.round(100000 * (1 - policy.discountPercent / 100)).toLocaleString()}đ
-                      </span>
-                    </td>
-                    <td>
                       <span className={`badge ${getStatusBadge(policy.isActive)}`}>
                         {getStatusLabel(policy.isActive)}
                       </span>
                     </td>
                     <td>
-                      <div className="action-group">
+                      <div className="sapolicy-actions">
                         <button
-                          className="action-btn icon-action-btn btn-toggle"
+                          className="sapolicy-btn-toggle"
                           onClick={() => handleToggle(policy)}
                           title={policy.isActive ? 'Tắt chính sách' : 'Bật chính sách'}
                         >
                           {policy.isActive ? '⏸' : '▶'}
                         </button>
                         <button
-                          className="action-btn icon-action-btn btn-edit"
+                          className="sapolicy-btn-edit"
                           onClick={() => openEditModal(policy)}
-                          title="Chỉnh sửa"
                         >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="m3 17.25 8.06-8.06 2.75 2.75L5.75 20H3v-2.75Zm13.71-9.04 1.04-1.04a1 1 0 0 0 0-1.41l-1.55-1.55a1 1 0 0 0-1.41 0l-1.04 1.04 2.96 2.96Z" />
+                          <svg className="sapolicy-icon" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
                           </svg>
+                          Sửa
                         </button>
                         <button
-                          className="action-btn icon-action-btn btn-delete-small"
+                          className="sapolicy-btn-delete"
                           onClick={() => handleDelete(policy)}
-                          title="Xóa chính sách"
                         >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12ZM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4Z" />
+                          <svg className="sapolicy-icon" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
                           </svg>
+                          Xóa
                         </button>
                       </div>
                     </td>
@@ -271,12 +265,11 @@ export default function PolicyConfiguration() {
           <div className="sapolicy-modal" onClick={e => e.stopPropagation()}>
             <div className="sapolicy-modal-header">
               <h3>{editMode ? 'Chỉnh Sửa Chính Sách' : 'Tạo Chính Sách Mới'}</h3>
-              <button className="sapolicy-modal-close" onClick={closeModal}>✕</button>
+              <button className="sapolicy-modal-close" onClick={closeModal}>×</button>
             </div>
-
-            <form className="sapolicy-modal-body" onSubmit={handleSubmit}>
-              <div className="sapolicy-form-grid">
-                <div className="sapolicy-form-column">
+            <form onSubmit={handleSubmit}>
+              <div className="sapolicy-modal-body">
+                <div className="sapolicy-form-grid">
                   <div className="sapolicy-form-field">
                     <label>Tên Chính Sách *</label>
                     <input
@@ -303,9 +296,6 @@ export default function PolicyConfiguration() {
                       required
                     />
                   </div>
-                </div>
-
-                <div className="sapolicy-form-column">
                   <div className="sapolicy-form-field">
                     <label>Số ngày tối thiểu *</label>
                     <input
@@ -333,20 +323,12 @@ export default function PolicyConfiguration() {
                     />
                   </div>
                 </div>
+                {error && <p className="sapolicy-error">{error}</p>}
+                {success && <p className="sapolicy-success">{success}</p>}
               </div>
-
-              {error && <div className="sapolicy-form-error">{error}</div>}
-              {success && <div className="sapolicy-form-success">{success}</div>}
-
-              <div className="sapolicy-form-footer">
-                <div className="sapolicy-form-actions">
-                  <button type="button" className="btn-large btn-close" onClick={closeModal}>
-                    Hủy
-                  </button>
-                  <button type="submit" className="btn-large sapolicy-btn-save">
-                    {editMode ? 'Lưu Thay Đổi' : 'Tạo Mới'}
-                  </button>
-                </div>
+              <div className="sapolicy-modal-footer">
+                <button type="submit" className="sapolicy-btn-save">{editMode ? 'Lưu Thay Đổi' : 'Tạo Mới'}</button>
+                <button type="button" className="sapolicy-btn-cancel" onClick={closeModal}>Hủy</button>
               </div>
             </form>
           </div>

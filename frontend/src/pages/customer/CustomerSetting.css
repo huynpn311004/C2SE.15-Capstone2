@@ -107,7 +107,8 @@
 }
 
 .customer-setting-btn:disabled {
-  opacity: 0.55;
+  background: #a0aca8;
+  border-color: #a0aca8;
   cursor: not-allowed;
 }
 

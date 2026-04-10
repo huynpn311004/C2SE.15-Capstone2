@@ -53,15 +53,6 @@ export default function SupermarketAdminDashboard() {
 
   return (
     <div className="sadashboard-page">
-      {/* WELCOME BANNER */}
-      <div className="sadashboard-welcome">
-        <div className="sadashboard-welcome-content">
-          <h2>Chào Mừng, Quản Lý Siêu Thị!</h2>
-          <p>Giám sát hoạt động chuỗi store và nhân viên</p>
-          {error && <p>{error}</p>}
-        </div>
-      </div>
-
       {/* STATS GRID */}
       <div className="sadashboard-stats">
         {stats.map((stat, idx) => (

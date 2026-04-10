@@ -15,9 +15,19 @@ const DEFAULT_ADMIN_PROFILE = {
   position: 'System Admin',
 }
 
+function createProfileFromUser(userData) {
+  return {
+    username: userData?.username || DEFAULT_ADMIN_PROFILE.username,
+    fullName: userData?.full_name || DEFAULT_ADMIN_PROFILE.fullName,
+    email: userData?.email || DEFAULT_ADMIN_PROFILE.email,
+    phone: userData?.phone || DEFAULT_ADMIN_PROFILE.phone,
+    position: 'System Admin',
+  }
+}
+
 export default function AdminSettings() {
   const { user } = useAuth()
-  const [formData, setFormData] = useState(DEFAULT_ADMIN_PROFILE)
+  const [formData, setFormData] = useState(() => createProfileFromUser(user))
   const [saveMessage, setSaveMessage] = useState('')
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
@@ -28,26 +38,14 @@ export default function AdminSettings() {
   const [passwordError, setPasswordError] = useState('')
 
   useEffect(() => {
-    const profile = {
-      username: user?.username || DEFAULT_ADMIN_PROFILE.username,
-      fullName: user?.full_name || DEFAULT_ADMIN_PROFILE.fullName,
-      email: user?.email || DEFAULT_ADMIN_PROFILE.email,
-      phone: user?.phone || DEFAULT_ADMIN_PROFILE.phone,
-      position: 'System Admin',
-    }
+    const profile = createProfileFromUser(user)
     setFormData(profile)
     localStorage.setItem(ADMIN_PROFILE_STORAGE_KEY, JSON.stringify(profile))
     window.dispatchEvent(new Event('seims-admin-profile-updated'))
   }, [user])
 
   const isDirty = useMemo(() => {
-    const current = {
-      username: user?.username || DEFAULT_ADMIN_PROFILE.username,
-      fullName: user?.full_name || DEFAULT_ADMIN_PROFILE.fullName,
-      email: user?.email || DEFAULT_ADMIN_PROFILE.email,
-      phone: user?.phone || DEFAULT_ADMIN_PROFILE.phone,
-      position: 'System Admin',
-    }
+    const current = createProfileFromUser(user)
     return JSON.stringify(current) !== JSON.stringify(formData)
   }, [formData, user])
 
@@ -158,10 +156,8 @@ export default function AdminSettings() {
                 type="text"
                 name="username"
                 value={formData.username}
-                placeholder="vd: admin_seims"
                 readOnly
                 disabled
-                title="Tên đăng nhập không thể thay đổi"
               />
             </label>
 
@@ -172,7 +168,6 @@ export default function AdminSettings() {
                 name="fullName"
                 value={formData.fullName}
                 onChange={handleChange}
-                placeholder="Nhập Họ Và Tên"
                 required
               />
             </label>
@@ -185,7 +180,6 @@ export default function AdminSettings() {
                 value={formData.position}
                 readOnly
                 disabled
-                aria-label="Chức vụ hiện tại"
               />
             </label>
 
@@ -196,7 +190,6 @@ export default function AdminSettings() {
                 name="email"
                 value={formData.email}
                 onChange={handleChange}
-                placeholder="admin@seims.vn"
                 required
               />
             </label>
@@ -208,7 +201,6 @@ export default function AdminSettings() {
                 name="phone"
                 value={formData.phone}
                 onChange={handleChange}
-                placeholder="0900000000"
                 required
               />
             </label>
