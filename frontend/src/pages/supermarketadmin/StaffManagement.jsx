@@ -42,6 +42,8 @@ export default function StaffManagement() {
           email: item.email,
           phone: item.phone || '',
           store: item.store || '-',
+          storeId: item.storeId || '',
+          originalStoreId: item.storeId || '',
           role: item.role,
           status: item.status === 'inactive' ? 'locked' : 'active',
           joinDate: item.joinDate,
@@ -85,7 +87,7 @@ export default function StaffManagement() {
   function openEditModal(s) {
     setMode('edit')
     setSelectedStaff(s)
-    setForm({ name: s.name, email: s.email, phone: s.phone, store: s.store, storeId: '', role: s.role, status: s.status, username: s.username || '', password: '' })
+    setForm({ name: s.name, email: s.email, phone: s.phone, store: s.store, storeId: s.storeId || s.originalStoreId || '', role: s.role, status: s.status, username: s.username || '', password: '' })
     setError('')
     setSuccess('')
     setShowModal(true)
@@ -146,6 +148,7 @@ export default function StaffManagement() {
           fullName: form.name,
           email: form.email,
           phone: form.phone,
+          storeId: form.storeId ? Number(form.storeId) : undefined,
         })
 
         setStaff(prev => prev.map(s => s.id === selectedStaff.id ? { ...s, ...form } : s))
@@ -196,14 +199,13 @@ export default function StaffManagement() {
                 <th>Điện Thoại</th>
                 <th>Store</th>
                 <th>Chức Vụ</th>
-                <th>Trạng Thái</th>
                 <th>Thao Tác</th>
               </tr>
             </thead>
             <tbody>
               {!loading && staff.length === 0 && (
                 <tr>
-                  <td colSpan="7">Không có dữ liệu nhân viên.</td>
+                  <td colSpan="6">Không có dữ liệu nhân viên.</td>
                 </tr>
               )}
               {staff.map(s => (
@@ -213,21 +215,19 @@ export default function StaffManagement() {
                   <td>{s.phone}</td>
                   <td>{s.store}</td>
                   <td>{s.role}</td>
-                  <td><span className={`badge ${statusBadge[s.status]}`}>{statusLabel[s.status]}</span></td>
                   <td>
-                    <div className="action-group">
-                      <button onClick={() => openEditModal(s)} className="action-btn icon-action-btn btn-edit" title="Chỉnh sửa">
-                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 17.25 8.06-8.06 2.75 2.75L5.75 20H3v-2.75Zm13.71-9.04 1.04-1.04a1 1 0 0 0 0-1.41l-1.55-1.55a1 1 0 0 0-1.41 0l-1.04 1.04 2.96 2.96Z" /></svg>
-                      </button>
-                      <button onClick={() => toggleLock(s)} className={`action-btn icon-action-btn ${s.status === 'locked' ? 'btn-unlock' : 'btn-lock'}`} title={s.status === 'locked' ? 'Mở khóa' : 'Khóa'}>
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          {s.status === 'locked'
-                            ? <path d="M17 9h-1V7a3 3 0 0 1 5.8-1.2l1.9-.6A5 5 0 0 0 8 7v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm0 10H7v-8h10v8Z" />
-                            : <path d="M17 9h-7V7a4 4 0 1 1 8 0v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm-7-2a2 2 0 1 1 4 0v2h-4V7Zm7 12H7v-8h10v8Z" />}
+                    <div className="sastaff-action-buttons">
+                      <button onClick={() => openEditModal(s)} className="sastaff-btn-edit" title="Sửa">
+                        <svg className="sastaff-icon" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
                         </svg>
+                        Sửa
                       </button>
-                      <button onClick={() => handleDelete(s.id)} className="action-btn icon-action-btn btn-delete-small" title="Xóa">
-                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-2 6h10l-1 11a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2L7 9Zm3 2v8h2v-8h-2Zm4 0v8h2v-8h-2Z" /></svg>
+                      <button onClick={() => handleDelete(s.id)} className="sastaff-btn-delete" title="Xóa">
+                        <svg className="sastaff-icon" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                        </svg>
+                        Xóa
                       </button>
                     </div>
                   </td>
@@ -244,34 +244,32 @@ export default function StaffManagement() {
           <div className="sastaff-modal" onClick={e => e.stopPropagation()}>
             <div className="sastaff-modal-header">
               <h3>{mode === 'create' ? 'Thêm Nhân Viên Mới' : 'Chỉnh Sửa Nhân Viên'}</h3>
-              <button className="sastaff-modal-close" onClick={closeModal}>✕</button>
+              <button className="sastaff-modal-close" onClick={closeModal}>×</button>
             </div>
-            <form className="sastaff-modal-body" onSubmit={handleSubmit}>
-              <div className="sastaff-form-grid">
-                {mode === 'create' ? (
-                  <>
-                    <div className="sastaff-form-column">
+            <form onSubmit={handleSubmit}>
+              <div className="sastaff-modal-body">
+                <div className="sastaff-form-grid">
+                  {mode === 'create' ? (
+                    <>
                       <div className="sastaff-form-field">
                         <label>Họ Tên</label>
                         <input name="name" value={form.name} onChange={handleChange} className="sastaff-input" placeholder="Nhập họ tên" required />
+                      </div>
+                      <div className="sastaff-form-field">
+                        <label>Tên Đăng Nhập</label>
+                        <input name="username" value={form.username} onChange={handleChange} className="sastaff-input" placeholder="Nhập username" required />
                       </div>
                       <div className="sastaff-form-field">
                         <label>Email</label>
                         <input name="email" type="email" value={form.email} onChange={handleChange} className="sastaff-input" placeholder="Nhập email" required />
                       </div>
                       <div className="sastaff-form-field">
-                        <label>Điện Thoại</label>
-                        <input name="phone" value={form.phone} onChange={handleChange} className="sastaff-input" placeholder="Nhập SĐT" required />
-                      </div>
-                    </div>
-                    <div className="sastaff-form-column">
-                      <div className="sastaff-form-field">
-                        <label>Tên Đăng Nhập</label>
-                        <input name="username" value={form.username} onChange={handleChange} className="sastaff-input" placeholder="Nhập username" required />
-                      </div>
-                      <div className="sastaff-form-field">
                         <label>Mật Khẩu</label>
                         <input name="password" type="password" value={form.password} onChange={handleChange} className="sastaff-input" placeholder="Tối thiểu 6 ký tự" required />
+                      </div>
+                      <div className="sastaff-form-field">
+                        <label>Điện Thoại</label>
+                        <input name="phone" value={form.phone} onChange={handleChange} className="sastaff-input" placeholder="Nhập SĐT" required />
                       </div>
                       <div className="sastaff-form-field">
                         <label>Store</label>
@@ -282,28 +280,33 @@ export default function StaffManagement() {
                           ))}
                         </select>
                       </div>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="sastaff-form-column">
+                    </>
+                  ) : (
+                    <>
                       <div className="sastaff-form-field">
                         <label>Họ Tên</label>
                         <input name="name" value={form.name} onChange={handleChange} className="sastaff-input" placeholder="Nhập họ tên" required />
+                      </div>
+                      <div className="sastaff-form-field">
+                        <label>Tên Đăng Nhập</label>
+                        <input name="username" value={form.username} onChange={handleChange} className="sastaff-input" disabled />
                       </div>
                       <div className="sastaff-form-field">
                         <label>Email</label>
                         <input name="email" type="email" value={form.email} onChange={handleChange} className="sastaff-input" placeholder="Nhập email" required />
                       </div>
                       <div className="sastaff-form-field">
+                        <label>Store</label>
+                        <select name="storeId" value={form.storeId} onChange={handleChange} className="sastaff-input" required>
+                          <option value="">Chọn store</option>
+                          {stores.map((store) => (
+                            <option key={store.id} value={store.id}>{store.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="sastaff-form-field">
                         <label>Điện Thoại</label>
                         <input name="phone" value={form.phone} onChange={handleChange} className="sastaff-input" placeholder="Nhập SĐT" required />
-                      </div>
-                    </div>
-                    <div className="sastaff-form-column">
-                      <div className="sastaff-form-field">
-                        <label>Store</label>
-                        <input name="store" value={form.store} onChange={handleChange} className="sastaff-input" placeholder="Store" disabled />
                       </div>
                       <div className="sastaff-form-field">
                         <label>Chức Vụ</label>
@@ -313,21 +316,15 @@ export default function StaffManagement() {
                         <label>Trạng Thái</label>
                         <input name="status" value={form.status} onChange={handleChange} className="sastaff-input" disabled />
                       </div>
-                      <div className="sastaff-form-field">
-                        <label>Tên Đăng Nhập</label>
-                        <input name="username" value={form.username} onChange={handleChange} className="sastaff-input" disabled />
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-              {error && <p className="sastaff-error">{error}</p>}
-              {success && <p className="sastaff-success">{success}</p>}
-              <div className="sastaff-form-footer">
-                <div className="sastaff-form-actions">
-                  <button type="submit" className="btn-large sastaff-btn-save">{mode === 'create' ? 'Tạo Mới' : 'Lưu Thay Đổi'}</button>
-                  <button type="button" className="btn-large btn-close" onClick={closeModal}>Hủy</button>
+                    </>
+                  )}
                 </div>
+                {error && <p className="sastaff-error">{error}</p>}
+                {success && <p className="sastaff-success">{success}</p>}
+              </div>
+              <div className="sastaff-modal-footer">
+                <button type="submit" className="sastaff-btn-save">{mode === 'create' ? 'Tạo Mới' : 'Lưu Thay Đổi'}</button>
+                <button type="button" className="sastaff-btn-cancel" onClick={closeModal}>Hủy</button>
               </div>
             </form>
           </div>

@@ -20,31 +20,6 @@
   overflow: hidden;
 }
 
-/* WELCOME */
-.chdash-welcome {
-  background: linear-gradient(135deg, var(--char-teal) 0%, var(--char-teal-dark) 100%);
-  color: white;
-  padding: 1.1rem 1.2rem;
-  border-radius: 10px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  box-shadow: 0 4px 16px rgba(15, 118, 110, 0.15);
-  flex-shrink: 0;
-}
-
-.chdash-welcome-content h2 {
-  margin: 0 0 0.2rem 0;
-  font-size: 1.12rem;
-  font-weight: 700;
-}
-
-.chdash-welcome-content p {
-  margin: 0;
-  font-size: 0.8rem;
-  opacity: 0.95;
-}
-
 /* STATS */
 .chdash-stats {
   display: grid;

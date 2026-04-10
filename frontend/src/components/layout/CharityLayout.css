@@ -77,8 +77,6 @@
   font-size: 1.8rem;
   line-height: 1;
   letter-spacing: 0.05em;
-  color: var(--char-muted);
-  line-height: 1.1;
 }
 
 .charity-sidebar-toggle {

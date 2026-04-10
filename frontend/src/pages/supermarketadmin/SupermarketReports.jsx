@@ -96,11 +96,6 @@ export default function SupermarketReports() {
 
   return (
     <div className="sareport-page">
-      {/* TOOLBAR */}
-      <div className="sareport-toolbar">
-        <div className="sareport-toolbar-info">{loading ? 'Đang tải báo cáo...' : 'Báo cáo toàn chuỗi siêu thị'}</div>
-      </div>
-
       {/* SUMMARY STATS */}
       <div className="sareport-stats">
         <div className="sareport-stat-card">

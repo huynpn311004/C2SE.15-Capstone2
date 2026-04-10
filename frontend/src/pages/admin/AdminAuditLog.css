@@ -74,28 +74,21 @@
   width: 100%;
   min-height: 36px;
   padding: 0.4rem 0.8rem;
-  border: 1px solid var(--audit-teal);
+  border: 1px solid #0f766e;
   border-radius: 8px;
-  background: linear-gradient(135deg, #0f766e 0%, #0d9488 100%);
+  background: #0f766e;
   color: #ffffff;
   font-weight: 600;
   letter-spacing: 0.01em;
-  box-shadow: 0 6px 14px rgba(15, 118, 110, 0.22);
   cursor: pointer;
-  transition: transform 0.16s ease, box-shadow 0.2s ease, filter 0.2s ease;
+  transition: all 0.2s ease;
   box-sizing: border-box;
   text-align: center;
 }
 
 .btn-clear:hover {
-  filter: brightness(1.04);
-  transform: translateY(-1px);
-  box-shadow: 0 9px 18px rgba(15, 118, 110, 0.28);
-}
-
-.btn-clear:active {
-  transform: translateY(0);
-  box-shadow: 0 4px 10px rgba(15, 118, 110, 0.24);
+  background: #0d5c56;
+  border-color: #0d5c56;
 }
 
 .btn-clear:focus-visible {

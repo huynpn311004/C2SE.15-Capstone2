@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import CharityLayout from '../../components/layout/CharityLayout'
 import {
   fetchCharityProfile,
@@ -17,9 +17,19 @@ export default function CharitySettings() {
     email: '',
     phone: '',
   })
+  const [originalData, setOriginalData] = useState({
+    fullName: '',
+    orgName: '',
+    email: '',
+    phone: '',
+  })
   const [saveMessage, setSaveMessage] = useState('')
   const [saveError, setSaveError] = useState('')
   const [saving, setSaving] = useState(false)
+
+  const isDirty = useMemo(() => {
+    return JSON.stringify(originalData) !== JSON.stringify(formData)
+  }, [formData, originalData])
 
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
@@ -39,12 +49,14 @@ export default function CharitySettings() {
     setError('')
     try {
       const data = await fetchCharityProfile()
-      setFormData({
+      const profile = {
         fullName: data.fullName || '',
         orgName: data.orgName || '',
         email: data.email || '',
         phone: data.phone || '',
-      })
+      }
+      setFormData(profile)
+      setOriginalData(profile)
     } catch (err) {
       setError(err?.response?.data?.detail || err.message || 'Không thể tải thông tin')
     } finally {
@@ -64,6 +76,7 @@ export default function CharitySettings() {
     setSaveError('')
     try {
       await updateCharityProfile(formData)
+      setOriginalData(formData)
       setSaveMessage('Đã lưu thay đổi thành công.')
       setTimeout(() => setSaveMessage(''), 3000)
     } catch (err) {
@@ -186,7 +199,7 @@ export default function CharitySettings() {
           </div>
 
           <div className="chsettings-actions">
-            <button type="submit" className="chsettings-btn" disabled={saving}>
+            <button type="submit" className="chsettings-btn" disabled={!isDirty || saving}>
               {saving ? 'Đang lưu...' : 'Lưu Thay Đổi'}
             </button>
           </div>

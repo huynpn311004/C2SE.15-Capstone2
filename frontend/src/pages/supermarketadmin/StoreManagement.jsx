@@ -181,12 +181,18 @@ export default function StoreManagement() {
                   <td>{store.staffCount}</td>
                   <td><span className={`badge ${statusBadge[store.status] || 'badge-warning'}`}>{statusLabel[store.status] || store.status}</span></td>
                   <td>
-                    <div className="action-group">
-                      <button onClick={() => openEditModal(store)} className="action-btn icon-action-btn btn-edit" title="Chỉnh sửa">
-                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 17.25 8.06-8.06 2.75 2.75L5.75 20H3v-2.75Zm13.71-9.04 1.04-1.04a1 1 0 0 0 0-1.41l-1.55-1.55a1 1 0 0 0-1.41 0l-1.04 1.04 2.96 2.96Z" /></svg>
+                    <div className="sastore-action-buttons">
+                      <button onClick={() => openEditModal(store)} className="sastore-btn-edit" title="Chỉnh sửa">
+                        <svg className="sastore-icon" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+                        </svg>
+                        Sửa
                       </button>
-                      <button onClick={() => handleDelete(store.id)} className="action-btn icon-action-btn btn-delete-small" title="Xóa">
-                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-2 6h10l-1 11a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2L7 9Zm3 2v8h2v-8h-2Zm4 0v8h2v-8h-2Z" /></svg>
+                      <button onClick={() => handleDelete(store.id)} className="sastore-btn-delete" title="Xóa">
+                        <svg className="sastore-icon" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                        </svg>
+                        Xóa
                       </button>
                     </div>
                   </td>
@@ -203,11 +209,11 @@ export default function StoreManagement() {
           <div className="sastore-modal" onClick={e => e.stopPropagation()}>
             <div className="sastore-modal-header">
               <h3>{mode === 'create' ? 'Tạo Store Mới' : 'Chỉnh Sửa Store'}</h3>
-              <button className="sastore-modal-close" onClick={closeEditModal}>✕</button>
+              <button className="sastore-modal-close" onClick={closeEditModal}>×</button>
             </div>
-            <form className="sastore-modal-body" onSubmit={submitEdit}>
-              <div className="sastore-form-grid">
-                <div className="sastore-form-column">
+            <form onSubmit={submitEdit}>
+              <div className="sastore-modal-body">
+                <div className="sastore-form-grid">
                   <div className="sastore-form-field">
                     <label>Tên Store</label>
                     <input name="name" value={editForm.name} onChange={handleEditChange} className="sastore-input" placeholder="Nhập tên store" required />
@@ -216,8 +222,6 @@ export default function StoreManagement() {
                     <label>Điện Thoại</label>
                     <input name="phone" value={editForm.phone} onChange={handleEditChange} className="sastore-input" placeholder="Nhập số điện thoại" required />
                   </div>
-                </div>
-                <div className="sastore-form-column">
                   <div className="sastore-form-field">
                     <label>Địa Chỉ</label>
                     <input name="address" value={editForm.address} onChange={handleEditChange} className="sastore-input" placeholder="Nhập địa chỉ" required />
@@ -230,14 +234,12 @@ export default function StoreManagement() {
                     </select>
                   </div>
                 </div>
+                {editError && <p className="sastore-error">{editError}</p>}
+                {editSuccess && <p className="sastore-success">{editSuccess}</p>}
               </div>
-              {editError && <p className="sastore-error">{editError}</p>}
-              {editSuccess && <p className="sastore-success">{editSuccess}</p>}
-              <div className="sastore-form-footer">
-                <div className="sastore-form-actions">
-                  <button type="submit" className="btn-large sastore-btn-save">{mode === 'create' ? 'Tạo Store' : 'Lưu Thay Đổi'}</button>
-                  <button type="button" className="btn-large btn-close" onClick={closeEditModal}>Hủy</button>
-                </div>
+              <div className="sastore-modal-footer">
+                <button type="submit" className="sastore-btn-save">{mode === 'create' ? 'Tạo Store' : 'Lưu Thay Đổi'}</button>
+                <button type="button" className="sastore-btn-cancel" onClick={closeEditModal}>Hủy</button>
               </div>
             </form>
           </div>

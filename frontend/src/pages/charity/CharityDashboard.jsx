@@ -84,14 +84,6 @@ export default function CharityDashboard() {
   return (
     <CharityLayout>
       <div className="chdash-page">
-        {/* WELCOME */}
-        <div className="chdash-welcome">
-          <div className="chdash-welcome-content">
-            <h2>Chào Mừng, {orgName}!</h2>
-            <p>Theo dõi các yêu cầu nhận donation và lịch sử hoạt động</p>
-          </div>
-        </div>
-
         {/* LOADING / ERROR */}
         {loading && (
           <div className="chdash-loading">

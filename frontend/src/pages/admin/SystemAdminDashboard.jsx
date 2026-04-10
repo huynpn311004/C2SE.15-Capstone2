@@ -68,13 +68,6 @@ export default function SystemAdminDashboard() {
   return (
     <SystemAdminLayout>
       <div className="dashboard-page">
-        {/* WELCOME BANNER */}
-        <div className="dashboard-welcome">
-          <div className="welcome-content">
-            <h2>Chào mừng, Quản trị viên Hệ thống</h2>
-          </div>
-        </div>
-
         {/* STATS GRID */}
         <div className="dashboard-stats">
           {stats.map((stat, idx) => (
