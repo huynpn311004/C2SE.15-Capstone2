@@ -1,880 +1,177 @@
-from datetime import datetime
-from decimal import Decimal
-
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import text
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.security import get_password_hash, verify_password
+from app.schemas.customer_schemas import (
+	CustomerProfileResponse,
+	UpdateProfileRequest,
+	ChangePasswordRequest,
+	ProductListResponse,
+	ProductDetailResponse,
+	NearExpiryProductListResponse,
+	CategoryListResponse,
+	SupermarketListResponse,
+	OrderListResponse,
+	OrderDetailResponse,
+	CreateOrderRequest,
+	CreateOrderResponse,
+	CancelOrderResponse,
+	DashboardSummaryResponse,
+	SuccessResponse,
+)
+from app.services.customer_service import (
+	get_customer_profile,
+	update_customer_profile,
+	change_customer_password,
+	list_customer_products,
+	get_customer_product_detail,
+	list_near_expiry_products,
+	list_customer_categories,
+	list_customer_supermarkets,
+	list_customer_orders,
+	get_customer_order_detail,
+	create_customer_order,
+	cancel_customer_order,
+	customer_dashboard_summary,
+)
 
 router = APIRouter(prefix="/customer", tags=["customer"])
 
 
-def _dict_row(row) -> dict:
-    return dict(row._mapping)
+# ========== Profile Endpoints ==========
 
-
-def _status_label(expiry_date) -> str:
-    from datetime import date
-    today = date.today()
-    if expiry_date < today:
-        return "Het Han"
-    if (expiry_date - today).days <= 7:
-        return "Sap Het Han"
-    return "Moi"
-
-
-def _calculate_discount(base_price: float, expiry_date) -> tuple[float, float]:
-    from datetime import date
-    today = date.today()
-    days_left = (expiry_date - today).days
-
-    if days_left < 0:
-        return base_price, 0
-    elif days_left <= 1:
-        discount_percent = 70
-    elif days_left <= 3:
-        discount_percent = 50
-    elif days_left <= 7:
-        discount_percent = 30
-    else:
-        discount_percent = 0
-
-    sale_price = base_price * (1 - discount_percent / 100)
-    return round(sale_price, 0), discount_percent
-
-
-@router.get("/profile")
-def get_customer_profile(
-    user_id: int = Query(..., ge=1),
-    db: Session = Depends(get_db),
+@router.get("/profile", response_model=CustomerProfileResponse)
+def get_profile(
+	user_id: int = Query(..., ge=1),
+	db: Session = Depends(get_db),
 ):
-    user = db.execute(
-        text(
-            """
-            SELECT id, username, email, full_name, phone, role, created_at
-            FROM users
-            WHERE id = :user_id AND role = 'customer'
-            LIMIT 1
-            """
-        ),
-        {"user_id": user_id},
-    ).first()
-
-    if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Khong tim thay khach hang")
-
-    return {
-        "id": user.id,
-        "username": user.username,
-        "email": user.email,
-        "fullName": user.full_name,
-        "phone": user.phone or "",
-        "role": user.role,
-        "createdAt": user.created_at.strftime("%d/%m/%Y") if user.created_at else "",
-    }
+	return get_customer_profile(db, user_id)
 
 
-@router.put("/profile")
-def update_customer_profile(
-    payload: dict,
-    user_id: int = Query(..., ge=1),
-    db: Session = Depends(get_db),
+@router.put("/profile", response_model=SuccessResponse)
+def update_profile(
+	data: UpdateProfileRequest,
+	user_id: int = Query(..., ge=1),
+	db: Session = Depends(get_db),
 ):
-    full_name = (payload.get("fullName") or "").strip()
-    email = (payload.get("email") or "").strip().lower()
-    phone = (payload.get("phone") or "").strip()
-
-    if not full_name:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ho ten khong duoc trong")
-
-    existing = db.execute(
-        text(
-            """
-            SELECT id FROM users
-            WHERE email = :email AND id != :user_id
-            LIMIT 1
-            """
-        ),
-        {"email": email, "user_id": user_id},
-    ).first()
-    if existing:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email da duoc su dung")
-
-    db.execute(
-        text(
-            """
-            UPDATE users
-            SET full_name = :full_name,
-                email = :email,
-                phone = :phone
-            WHERE id = :user_id AND role = 'customer'
-            """
-        ),
-        {"full_name": full_name, "email": email, "phone": phone, "user_id": user_id},
-    )
-    db.commit()
-
-    return {"success": True, "message": "Cap nhat thanh cong"}
+	return update_customer_profile(
+		db,
+		user_id,
+		data.fullName,
+		data.email,
+		data.phone or ""
+	)
 
 
-@router.post("/change-password")
-def change_customer_password(
-    payload: dict,
-    user_id: int = Query(..., ge=1),
-    db: Session = Depends(get_db),
+@router.post("/change-password", response_model=SuccessResponse)
+def change_password(
+	data: ChangePasswordRequest,
+	user_id: int = Query(..., ge=1),
+	db: Session = Depends(get_db),
 ):
-    current_password = payload.get("currentPassword") or ""
-    new_password = payload.get("newPassword") or ""
-
-    if len(new_password) < 6:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Mat khau moi phai co it nhat 6 ky tu.",
-        )
-
-    row = db.execute(
-        text("SELECT password_hash FROM users WHERE id = :user_id AND role = 'customer' LIMIT 1"),
-        {"user_id": user_id},
-    ).first()
-    if not row:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Khong tim thay tai khoan")
-
-    if not verify_password(current_password, row.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Mat khau hien tai khong dung.",
-        )
-
-    db.execute(
-        text(
-            "UPDATE users SET password_hash = :password_hash WHERE id = :user_id"
-        ),
-        {"password_hash": get_password_hash(new_password), "user_id": user_id},
-    )
-    db.commit()
-
-    return {"success": True, "message": "Doi mat khau thanh cong"}
+	return change_customer_password(
+		db,
+		user_id,
+		data.currentPassword,
+		data.newPassword
+	)
 
 
-@router.get("/products")
-def list_customer_products(
-    supermarket_id: int = Query(default=None),
-    category_id: int = Query(default=None),
-    search: str = Query(default=None),
-    db: Session = Depends(get_db),
+# ========== Product Endpoints ==========
+
+@router.get("/products", response_model=ProductListResponse)
+def list_products(
+	supermarket_id: int = Query(default=None),
+	category_id: int = Query(default=None),
+	search: str = Query(default=None),
+	db: Session = Depends(get_db),
 ):
-    query = """
-        SELECT DISTINCT
-            p.id,
-            p.name,
-            p.sku,
-            p.base_price,
-            p.image_url,
-            c.id AS category_id,
-            c.name AS category_name,
-            s.id AS store_id,
-            s.name AS store_name,
-            il.expiry_date,
-            il.qty_on_hand,
-            il.lot_code
-        FROM products p
-        JOIN categories c ON c.id = p.category_id
-        JOIN inventory_lots il ON il.product_id = p.id
-        JOIN stores s ON s.id = il.store_id
-        WHERE il.qty_on_hand > 0
-          AND il.expiry_date >= CURDATE()
-    """
-    params = {}
-
-    if supermarket_id:
-        query += " AND p.supermarket_id = :supermarket_id"
-        params["supermarket_id"] = supermarket_id
-
-    if category_id:
-        query += " AND p.category_id = :category_id"
-        params["category_id"] = category_id
-
-    if search:
-        query += " AND (p.name LIKE :search OR p.sku LIKE :search)"
-        params["search"] = f"%{search}%"
-
-    query += " ORDER BY il.expiry_date ASC, p.name ASC LIMIT 100"
-
-    rows = db.execute(text(query), params).all()
-
-    items = []
-    for row in rows:
-        base_price = float(row.base_price or 0)
-        sale_price, discount_percent = _calculate_discount(base_price, row.expiry_date)
-        days_left = (row.expiry_date - datetime.now().date()).days
-
-        items.append({
-            "id": row.id,
-            "name": row.name,
-            "sku": row.sku,
-            "originalPrice": base_price,
-            "salePrice": sale_price,
-            "discount": discount_percent,
-            "imageUrl": row.image_url,
-            "categoryId": row.category_id,
-            "categoryName": row.category_name or "Khac",
-            "storeId": row.store_id,
-            "storeName": row.store_name or "Cua hang",
-            "expiryDate": row.expiry_date.strftime("%Y-%m-%d"),
-            "daysLeft": days_left,
-            "stock": int(row.qty_on_hand),
-            "lotCode": row.lot_code,
-        })
-
-    return {"items": items}
+	return list_customer_products(db, supermarket_id, category_id, search)
 
 
-@router.get("/products/{product_id}")
-def get_customer_product_detail(
-    product_id: int,
-    db: Session = Depends(get_db),
+@router.get("/products/{product_id}", response_model=ProductDetailResponse)
+def get_product_detail(
+	product_id: int,
+	db: Session = Depends(get_db),
 ):
-    rows = db.execute(
-        text(
-            """
-            SELECT DISTINCT
-                p.id,
-                p.name,
-                p.sku,
-                p.base_price,
-                p.image_url,
-                c.id AS category_id,
-                c.name AS category_name,
-                sm.id AS supermarket_id,
-                sm.name AS supermarket_name,
-                sm.contact_phone AS supermarket_phone
-            FROM products p
-            LEFT JOIN categories c ON c.id = p.category_id
-            LEFT JOIN supermarkets sm ON sm.id = p.supermarket_id
-            WHERE p.id = :product_id
-            LIMIT 1
-            """
-        ),
-        {"product_id": product_id},
-    ).first()
-
-    if not rows:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="San pham khong ton tai")
-
-    row = _dict_row(rows)
-
-    inventory_rows = db.execute(
-        text(
-            """
-            SELECT
-                il.lot_code,
-                il.expiry_date,
-                il.qty_on_hand,
-                s.name AS store_name,
-                s.location AS store_address
-            FROM inventory_lots il
-            JOIN stores s ON s.id = il.store_id
-            WHERE il.product_id = :product_id
-              AND il.qty_on_hand > 0
-              AND il.expiry_date >= CURDATE()
-            ORDER BY il.expiry_date ASC
-            """
-        ),
-        {"product_id": product_id},
-    ).all()
-
-    stores = []
-    total_stock = 0
-    for inv in inventory_rows:
-        base_price = float(row["base_price"] or 0)
-        sale_price, discount_percent = _calculate_discount(base_price, inv.expiry_date)
-        days_left = (inv.expiry_date - datetime.now().date()).days
-
-        stores.append({
-            "lotCode": inv.lot_code,
-            "expiryDate": inv.expiry_date.strftime("%Y-%m-%d"),
-            "quantity": int(inv.qty_on_hand),
-            "storeName": inv.store_name,
-            "storeAddress": inv.store_address,
-            "salePrice": sale_price,
-            "discount": discount_percent,
-            "daysLeft": days_left,
-        })
-        total_stock += int(inv.qty_on_hand)
-
-    base_price = float(row["base_price"] or 0)
-    best_price, best_discount = _calculate_discount(base_price, inventory_rows[0].expiry_date) if inventory_rows else (base_price, 0)
-
-    return {
-        "id": row["id"],
-        "name": row["name"],
-        "sku": row["sku"],
-        "originalPrice": base_price,
-        "bestPrice": best_price,
-        "bestDiscount": best_discount,
-        "imageUrl": row["image_url"],
-        "categoryId": row["category_id"],
-        "categoryName": row["category_name"] or "Khac",
-        "supermarketId": row["supermarket_id"],
-        "supermarketName": row["supermarket_name"] or "Siêu thị",
-        "supermarketPhone": row["supermarket_phone"] or "",
-        "totalStock": total_stock,
-        "stores": stores,
-    }
+	return get_customer_product_detail(db, product_id)
 
 
-@router.get("/categories")
-def list_customer_categories(
-    supermarket_id: int = Query(default=None),
-    db: Session = Depends(get_db),
+@router.get("/near-expiry-products", response_model=NearExpiryProductListResponse)
+def list_near_expiry(
+	supermarket_id: int = Query(default=None),
+	max_days: int = Query(default=7),
+	db: Session = Depends(get_db),
 ):
-    query = """
-        SELECT DISTINCT c.id, c.name
-        FROM categories c
-        JOIN products p ON p.category_id = c.id
-        JOIN inventory_lots il ON il.product_id = p.id
-        WHERE il.qty_on_hand > 0 AND il.expiry_date >= CURDATE()
-    """
-    params = {}
-
-    if supermarket_id:
-        query += " AND p.supermarket_id = :supermarket_id"
-        params["supermarket_id"] = supermarket_id
-
-    query += " ORDER BY c.name ASC"
-
-    rows = db.execute(text(query), params).all()
-
-    items = [{"id": row.id, "name": row.name} for row in rows]
-    return {"items": items}
+	return list_near_expiry_products(db, supermarket_id, max_days)
 
 
-@router.get("/supermarkets")
-def list_customer_supermarkets(
-    db: Session = Depends(get_db),
+# ========== Category & Supermarket Endpoints ==========
+
+@router.get("/categories", response_model=CategoryListResponse)
+def list_categories(
+	supermarket_id: int = Query(default=None),
+	db: Session = Depends(get_db),
 ):
-    rows = db.execute(
-        text(
-            """
-            SELECT id, name, location, contact_phone
-            FROM supermarkets
-            WHERE is_active = 1
-            ORDER BY name ASC
-            """
-        ),
-    ).all()
-
-    items = [
-        {
-            "id": row.id,
-            "name": row.name,
-            "location": row.location or "",
-            "phone": row.contact_phone or "",
-        }
-        for row in rows
-    ]
-    return {"items": items}
+	return list_customer_categories(db, supermarket_id)
 
 
-@router.get("/orders")
-def list_customer_orders(
-    user_id: int = Query(..., ge=1),
-    status_filter: str = Query(default="all"),
-    db: Session = Depends(get_db),
+@router.get("/supermarkets", response_model=SupermarketListResponse)
+def list_supermarkets(
+	db: Session = Depends(get_db),
 ):
-    query = """
-        SELECT
-            o.id,
-            o.status,
-            o.total_amount,
-            o.payment_method,
-            o.payment_status,
-            o.created_at,
-            s.name AS store_name,
-            s.location AS store_address
-        FROM orders o
-        JOIN stores s ON s.id = o.store_id
-        WHERE o.customer_id = :user_id
-    """
-    params = {"user_id": user_id}
-
-    if status_filter != "all":
-        query += " AND o.status = :status_filter"
-        params["status_filter"] = status_filter
-
-    query += " ORDER BY o.created_at DESC LIMIT 50"
-
-    rows = db.execute(text(query), params).all()
-
-    items = []
-    for row in rows:
-        item_rows = db.execute(
-            text(
-                """
-                SELECT
-                    oi.quantity,
-                    oi.unit_price,
-                    p.name AS product_name
-                FROM order_items oi
-                JOIN products p ON p.id = oi.product_id
-                WHERE oi.order_id = :order_id
-                """
-            ),
-            {"order_id": row.id},
-        ).all()
-
-        order_items = [
-            {
-                "name": ir.product_name,
-                "quantity": int(ir.quantity),
-                "unitPrice": float(ir.unit_price),
-            }
-            for ir in item_rows
-        ]
-
-        items.append({
-            "id": f"DH-{row.id}",
-            "orderId": row.id,
-            "storeName": row.store_name or "Cua hang",
-            "storeAddress": row.store_address or "",
-            "status": row.status,
-            "totalAmount": float(row.total_amount or 0),
-            "paymentMethod": row.payment_method or "cod",
-            "paymentStatus": row.payment_status,
-            "createdAt": row.created_at.strftime("%d/%m/%Y %H:%M"),
-            "items": order_items,
-        })
-
-    return {"items": items}
+	return list_customer_supermarkets(db)
 
 
-@router.get("/orders/{order_id}")
-def get_customer_order_detail(
-    order_id: int,
-    user_id: int = Query(..., ge=1),
-    db: Session = Depends(get_db),
+# ========== Order Endpoints ==========
+
+@router.get("/orders", response_model=OrderListResponse)
+def list_orders(
+	user_id: int = Query(..., ge=1),
+	status_filter: str = Query(default="all"),
+	db: Session = Depends(get_db),
 ):
-    order = db.execute(
-        text(
-            """
-            SELECT
-                o.id,
-                o.status,
-                o.total_amount,
-                o.payment_method,
-                o.payment_status,
-                o.created_at,
-                s.name AS store_name,
-                s.location AS store_address
-            FROM orders o
-            JOIN stores s ON s.id = o.store_id
-            WHERE o.id = :order_id AND o.customer_id = :user_id
-            LIMIT 1
-            """
-        ),
-        {"order_id": order_id, "user_id": user_id},
-    ).first()
-
-    if not order:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Don hang khong ton tai")
-
-    item_rows = db.execute(
-        text(
-            """
-            SELECT
-                oi.quantity,
-                oi.unit_price,
-                p.name AS product_name,
-                il.lot_code,
-                il.expiry_date
-            FROM order_items oi
-            JOIN products p ON p.id = oi.product_id
-            LEFT JOIN inventory_lots il ON il.product_id = p.id
-            WHERE oi.order_id = :order_id
-            """
-        ),
-        {"order_id": order_id},
-    ).all()
-
-    delivery_row = db.execute(
-        text(
-            """
-            SELECT d.status, d.delivery_code, d.picked_at, d.delivered_at
-            FROM deliveries d
-            WHERE d.order_id = :order_id
-            LIMIT 1
-            """
-        ),
-        {"order_id": order_id},
-    ).first()
-
-    items = []
-    for ir in item_rows:
-        items.append({
-            "name": ir.product_name,
-            "quantity": int(ir.quantity),
-            "unitPrice": float(ir.unit_price),
-            "lotCode": ir.lot_code,
-            "expiryDate": ir.expiry_date.strftime("%Y-%m-%d") if ir.expiry_date else "",
-        })
-
-    return {
-        "id": f"DH-{order.id}",
-        "orderId": order.id,
-        "storeName": order.store_name or "Cua hang",
-        "storeAddress": order.store_address or "",
-        "status": order.status,
-        "totalAmount": float(order.total_amount or 0),
-        "paymentMethod": order.payment_method or "cod",
-        "paymentStatus": order.payment_status,
-        "createdAt": order.created_at.strftime("%d/%m/%Y %H:%M"),
-        "items": items,
-        "delivery": {
-            "status": delivery_row.status if delivery_row else None,
-            "deliveryCode": delivery_row.delivery_code if delivery_row else None,
-            "pickedAt": delivery_row.picked_at.strftime("%d/%m/%Y %H:%M") if delivery_row and delivery_row.picked_at else None,
-            "deliveredAt": delivery_row.delivered_at.strftime("%d/%m/%Y %H:%M") if delivery_row and delivery_row.delivered_at else None,
-        } if delivery_row else None,
-    }
+	return list_customer_orders(db, user_id, status_filter)
 
 
-@router.post("/orders")
-def create_customer_order(
-    payload: dict,
-    user_id: int = Query(..., ge=1),
-    db: Session = Depends(get_db),
+@router.get("/orders/{order_id}", response_model=OrderDetailResponse)
+def get_order_detail(
+	order_id: int,
+	user_id: int = Query(..., ge=1),
+	db: Session = Depends(get_db),
 ):
-    items = payload.get("items", [])
-    store_id = payload.get("storeId")
-    payment_method = payload.get("paymentMethod", "cod")
-
-    if not items or len(items) == 0:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Gio hang trong")
-
-    if not store_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Chua chon cua hang")
-
-    user = db.execute(
-        text("SELECT id FROM users WHERE id = :id AND role = 'customer' LIMIT 1"),
-        {"id": user_id},
-    ).first()
-    if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Khach hang khong ton tai")
-
-    total_amount = Decimal("0")
-    for item in items:
-        product_id = item.get("productId")
-        quantity = item.get("quantity", 1)
-        lot_code = item.get("lotCode")
-
-        if not product_id or quantity <= 0:
-            continue
-
-        if lot_code:
-            lot = db.execute(
-                text(
-                    """
-                    SELECT id, qty_on_hand, expiry_date, product_id
-                    FROM inventory_lots
-                    WHERE lot_code = :lot_code AND store_id = :store_id
-                    LIMIT 1
-                    """
-                ),
-                {"lot_code": lot_code, "store_id": store_id},
-            ).first()
-        else:
-            lot = db.execute(
-                text(
-                    """
-                    SELECT id, qty_on_hand, expiry_date, product_id
-                    FROM inventory_lots
-                    WHERE product_id = :product_id AND store_id = :store_id AND qty_on_hand > 0
-                    ORDER BY expiry_date ASC
-                    LIMIT 1
-                    """
-                ),
-                {"product_id": product_id, "store_id": store_id},
-            ).first()
-
-        if not lot:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"San pham khong co san trong cua hang"
-            )
-
-        if lot.qty_on_hand < quantity:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"San pham khong du so luong (chi con {lot.qty_on_hand})"
-            )
-
-        product = db.execute(
-            text("SELECT base_price FROM products WHERE id = :id LIMIT 1"),
-            {"id": product_id},
-        ).first()
-
-        if product:
-            base_price = float(product.base_price or 0)
-            sale_price, _ = _calculate_discount(base_price, lot.expiry_date)
-            total_amount += Decimal(str(int(sale_price * quantity)))
-
-    result = db.execute(
-        text(
-            """
-            INSERT INTO orders (store_id, customer_id, status, total_amount, payment_method, payment_status)
-            VALUES (:store_id, :customer_id, 'pending', :total_amount, :payment_method, 'pending')
-            """
-        ),
-        {
-            "store_id": store_id,
-            "customer_id": user_id,
-            "total_amount": total_amount,
-            "payment_method": payment_method,
-        },
-    )
-    order_id = result.lastrowid
-
-    for item in items:
-        product_id = item.get("productId")
-        quantity = item.get("quantity", 1)
-        lot_code = item.get("lotCode")
-
-        if not product_id or quantity <= 0:
-            continue
-
-        if lot_code:
-            lot = db.execute(
-                text(
-                    """
-                    SELECT id, qty_on_hand, expiry_date, product_id
-                    FROM inventory_lots
-                    WHERE lot_code = :lot_code AND store_id = :store_id
-                    LIMIT 1
-                    """
-                ),
-                {"lot_code": lot_code, "store_id": store_id},
-            ).first()
-        else:
-            lot = db.execute(
-                text(
-                    """
-                    SELECT id, qty_on_hand, expiry_date, product_id
-                    FROM inventory_lots
-                    WHERE product_id = :product_id AND store_id = :store_id AND qty_on_hand > 0
-                    ORDER BY expiry_date ASC
-                    LIMIT 1
-                    """
-                ),
-                {"product_id": product_id, "store_id": store_id},
-            ).first()
-
-        if lot:
-            base_price = db.execute(
-                text("SELECT base_price FROM products WHERE id = :id LIMIT 1"),
-                {"id": product_id},
-            ).first()
-            unit_price, _ = _calculate_discount(float(base_price.base_price or 0), lot.expiry_date)
-
-            db.execute(
-                text(
-                    """
-                    INSERT INTO order_items (order_id, product_id, quantity, unit_price)
-                    VALUES (:order_id, :product_id, :quantity, :unit_price)
-                    """
-                ),
-                {
-                    "order_id": order_id,
-                    "product_id": product_id,
-                    "quantity": quantity,
-                    "unit_price": unit_price,
-                },
-            )
-
-            db.execute(
-                text(
-                    """
-                    UPDATE inventory_lots
-                    SET qty_on_hand = qty_on_hand - :quantity
-                    WHERE id = :id
-                    """
-                ),
-                {"quantity": quantity, "id": int(lot.id)},
-            )
-
-    db.commit()
-
-    return {
-        "success": True,
-        "orderId": order_id,
-        "orderCode": f"DH-{order_id}",
-        "message": "Dat hang thanh cong",
-    }
+	return get_customer_order_detail(db, order_id, user_id)
 
 
-@router.put("/orders/{order_id}/cancel")
-def cancel_customer_order(
-    order_id: int,
-    user_id: int = Query(..., ge=1),
-    db: Session = Depends(get_db),
+@router.post("/orders", response_model=CreateOrderResponse)
+def create_order(
+	data: CreateOrderRequest,
+	user_id: int = Query(..., ge=1),
+	db: Session = Depends(get_db),
 ):
-    order = db.execute(
-        text(
-            """
-            SELECT id, status FROM orders
-            WHERE id = :order_id AND customer_id = :user_id
-            LIMIT 1
-            """
-        ),
-        {"order_id": order_id, "user_id": user_id},
-    ).first()
-
-    if not order:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Don hang khong ton tai")
-
-    if order.status not in ("pending", "preparing"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Khong the huy don hang da duoc xu ly"
-        )
-
-    item_rows = db.execute(
-        text("SELECT product_id, quantity FROM order_items WHERE order_id = :order_id"),
-        {"order_id": order_id},
-    ).all()
-
-    store_id_row = db.execute(
-        text("SELECT store_id FROM orders WHERE id = :order_id LIMIT 1"),
-        {"order_id": order_id},
-    ).first()
-
-    for item in item_rows:
-        lot = db.execute(
-            text(
-                """
-                SELECT id FROM inventory_lots
-                WHERE product_id = :product_id AND store_id = :store_id AND qty_on_hand > 0
-                ORDER BY expiry_date ASC
-                LIMIT 1
-                """
-            ),
-            {"product_id": item.product_id, "store_id": store_id_row.store_id if store_id_row else 0},
-        ).first()
-
-        if lot:
-            db.execute(
-                text(
-                    "UPDATE inventory_lots SET qty_on_hand = qty_on_hand + :quantity WHERE id = :id"
-                ),
-                {"quantity": item.quantity, "id": int(lot.id)},
-            )
-
-    db.execute(
-        text("UPDATE orders SET status = 'cancelled' WHERE id = :order_id"),
-        {"order_id": order_id},
-    )
-    db.commit()
-
-    return {"success": True, "message": "Huy don hang thanh cong"}
+	return create_customer_order(
+		db,
+		user_id,
+		data.items,
+		data.storeId,
+		data.paymentMethod
+	)
 
 
-@router.get("/dashboard-summary")
-def customer_dashboard_summary(
-    user_id: int = Query(..., ge=1),
-    db: Session = Depends(get_db),
+@router.put("/orders/{order_id}/cancel", response_model=CancelOrderResponse)
+def cancel_order(
+	order_id: int,
+	user_id: int = Query(..., ge=1),
+	db: Session = Depends(get_db),
 ):
-    total_orders = db.execute(
-        text("SELECT COUNT(*) FROM orders WHERE customer_id = :user_id"),
-        {"user_id": user_id},
-    ).scalar() or 0
-
-    pending_orders = db.execute(
-        text(
-            "SELECT COUNT(*) FROM orders WHERE customer_id = :user_id AND status IN ('pending', 'preparing')"
-        ),
-        {"user_id": user_id},
-    ).scalar() or 0
-
-    completed_orders = db.execute(
-        text("SELECT COUNT(*) FROM orders WHERE customer_id = :user_id AND status = 'completed'"),
-        {"user_id": user_id},
-    ).scalar() or 0
-
-    total_spent = db.execute(
-        text(
-            "SELECT COALESCE(SUM(total_amount), 0) FROM orders WHERE customer_id = :user_id AND status = 'completed'"
-        ),
-        {"user_id": user_id},
-    ).scalar() or 0
-
-    return {
-        "totalOrders": int(total_orders),
-        "pendingOrders": int(pending_orders),
-        "completedOrders": int(completed_orders),
-        "totalSpent": float(total_spent),
-    }
+	return cancel_customer_order(db, order_id, user_id)
 
 
-@router.get("/near-expiry-products")
-def list_near_expiry_products(
-    supermarket_id: int = Query(default=None),
-    max_days: int = Query(default=7),
-    db: Session = Depends(get_db),
+# ========== Dashboard Endpoints ==========
+
+@router.get("/dashboard-summary", response_model=DashboardSummaryResponse)
+def get_dashboard_summary(
+	user_id: int = Query(..., ge=1),
+	db: Session = Depends(get_db),
 ):
-    from datetime import date, timedelta
-    cutoff_date = date.today() + timedelta(days=max_days)
-
-    query = """
-        SELECT
-            p.id,
-            p.name,
-            p.sku,
-            p.base_price,
-            p.image_url,
-            c.name AS category_name,
-            s.name AS store_name,
-            il.expiry_date,
-            il.qty_on_hand,
-            il.lot_code
-        FROM products p
-        JOIN categories c ON c.id = p.category_id
-        JOIN inventory_lots il ON il.product_id = p.id
-        JOIN stores s ON s.id = il.store_id
-        WHERE il.qty_on_hand > 0
-          AND il.expiry_date >= CURDATE()
-          AND il.expiry_date <= :cutoff_date
-    """
-    params = {"cutoff_date": cutoff_date}
-
-    if supermarket_id:
-        query += " AND p.supermarket_id = :supermarket_id"
-        params["supermarket_id"] = supermarket_id
-
-    query += " ORDER BY il.expiry_date ASC, p.name ASC LIMIT 50"
-
-    rows = db.execute(text(query), params).all()
-
-    items = []
-    for row in rows:
-        base_price = float(row.base_price or 0)
-        sale_price, discount_percent = _calculate_discount(base_price, row.expiry_date)
-        days_left = (row.expiry_date - date.today()).days
-
-        items.append({
-            "id": row.id,
-            "name": row.name,
-            "sku": row.sku,
-            "originalPrice": base_price,
-            "salePrice": sale_price,
-            "discount": discount_percent,
-            "imageUrl": row.image_url,
-            "categoryName": row.category_name or "Khac",
-            "storeName": row.store_name or "Cua hang",
-            "expiryDate": row.expiry_date.strftime("%Y-%m-%d"),
-            "daysLeft": days_left,
-            "stock": int(row.qty_on_hand),
-            "lotCode": row.lot_code,
-        })
-
-    return {"items": items}
+	return customer_dashboard_summary(db, user_id)

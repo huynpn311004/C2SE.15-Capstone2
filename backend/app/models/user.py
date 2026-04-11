@@ -24,6 +24,7 @@ class User(Base):
 	password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
 	full_name: Mapped[str] = mapped_column(String(255), nullable=False)
 	phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
+	address: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
 	role: Mapped[str] = mapped_column(String(30), nullable=False, default="customer")
 	is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

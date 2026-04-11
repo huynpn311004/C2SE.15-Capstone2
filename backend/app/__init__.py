@@ -48,6 +48,79 @@ def _ensure_users_lock_columns() -> None:
                 )
             )
 
+        if "address" not in column_names:
+            connection.execute(
+                text(
+                    "ALTER TABLE users "
+                    "ADD COLUMN address VARCHAR(255) NULL DEFAULT NULL"
+                )
+            )
+
+
+def _ensure_supermarket_schema() -> None:
+    """Ensure supermarket table has correct schema by removing old columns"""
+    with engine.begin() as connection:
+        inspector = inspect(connection)
+        if "supermarkets" not in inspector.get_table_names():
+            return
+
+        column_names = {column["name"] for column in inspector.get_columns("supermarkets")}
+
+        # Remove columns that are no longer needed
+        if "contact_email" in column_names:
+            connection.execute(text("ALTER TABLE supermarkets DROP COLUMN contact_email"))
+
+        if "contact_phone" in column_names:
+            connection.execute(text("ALTER TABLE supermarkets DROP COLUMN contact_phone"))
+
+        if "address" in column_names:
+            connection.execute(text("ALTER TABLE supermarkets DROP COLUMN address"))
+
+        if "status" in column_names:
+            connection.execute(text("ALTER TABLE supermarkets DROP COLUMN status"))
+
+
+def _ensure_discount_policy_schema() -> None:
+    """Ensure discount_policies table has category_id and product_id columns"""
+    with engine.begin() as connection:
+        inspector = inspect(connection)
+        if "discount_policies" not in inspector.get_table_names():
+            return
+
+        column_names = {column["name"] for column in inspector.get_columns("discount_policies")}
+
+        # Add category_id column
+        if "category_id" not in column_names:
+            connection.execute(
+                text(
+                    "ALTER TABLE discount_policies "
+                    "ADD COLUMN category_id BIGINT NULL DEFAULT NULL"
+                )
+            )
+            connection.execute(
+                text(
+                    "ALTER TABLE discount_policies "
+                    "ADD CONSTRAINT fk_discount_policies_category_id "
+                    "FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE"
+                )
+            )
+
+        # Add product_id column
+        if "product_id" not in column_names:
+            connection.execute(
+                text(
+                    "ALTER TABLE discount_policies "
+                    "ADD COLUMN product_id BIGINT NULL DEFAULT NULL"
+                )
+            )
+            connection.execute(
+                text(
+                    "ALTER TABLE discount_policies "
+                    "ADD CONSTRAINT fk_discount_policies_product_id "
+                    "FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE"
+                )
+            )
+
 def create_app():
     app = FastAPI()
     app.add_middleware(
@@ -68,6 +141,8 @@ def create_app():
 
     Base.metadata.create_all(bind=engine)
     _ensure_users_lock_columns()
+    _ensure_supermarket_schema()
+    _ensure_discount_policy_schema()
     app.include_router(auth_router, prefix="/api")
     app.include_router(admin_router, prefix="/api")
     app.include_router(supermarket_admin_router, prefix="/api")

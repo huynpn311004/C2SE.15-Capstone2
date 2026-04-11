@@ -51,18 +51,35 @@ export async function fetchDiscountPolicy(policyId) {
 // Create policy (Chi Supermarket Admin)
 export async function createDiscountPolicy(payload) {
   const userId = requireSupermarketAdmin()
-  const response = await API.post('/discount-policy', payload, {
-    params: { user_id: userId },
-  })
+  const params = {
+    user_id: userId,
+    name: payload.name,
+    min_days: payload.minDaysLeft,
+    max_days: payload.maxDaysLeft,
+    discount: payload.discountPercent,
+  }
+  if (payload.categoryId) params.category_id = payload.categoryId
+  if (payload.productId) params.product_id = payload.productId
+
+  const response = await API.post('/discount-policy', {}, { params })
   return response.data
 }
 
 // Update policy (Chi Supermarket Admin)
 export async function updateDiscountPolicy(policyId, payload) {
   const userId = requireSupermarketAdmin()
-  const response = await API.put(`/discount-policy/${policyId}`, payload, {
-    params: { user_id: userId },
-  })
+  const params = {
+    user_id: userId,
+    policy_id: policyId,
+  }
+  if (payload.name) params.name = payload.name
+  if (payload.minDaysLeft !== undefined) params.min_days = payload.minDaysLeft
+  if (payload.maxDaysLeft !== undefined) params.max_days = payload.maxDaysLeft
+  if (payload.discountPercent !== undefined) params.discount = payload.discountPercent
+  if (payload.categoryId !== undefined) params.category_id = payload.categoryId
+  if (payload.productId !== undefined) params.product_id = payload.productId
+
+  const response = await API.put(`/discount-policy/${policyId}`, {}, { params })
   return response.data
 }
 
@@ -85,12 +102,13 @@ export async function toggleDiscountPolicy(policyId) {
 }
 
 // Calculate discount for a given price and expiry date (Ai cung dung duoc)
-export async function calculateDiscount(basePrice, expiryDate, supermarketId) {
+export async function calculateDiscount(basePrice, expiryDate, supermarketId, productId) {
   const params = {
     base_price: basePrice,
     expiry_date: expiryDate,
   }
   if (supermarketId) params.supermarket_id = supermarketId
+  if (productId) params.product_id = productId
 
   const response = await API.get('/discount-policy/calculate', { params })
   return response.data

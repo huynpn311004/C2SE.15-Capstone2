@@ -10,6 +10,8 @@ import './PolicyConfiguration.css'
 
 export default function PolicyConfiguration() {
   const [policies, setPolicies] = useState([])
+  const [categories, setCategories] = useState([])
+  const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -21,30 +23,74 @@ export default function PolicyConfiguration() {
     minDaysLeft: '',
     maxDaysLeft: '',
     discountPercent: '',
+    categoryId: '',
+    productId: '',
+    applyType: 'all',
   })
 
   useEffect(() => {
-    loadPolicies()
+    loadInitialData()
   }, [])
 
-  async function loadPolicies() {
+  async function loadInitialData() {
     try {
       setLoading(true)
       setError('')
+      await Promise.all([
+        loadPolicies(),
+        loadCategories(),
+        loadProducts(),
+      ])
+    } catch (err) {
+      setError('Không thể tải dữ liệu')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function loadPolicies() {
+    try {
       const data = await fetchDiscountPolicies()
       setPolicies(data)
     } catch (err) {
-      setError(err.message || 'Không thể tải danh sách chính sách')
-      setPolicies([])
-    } finally {
-      setLoading(false)
+      console.error('Error loading policies:', err)
+    }
+  }
+
+  async function loadCategories() {
+    try {
+      const response = await fetch('/api/product/categories')
+      if (!response.ok) throw new Error('Failed to fetch categories')
+      const data = await response.json()
+      setCategories(data.items || [])
+    } catch (err) {
+      console.error('Error loading categories:', err)
+    }
+  }
+
+  async function loadProducts() {
+    try {
+      const response = await fetch('/api/customer/products')
+      if (!response.ok) throw new Error('Failed to fetch products')
+      const data = await response.json()
+      setProducts(data.items || [])
+    } catch (err) {
+      console.error('Error loading products:', err)
     }
   }
 
   function openCreateModal() {
     setEditMode(false)
     setSelectedPolicy(null)
-    setForm({ name: '', minDaysLeft: '', maxDaysLeft: '', discountPercent: '' })
+    setForm({
+      name: '',
+      minDaysLeft: '',
+      maxDaysLeft: '',
+      discountPercent: '',
+      categoryId: '',
+      productId: '',
+      applyType: 'all',
+    })
     setError('')
     setSuccess('')
     setShowModal(true)
@@ -53,11 +99,18 @@ export default function PolicyConfiguration() {
   function openEditModal(policy) {
     setEditMode(true)
     setSelectedPolicy(policy)
+    let applyType = 'all'
+    if (policy.productId) applyType = 'product'
+    else if (policy.categoryId) applyType = 'category'
+
     setForm({
       name: policy.name,
       minDaysLeft: String(policy.minDaysLeft),
       maxDaysLeft: String(policy.maxDaysLeft),
       discountPercent: String(policy.discountPercent),
+      categoryId: String(policy.categoryId || ''),
+      productId: String(policy.productId || ''),
+      applyType: applyType,
     })
     setError('')
     setSuccess('')
@@ -104,22 +157,30 @@ export default function PolicyConfiguration() {
       return
     }
 
+    if (form.applyType === 'category' && !form.categoryId) {
+      setError('Hãy chọn danh mục')
+      return
+    }
+    if (form.applyType === 'product' && !form.productId) {
+      setError('Hãy chọn sản phẩm')
+      return
+    }
+
     try {
+      const payload = {
+        name: form.name.trim(),
+        minDaysLeft: minDays,
+        maxDaysLeft: maxDays,
+        discountPercent: discount,
+        categoryId: form.applyType === 'category' ? parseInt(form.categoryId) : null,
+        productId: form.applyType === 'product' ? parseInt(form.productId) : null,
+      }
+
       if (editMode && selectedPolicy) {
-        await updateDiscountPolicy(selectedPolicy.id, {
-          name: form.name.trim(),
-          minDaysLeft: minDays,
-          maxDaysLeft: maxDays,
-          discountPercent: discount,
-        })
+        await updateDiscountPolicy(selectedPolicy.id, payload)
         setSuccess('Cập nhật chính sách thành công!')
       } else {
-        await createDiscountPolicy({
-          name: form.name.trim(),
-          minDaysLeft: minDays,
-          maxDaysLeft: maxDays,
-          discountPercent: discount,
-        })
+        await createDiscountPolicy(payload)
         setSuccess('Tạo chính sách mới thành công!')
       }
       await loadPolicies()
@@ -163,7 +224,7 @@ export default function PolicyConfiguration() {
       {/* TOOLBAR */}
       <div className="sapolicy-toolbar">
         <div className="sapolicy-toolbar-info">
-          Cấu hình chính sách giảm giá cho sản phẩm sắp hết hạn
+          Cấu hình chính sách giảm giá theo danh mục hoặc sản phẩm
         </div>
         <button className="sapolicy-btn-create" onClick={openCreateModal}>
           Thêm Chính Sách
@@ -197,6 +258,7 @@ export default function PolicyConfiguration() {
               <thead>
                 <tr>
                   <th>TÊN CHÍNH SÁCH</th>
+                  <th>ÁP DỤNG CHO</th>
                   <th>SỐ NGÀY ÁP DỤNG</th>
                   <th>GIẢM GIÁ</th>
                   <th>TRẠNG THÁI</th>
@@ -204,55 +266,68 @@ export default function PolicyConfiguration() {
                 </tr>
               </thead>
               <tbody>
-                {policies.map(policy => (
-                  <tr key={policy.id} className={!policy.isActive ? 'row-inactive' : ''}>
-                    <td>
-                      <span className="sapolicy-name">{policy.name}</span>
-                    </td>
-                    <td>
-                      <span className="sapolicy-days">
-                        Còn {policy.minDaysLeft} - {policy.maxDaysLeft} ngày
-                      </span>
-                    </td>
-                    <td>
-                      <span className="sapolicy-discount">-{policy.discountPercent}%</span>
-                    </td>
-                    <td>
-                      <span className={`badge ${getStatusBadge(policy.isActive)}`}>
-                        {getStatusLabel(policy.isActive)}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="sapolicy-actions">
-                        <button
-                          className="sapolicy-btn-toggle"
-                          onClick={() => handleToggle(policy)}
-                          title={policy.isActive ? 'Tắt chính sách' : 'Bật chính sách'}
-                        >
-                          {policy.isActive ? '⏸' : '▶'}
-                        </button>
-                        <button
-                          className="sapolicy-btn-edit"
-                          onClick={() => openEditModal(policy)}
-                        >
-                          <svg className="sapolicy-icon" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
-                          </svg>
-                          Sửa
-                        </button>
-                        <button
-                          className="sapolicy-btn-delete"
-                          onClick={() => handleDelete(policy)}
-                        >
-                          <svg className="sapolicy-icon" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-                          </svg>
-                          Xóa
-                        </button>
-                      </div>
+                {policies.length === 0 ? (
+                  <tr>
+                    <td colSpan="6" style={{ textAlign: 'center', padding: '2rem', color: '#888' }}>
+                      Chưa có chính sách nào
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  policies.map(policy => (
+                    <tr key={policy.id} className={!policy.isActive ? 'row-inactive' : ''}>
+                      <td>
+                        <span className="sapolicy-name">{policy.name}</span>
+                      </td>
+                      <td>
+                        <span className="sapolicy-applies-to">
+                          {policy.appliesTo || 'Tất cả sản phẩm'}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="sapolicy-days">
+                          {policy.minDaysLeft} - {policy.maxDaysLeft} ngày
+                        </span>
+                      </td>
+                      <td>
+                        <span className="sapolicy-discount">-{policy.discountPercent}%</span>
+                      </td>
+                      <td>
+                        <span className={`badge ${getStatusBadge(policy.isActive)}`}>
+                          {getStatusLabel(policy.isActive)}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="sapolicy-actions">
+                          <button
+                            className="sapolicy-btn-toggle"
+                            onClick={() => handleToggle(policy)}
+                            title={policy.isActive ? 'Tắt chính sách' : 'Bật chính sách'}
+                          >
+                            {policy.isActive ? '⏸' : '▶'}
+                          </button>
+                          <button
+                            className="sapolicy-btn-edit"
+                            onClick={() => openEditModal(policy)}
+                          >
+                            <svg className="sapolicy-icon" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+                            </svg>
+                            Sửa
+                          </button>
+                          <button
+                            className="sapolicy-btn-delete"
+                            onClick={() => handleDelete(policy)}
+                          >
+                            <svg className="sapolicy-icon" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                            </svg>
+                            Xóa
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -270,18 +345,95 @@ export default function PolicyConfiguration() {
             <form onSubmit={handleSubmit}>
               <div className="sapolicy-modal-body">
                 <div className="sapolicy-form-grid">
-                  <div className="sapolicy-form-field">
+                  <div className="sapolicy-form-field full-width">
                     <label>Tên Chính Sách *</label>
                     <input
                       type="text"
                       name="name"
                       value={form.name}
                       onChange={handleChange}
-                      placeholder="VD: Giảm giá sắp hết hạn"
+                      placeholder="VD: Giảm giá rau xanh sắp hết hạn"
                       className="sapolicy-input"
                       required
                     />
                   </div>
+
+                  <div className="sapolicy-form-field full-width">
+                    <label>Áp Dụng Cho *</label>
+                    <div className="sapolicy-radio-group">
+                      <label className="sapolicy-radio-label">
+                        <input
+                          type="radio"
+                          name="applyType"
+                          value="all"
+                          checked={form.applyType === 'all'}
+                          onChange={handleChange}
+                        />
+                        <span>Tất cả sản phẩm</span>
+                      </label>
+                      <label className="sapolicy-radio-label">
+                        <input
+                          type="radio"
+                          name="applyType"
+                          value="category"
+                          checked={form.applyType === 'category'}
+                          onChange={handleChange}
+                        />
+                        <span>Danh mục</span>
+                      </label>
+                      <label className="sapolicy-radio-label">
+                        <input
+                          type="radio"
+                          name="applyType"
+                          value="product"
+                          checked={form.applyType === 'product'}
+                          onChange={handleChange}
+                        />
+                        <span>Sản phẩm cụ thể</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {form.applyType === 'category' && (
+                    <div className="sapolicy-form-field full-width">
+                      <label>Chọn Danh Mục *</label>
+                      <select
+                        name="categoryId"
+                        value={form.categoryId}
+                        onChange={handleChange}
+                        className="sapolicy-input"
+                        required={form.applyType === 'category'}
+                      >
+                        <option value="">-- Chọn danh mục --</option>
+                        {categories.map(cat => (
+                          <option key={cat.id} value={cat.id}>
+                            {cat.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {form.applyType === 'product' && (
+                    <div className="sapolicy-form-field full-width">
+                      <label>Chọn Sản Phẩm *</label>
+                      <select
+                        name="productId"
+                        value={form.productId}
+                        onChange={handleChange}
+                        className="sapolicy-input"
+                        required={form.applyType === 'product'}
+                      >
+                        <option value="">-- Chọn sản phẩm --</option>
+                        {products.map(prod => (
+                          <option key={prod.id} value={prod.id}>
+                            {prod.name} ({prod.sku})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
                   <div className="sapolicy-form-field">
                     <label>Phần trăm giảm giá (%) *</label>
                     <input
@@ -296,6 +448,7 @@ export default function PolicyConfiguration() {
                       required
                     />
                   </div>
+
                   <div className="sapolicy-form-field">
                     <label>Số ngày tối thiểu *</label>
                     <input
@@ -309,6 +462,7 @@ export default function PolicyConfiguration() {
                       required
                     />
                   </div>
+
                   <div className="sapolicy-form-field">
                     <label>Số ngày tối đa *</label>
                     <input

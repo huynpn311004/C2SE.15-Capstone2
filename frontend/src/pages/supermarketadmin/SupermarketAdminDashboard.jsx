@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useAuth } from '../../services/AuthContext'
 import { fetchSupermarketDashboardData } from '../../services/supermarketAdminApi'
 import './SupermarketAdminDashboard.css'
 
 export default function SupermarketAdminDashboard() {
+  const { user } = useAuth()
   const [dashboard, setDashboard] = useState({
     stats: { stores: 0, staff: 0, pending: 0, nearExpiry: 0 },
     storePerformance: [],
@@ -15,7 +17,7 @@ export default function SupermarketAdminDashboard() {
 
     async function loadData() {
       try {
-        const data = await fetchSupermarketDashboardData()
+        const data = await fetchSupermarketDashboardData(user?.id)
         if (!active) return
         setDashboard(data)
         setError('')
@@ -34,7 +36,7 @@ export default function SupermarketAdminDashboard() {
     return () => {
       active = false
     }
-  }, [])
+  }, [user])
 
   const stats = useMemo(
     () => [

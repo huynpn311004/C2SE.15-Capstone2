@@ -47,6 +47,7 @@ export default function SupermarketManagement() {
     director: '',
     email: '',
     phone: '',
+    address: '',
     password: '',
     confirmPassword: '',
     requestDate: getTodayDate(),
@@ -108,6 +109,7 @@ export default function SupermarketManagement() {
       director: '',
       email: '',
       phone: '',
+      address: '',
       password: '',
       confirmPassword: '',
       requestDate: getTodayDate(),
@@ -143,8 +145,6 @@ export default function SupermarketManagement() {
     event.preventDefault()
     setCreateError('')
     setCreateSuccess('')
-
-    const supermarket = supermarkets.find((item) => !item.accountCreated) || supermarkets[0]
 
     if (!createForm.name.trim()) {
       setCreateError('Tên siêu thị không được để trống.')
@@ -187,22 +187,13 @@ export default function SupermarketManagement() {
         director: createForm.director.trim(),
         email: createForm.email.trim(),
         phone: createForm.phone.trim(),
+        address: createForm.address.trim(),
         password: createForm.password,
         activityStatus: createForm.activityStatus,
       }
 
-      if (supermarket) {
-        await createAdminSupermarketAccount(supermarket.id, payload)
-        setCreateSuccess(
-          supermarket.accountCreated
-            ? `Đã cập nhật lại tài khoản cho ${supermarket.name}.`
-            : `Đã tạo tài khoản thành công cho ${supermarket.name}.`
-        )
-      } else {
-        await createAdminSupermarketWithAccount(payload)
-        setCreateSuccess(`Đã tạo tài khoản thành công cho ${payload.name}.`)
-      }
-
+      await createAdminSupermarketWithAccount(payload)
+      setCreateSuccess(`Đã tạo tài khoản thành công cho ${payload.name}.`)
       await loadSupermarkets()
     } catch (err) {
       setCreateError(err?.response?.data?.detail || 'Không thể tạo tài khoản siêu thị.')
@@ -569,6 +560,19 @@ export default function SupermarketManagement() {
                         onChange={handleCreateFormChange}
                         className="supermarkets-input"
                         placeholder="Nhập số điện thoại"
+                        required
+                      />
+                    </div>
+
+                    <div className="supermarkets-form-field">
+                      <label>Địa Chỉ</label>
+                      <input
+                        type="text"
+                        name="address"
+                        value={createForm.address}
+                        onChange={handleCreateFormChange}
+                        className="supermarkets-input"
+                        placeholder="Nhập địa chỉ siêu thị"
                         required
                       />
                     </div>

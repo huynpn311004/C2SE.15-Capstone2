@@ -17,9 +17,9 @@ function toNumber(value) {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
-export async function fetchSupermarketDashboardData() {
-  const [summary, reports, users, logs] = await Promise.all([
-    fetchAdminDashboardSummary(),
+export async function fetchSupermarketDashboardData(userId) {
+  const [stores, reports, users, logs] = await Promise.all([
+    userId ? fetchSupermarketStores(userId) : [],
     fetchAdminReports('30d'),
     fetchAdminUsers(),
     fetchAdminAuditLogs({ limit: 30 }),
@@ -30,10 +30,10 @@ export async function fetchSupermarketDashboardData() {
 
   return {
     stats: {
-      stores: Number(summary.supermarkets || 0),
+      stores: stores.length,
       staff: staff.length,
-      pending: Number(summary.pendingRequests || 0),
-      nearExpiry: Math.max(0, toNumber(reports?.metrics?.orders) - Number(summary.pendingRequests || 0)),
+      pending: 0,
+      nearExpiry: Math.max(0, toNumber(reports?.metrics?.orders) || 0),
     },
     storePerformance: (reports?.supermarketTop || []).map((item) => ({
       name: item.name || '-',

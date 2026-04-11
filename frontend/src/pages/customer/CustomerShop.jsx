@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchCustomerProducts, fetchCustomerCategories, fetchCustomerSupermarkets } from '../../services/customerApi';
+import { getProductImageUrl } from '../../services/staffApi';
 import './CustomerShop.css';
 
 const CART_KEY = 'seims_customer_cart';
@@ -163,7 +164,7 @@ const CustomerShop = () => {
             >
               <div className="customer-product-image">
                 <img 
-                  src={product.imageUrl || 'https://via.placeholder.com/120'} 
+                  src={getProductImageUrl(product.imageUrl) || 'https://via.placeholder.com/120'} 
                   alt={product.name}
                 />
               </div>
