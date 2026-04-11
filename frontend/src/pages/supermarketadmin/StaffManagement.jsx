@@ -66,13 +66,12 @@ export default function StaffManagement() {
 
   function openCreateModal() {
     setMode('create')
-    const firstStore = stores[0]
     setForm({
       name: '',
       email: '',
       phone: '',
-      store: firstStore?.name || '',
-      storeId: firstStore?.id ? String(firstStore.id) : '',
+      store: '',
+      storeId: '',
       role: 'Staff',
       status: 'active',
       username: '',
@@ -87,7 +86,27 @@ export default function StaffManagement() {
   function openEditModal(s) {
     setMode('edit')
     setSelectedStaff(s)
-    setForm({ name: s.name, email: s.email, phone: s.phone, store: s.store, storeId: s.storeId || s.originalStoreId || '', role: s.role, status: s.status, username: s.username || '', password: '' })
+    let storeId = s.storeId || s.originalStoreId || ''
+    
+    // Nếu storeId trống nhưng có store name, tìm ID của store đó
+    if (!storeId && s.store && s.store !== '-') {
+      const matchedStore = stores.find(store => store.name === s.store)
+      if (matchedStore) {
+        storeId = String(matchedStore.id)
+      }
+    }
+    
+    setForm({ 
+      name: s.name, 
+      email: s.email, 
+      phone: s.phone, 
+      store: s.store, 
+      storeId: storeId ? String(storeId) : '', 
+      role: s.role, 
+      status: s.status, 
+      username: s.username || '', 
+      password: '' 
+    })
     setError('')
     setSuccess('')
     setShowModal(true)

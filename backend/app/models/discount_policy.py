@@ -15,6 +15,16 @@ class DiscountPolicy(Base):
         ForeignKey("supermarkets.id", ondelete="CASCADE"),
         nullable=False,
     )
+    category_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        ForeignKey("categories.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    product_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        ForeignKey("products.id", ondelete="CASCADE"),
+        nullable=True,
+    )
     name: Mapped[str] = mapped_column(String(255), nullable=False, default="Near-expiry")
     min_days_left: Mapped[int] = mapped_column(Integer, nullable=False)
     max_days_left: Mapped[int] = mapped_column(Integer, nullable=False)

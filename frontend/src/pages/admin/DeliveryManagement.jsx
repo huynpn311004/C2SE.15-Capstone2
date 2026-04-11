@@ -146,8 +146,6 @@ export default function DeliveryManagement() {
     setCreateError('')
     setCreateSuccess('')
 
-    const delivery = deliveryPartners.find((item) => !item.accountCreated) || deliveryPartners[0]
-
     if (!createForm.manager.trim()) {
       setCreateError('Người phụ trách không được để trống.')
       return
@@ -199,18 +197,8 @@ export default function DeliveryManagement() {
         activityStatus: createForm.activityStatus,
       }
 
-      if (delivery) {
-        await createAdminDeliveryAccount(delivery.id, payload)
-        setCreateSuccess(
-          delivery.accountCreated
-            ? `Đã cập nhật lại tài khoản cho ${delivery.name}.`
-            : `Đã tạo tài khoản thành công cho ${delivery.name}.`
-        )
-      } else {
-        await createAdminDeliveryWithAccount(payload)
-        setCreateSuccess(`Đã tạo tài khoản thành công cho ${payload.manager}.`)
-      }
-
+      await createAdminDeliveryWithAccount(payload)
+      setCreateSuccess(`Đã tạo tài khoản thành công cho ${payload.manager}.`)
       await loadDeliveries()
     } catch (err) {
       setCreateError(err?.response?.data?.detail || 'Không thể tạo tài khoản đối tác giao hàng.')

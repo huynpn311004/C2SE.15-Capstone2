@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { fetchCustomerProductDetail } from "../../services/customerApi";
+import { getProductImageUrl } from "../../services/staffApi";
 import './CustomerProductDetail.css';
 
 const CART_KEY = 'seims_customer_cart';
@@ -108,7 +109,7 @@ const CustomerProductDetail = () => {
             {/* Product Image */}
             <div className="customer-product-detail-image">
               <img 
-                src={product.imageUrl || product.image} 
+                src={getProductImageUrl(product.imageUrl || product.image)} 
                 alt={product.name}
               />
             </div>

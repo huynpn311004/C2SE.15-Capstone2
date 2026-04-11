@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createCustomerOrder } from '../../services/customerApi';
+import { getProductImageUrl } from '../../services/staffApi';
 import './CustomerCheckout.css';
 
 const CART_KEY = 'seims_customer_cart';
@@ -253,7 +254,7 @@ const CustomerCheckout = () => {
                 {cart.map(item => (
                   <div key={item.id} className="customer-checkout-item">
                     <div className="customer-checkout-item-image">
-                      <img src={item.imageUrl || item.image} alt={item.name} />
+                      <img src={getProductImageUrl(item.imageUrl || item.image)} alt={item.name} />
                     </div>
                     <div className="customer-checkout-item-info">
                       <p className="customer-checkout-item-name">{item.name}</p>

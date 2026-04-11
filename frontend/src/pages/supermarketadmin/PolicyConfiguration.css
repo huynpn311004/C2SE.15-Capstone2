@@ -327,6 +327,50 @@
 .btn-close { background: transparent; color: var(--sa-muted); border: 1px solid var(--sa-border); }
 .btn-close:hover { background: var(--sa-bg); color: var(--sa-ink); }
 
+/* FORM FIELDS - NEW STYLES */
+.sapolicy-form-field.full-width {
+  grid-column: 1 / -1;
+}
+
+.sapolicy-radio-group {
+  display: flex;
+  gap: 1.5rem;
+  padding: 0.75rem 0;
+}
+
+.sapolicy-radio-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  user-select: none;
+  font-size: 0.9rem;
+  color: #134e4a;
+}
+
+.sapolicy-radio-label input[type="radio"] {
+  cursor: pointer;
+  accent-color: #0f766e;
+  width: 18px;
+  height: 18px;
+}
+
+.sapolicy-radio-label span {
+  font-weight: 500;
+}
+
+/* TABLE APPLIES-TO COLUMN */
+.sapolicy-applies-to {
+  display: inline-block;
+  padding: 0.4rem 0.6rem;
+  background: rgba(15, 118, 110, 0.08);
+  border-radius: 6px;
+  color: #0f766e;
+  font-size: 0.82rem;
+  font-weight: 500;
+  border: 1px solid rgba(15, 118, 110, 0.2);
+}
+
 @media (max-width: 768px) {
   .sapolicy-page { gap: 0.8rem; overflow-y: auto; height: auto; }
   .sapolicy-toolbar { flex-direction: column; align-items: stretch; }
@@ -340,4 +384,5 @@
   .sapolicy-form-footer { flex-direction: column; }
   .sapolicy-form-actions { width: 100%; flex-direction: column; }
   .sapolicy-form-actions .btn-large { width: 100%; }
+  .sapolicy-radio-group { flex-direction: column; gap: 0.75rem; }
 }

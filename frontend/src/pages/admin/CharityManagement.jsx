@@ -233,8 +233,6 @@ export default function CharityManagement() {
     setCreateError('')
     setCreateSuccess('')
 
-    const charity = charities.find((item) => !item.accountCreated) || charities[0]
-
     if (!createForm.name.trim()) {
       setCreateError('Tên tổ chức không được để trống.')
       return
@@ -281,22 +279,13 @@ export default function CharityManagement() {
         director: createForm.director.trim(),
         email: createForm.email.trim(),
         phone: createForm.phone.trim(),
+        address: createForm.address.trim(),
         password: createForm.password,
         activityStatus: createForm.activityStatus,
       }
 
-      if (charity) {
-        await createAdminCharityAccount(charity.id, payload)
-        setCreateSuccess(
-          charity.accountCreated
-            ? `Đã cập nhật lại tài khoản cho ${charity.name}.`
-            : `Đã tạo tài khoản thành công cho ${charity.name}.`
-        )
-      } else {
-        await createAdminCharityWithAccount(payload)
-        setCreateSuccess(`Đã tạo tài khoản thành công cho ${payload.name}.`)
-      }
-
+      await createAdminCharityWithAccount(payload)
+      setCreateSuccess(`Đã tạo tài khoản thành công cho ${payload.name}.`)
       await loadCharities()
     } catch (err) {
       setCreateError(err?.response?.data?.detail || 'Không thể tạo tài khoản charity.')
