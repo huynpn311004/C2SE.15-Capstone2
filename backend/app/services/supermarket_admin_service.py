@@ -1,9 +1,16 @@
 """Supermarket admin service layer with business logic."""
 
 import re
-from sqlalchemy import text
-from sqlalchemy.orm import Session
+from sqlalchemy import func, and_
+from sqlalchemy.orm import Session, aliased
 from fastapi import HTTPException, status
+
+from app.models.user import User
+from app.models.store import Store
+from app.models.donation_request import DonationRequest
+from app.models.donation_offer import DonationOffer
+from app.models.inventory_lot import InventoryLot
+from app.models.product import Product
 
 
 # ========== Helper Functions ==========
@@ -14,17 +21,7 @@ def _dict_row(row) -> dict:
 
 def _get_supermarket_scope(db: Session, user_id: int) -> int:
     """Get supermarket_id for supermarket admin."""
-    user = db.execute(
-        text(
-            """
-            SELECT id, role, supermarket_id
-            FROM users
-            WHERE id = :id
-            LIMIT 1
-            """
-        ),
-        {"id": user_id},
-    ).first()
+    user = db.query(User).filter(User.id == user_id).first()
 
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -58,17 +55,9 @@ def _generate_unique_store_code(db: Session, supermarket_id: int, name: str) -> 
     index = 1
 
     while True:
-        exists = db.execute(
-            text(
-                """
-                SELECT id
-                FROM stores
-                WHERE supermarket_id = :supermarket_id
-                  AND code = :code
-                LIMIT 1
-                """
-            ),
-            {"supermarket_id": supermarket_id, "code": candidate},
+        exists = db.query(Store).filter(
+            Store.supermarket_id == supermarket_id,
+            Store.code == candidate
         ).first()
 
         if not exists:
@@ -83,40 +72,39 @@ def list_stores(db: Session, user_id: int) -> dict:
     """List all stores for supermarket admin."""
     supermarket_id = _get_supermarket_scope(db, user_id)
 
-    rows = db.execute(
-        text(
-            """
-            SELECT
-                st.id,
-                st.code,
-                st.name,
-                st.location,
-                st.phone,
-                COUNT(u.id) AS staff_count
-            FROM stores st
-            LEFT JOIN users u
-              ON u.store_id = st.id
-             AND u.role = 'store_staff'
-            WHERE st.supermarket_id = :supermarket_id
-            GROUP BY st.id, st.code, st.name, st.location, st.phone
-            ORDER BY st.id DESC
-            """
-        ),
-        {"supermarket_id": supermarket_id},
+    u_alias = aliased(User)
+    rows = db.query(
+        Store.id,
+        Store.code,
+        Store.name,
+        Store.location,
+        Store.phone,
+        func.count(u_alias.id).label("staff_count")
+    ).outerjoin(
+        u_alias,
+        and_(
+            u_alias.store_id == Store.id,
+            u_alias.role == 'store_staff'
+        )
+    ).filter(
+        Store.supermarket_id == supermarket_id
+    ).group_by(
+        Store.id, Store.code, Store.name, Store.location, Store.phone
+    ).order_by(
+        Store.id.desc()
     ).all()
 
     items = []
     for row in rows:
-        item = _dict_row(row)
         items.append(
             {
-                "id": item["id"],
-                "name": item["name"],
-                "address": item["location"] or "",
-                "phone": item["phone"] or "",
+                "id": row[0],
+                "name": row[2],
+                "address": row[3] or "",
+                "phone": row[4] or "",
                 "status": "active",
-                "staffCount": int(item["staff_count"] or 0),
-                "code": item["code"],
+                "staffCount": int(row[5] or 0),
+                "code": row[1],
             }
         )
 
@@ -142,39 +130,26 @@ def create_store(db: Session, user_id: int, name: str, address: str = "", code: 
     else:
         code = _generate_unique_store_code(db, supermarket_id, name)
 
-    existing = db.execute(
-        text(
-            """
-            SELECT id
-            FROM stores
-            WHERE supermarket_id = :supermarket_id
-              AND code = :code
-            LIMIT 1
-            """
-        ),
-        {"supermarket_id": supermarket_id, "code": code},
+    existing = db.query(Store.id).filter(
+        Store.supermarket_id == supermarket_id,
+        Store.code == code
     ).first()
     if existing:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Mã store đã tồn tại.")
 
-    result = db.execute(
-        text(
-            """
-            INSERT INTO stores (supermarket_id, code, name, location, phone)
-            VALUES (:supermarket_id, :code, :name, :location, :phone)
-            """
-        ),
-        {
-            "supermarket_id": supermarket_id,
-            "code": code,
-            "name": name,
-            "location": address or None,
-            "phone": phone or None,
-        },
+    new_store = Store(
+        supermarket_id=supermarket_id,
+        code=code,
+        name=name,
+        location=address or None,
+        phone=phone or None
     )
+    db.add(new_store)
+    db.flush()
+    store_id = new_store.id
     db.commit()
 
-    return {"success": True, "id": result.lastrowid}
+    return {"success": True, "id": store_id}
 
 
 def update_store(db: Session, user_id: int, store_id: int, name: str, address: str = "", phone: str = "") -> dict:
@@ -186,39 +161,23 @@ def update_store(db: Session, user_id: int, store_id: int, name: str, address: s
     if not name:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tên store không được để trống.")
 
-    existing = db.execute(
-        text(
-            """
-            SELECT id
-            FROM stores
-            WHERE id = :store_id
-              AND supermarket_id = :supermarket_id
-            LIMIT 1
-            """
-        ),
-        {"store_id": store_id, "supermarket_id": supermarket_id},
+    existing = db.query(Store.id).filter(
+        Store.id == store_id,
+        Store.supermarket_id == supermarket_id
     ).first()
     if not existing:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Store không tồn tại.")
 
-    db.execute(
-        text(
-            """
-            UPDATE stores
-            SET name = :name,
-                location = :location,
-                phone = :phone
-            WHERE id = :store_id
-              AND supermarket_id = :supermarket_id
-            """
-        ),
+    db.query(Store).filter(
+        Store.id == store_id,
+        Store.supermarket_id == supermarket_id
+    ).update(
         {
-            "name": name,
-            "location": address or None,
-            "phone": phone or None,
-            "store_id": store_id,
-            "supermarket_id": supermarket_id,
+            Store.name: name,
+            Store.location: address or None,
+            Store.phone: phone or None
         },
+        synchronize_session=False
     )
     db.commit()
     return {"success": True}
@@ -229,9 +188,9 @@ def delete_store(db: Session, user_id: int, store_id: int) -> dict:
     supermarket_id = _get_supermarket_scope(db, user_id)
 
     # Check if store has staff
-    staff_count = db.execute(
-        text("SELECT COUNT(*) FROM users WHERE store_id = :store_id AND role = 'store_staff'"),
-        {"store_id": store_id},
+    staff_count = db.query(func.count(User.id)).filter(
+        User.store_id == store_id,
+        User.role == 'store_staff'
     ).scalar() or 0
 
     if staff_count > 0:
@@ -240,19 +199,98 @@ def delete_store(db: Session, user_id: int, store_id: int) -> dict:
             detail=f"Không thể xóa store có {staff_count} nhân viên."
         )
 
-    result = db.execute(
-        text(
-            """
-            DELETE FROM stores
-            WHERE id = :store_id
-              AND supermarket_id = :supermarket_id
-            """
-        ),
-        {"store_id": store_id, "supermarket_id": supermarket_id},
-    )
+    rowcount = db.query(Store).filter(
+        Store.id == store_id,
+        Store.supermarket_id == supermarket_id
+    ).delete()
     db.commit()
 
-    if (result.rowcount or 0) == 0:
+    if (rowcount or 0) == 0:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Store không tồn tại.")
 
     return {"success": True, "message": "Xóa store thành công"}
+
+
+# ========== Donation Monitoring ==========
+def list_donation_monitoring(db: Session, user_id: int, status_filter: str = "all") -> dict:
+    """List donation requests for all stores in supermarket."""
+    supermarket_id = _get_supermarket_scope(db, user_id)
+
+    query = db.query(
+        DonationRequest.id,
+        DonationRequest.request_qty,
+        DonationRequest.status,
+        DonationRequest.received_at,
+        DonationRequest.created_at,
+        Product.name.label('product_name'),
+        InventoryLot.expiry_date,
+        Store.name.label('store_name'),
+        User.full_name.label('charity_name'),
+    ).join(
+        DonationOffer, DonationOffer.id == DonationRequest.offer_id
+    ).join(
+        Store, Store.id == DonationOffer.store_id
+    ).join(
+        InventoryLot, InventoryLot.id == DonationOffer.lot_id
+    ).join(
+        Product, Product.id == InventoryLot.product_id
+    ).join(
+        User, User.id == DonationRequest.charity_id
+    ).filter(
+        Store.supermarket_id == supermarket_id
+    )
+
+    if status_filter != "all":
+        query = query.filter(DonationRequest.status == status_filter)
+
+    rows = query.order_by(
+        DonationRequest.created_at.desc()
+    ).limit(500).all()
+
+    items = []
+    for row in rows:
+        items.append({
+            "id": row.id,
+            "items": row.product_name,
+            "quantity": int(row.request_qty or 0),
+            "store": row.store_name or "-",
+            "recipient": row.charity_name or "-",
+            "status": row.status,
+            "date": row.created_at.strftime("%d/%m/%Y %H:%M") if row.created_at else "-",
+            "exp": row.expiry_date.strftime("%d/%m/%Y") if row.expiry_date else "-",
+        })
+
+    return {"items": items}
+
+
+def update_donation_request_status(db: Session, user_id: int, request_id: int, new_status: str) -> dict:
+    """Update donation request status for supermarket admin."""
+    supermarket_id = _get_supermarket_scope(db, user_id)
+
+    valid_statuses = ['pending', 'approved', 'rejected']
+    if new_status not in valid_statuses:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Trạng thái không hợp lệ. Chỉ chấp nhận: {', '.join(valid_statuses)}"
+        )
+
+    # Verify that the request belongs to a store in this supermarket
+    request = db.query(DonationRequest).join(
+        DonationOffer, DonationOffer.id == DonationRequest.offer_id
+    ).join(
+        Store, Store.id == DonationOffer.store_id
+    ).filter(
+        DonationRequest.id == request_id,
+        Store.supermarket_id == supermarket_id
+    ).first()
+
+    if not request:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Donation request không tồn tại hoặc không thuộc supermarket của bạn"
+        )
+
+    request.status = new_status
+    db.commit()
+
+    return {"success": True, "message": f"Cập nhật trạng thái thành {new_status} thành công"}

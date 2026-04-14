@@ -6,7 +6,19 @@ import {
   deleteDiscountPolicy,
   toggleDiscountPolicy,
 } from '../../services/discountPolicyApi'
+import { fetchSupermarketProducts, fetchSupermarketCategories } from '../../services/supermarketAdminApi'
 import './PolicyConfiguration.css'
+
+function getUserId() {
+  try {
+    const raw = localStorage.getItem('seims_auth_user')
+    if (!raw) return null
+    const user = JSON.parse(raw)
+    return user?.id || null
+  } catch {
+    return null
+  }
+}
 
 export default function PolicyConfiguration() {
   const [policies, setPolicies] = useState([])
@@ -59,23 +71,39 @@ export default function PolicyConfiguration() {
 
   async function loadCategories() {
     try {
-      const response = await fetch('/api/product/categories')
-      if (!response.ok) throw new Error('Failed to fetch categories')
-      const data = await response.json()
-      setCategories(data.items || [])
+      const userId = getUserId()
+      if (!userId) {
+        console.warn('No user ID found')
+        setError('Vui lòng đăng nhập lại')
+        return
+      }
+      console.log('Loading categories for user:', userId)
+      const data = await fetchSupermarketCategories(userId)
+      console.log('Categories response:', data)
+      setCategories(Array.isArray(data) ? data : [])
     } catch (err) {
       console.error('Error loading categories:', err)
+      const errorMsg = err.response?.data?.detail || err.message || 'Không thể tải danh mục'
+      setError(errorMsg)
     }
   }
 
   async function loadProducts() {
     try {
-      const response = await fetch('/api/customer/products')
-      if (!response.ok) throw new Error('Failed to fetch products')
-      const data = await response.json()
-      setProducts(data.items || [])
+      const userId = getUserId()
+      if (!userId) {
+        console.warn('No user ID found')
+        setError('Vui lòng đăng nhập lại')
+        return
+      }
+      console.log('Loading products for user:', userId)
+      const data = await fetchSupermarketProducts(userId)
+      console.log('Products response:', data)
+      setProducts(Array.isArray(data) ? data : [])
     } catch (err) {
       console.error('Error loading products:', err)
+      const errorMsg = err.response?.data?.detail || err.message || 'Không thể tải sản phẩm'
+      setError(errorMsg)
     }
   }
 

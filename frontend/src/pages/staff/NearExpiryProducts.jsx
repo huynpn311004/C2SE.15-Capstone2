@@ -27,12 +27,7 @@ export default function NearExpiryProducts() {
 
   const filtered = useMemo(() => {
     return lots.filter((item) => {
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      const expiry = new Date(item.expiryDate)
-      expiry.setHours(0, 0, 0, 0)
-      const daysLeft = Math.ceil((expiry - today) / (1000 * 60 * 60 * 24))
-      return daysLeft <= maxDays && daysLeft >= 0
+      return item.daysLeft <= maxDays && item.daysLeft >= 0
     })
   }, [lots, maxDays])
 
@@ -67,12 +62,8 @@ export default function NearExpiryProducts() {
               <div className="empty-cell">Đang tải...</div>
             ) : filtered.length > 0 ? (
               filtered.map((item) => {
-                const today = new Date()
-                today.setHours(0, 0, 0, 0)
-                const expiry = new Date(item.expiryDate)
-                expiry.setHours(0, 0, 0, 0)
-                const daysLeft = Math.ceil((expiry - today) / (1000 * 60 * 60 * 24))
-                const discount = daysLeft <= 2 ? 40 : daysLeft <= 4 ? 30 : 20
+                const daysLeft = item.daysLeft
+                const discount = item.discount
 
                 return (
                   <div key={item.id} className="near-expiry-item">
@@ -84,7 +75,7 @@ export default function NearExpiryProducts() {
                     </div>
                     <div className="near-expiry-item-actions">
                       <span className={`badge ${daysLeft <= 2 ? 'badge-danger' : 'badge-warning'}`}>
-                        Giảm {discount}%
+                        Giảm {Math.round(discount)}%
                       </span>
                       <button
                         onClick={() => applyDiscount(item.id)}

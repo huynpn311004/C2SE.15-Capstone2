@@ -161,6 +161,7 @@ def update_charity(charity_id: int, data: UpdateCharityRequest, db: Session = De
 		data.director.strip(),
 		data.email.strip().lower(),
 		data.phone.strip() if data.phone else "",
+		data.address.strip() if data.address else "",
 	)
 
 
@@ -245,10 +246,10 @@ def create_delivery_with_account(data: CreateDeliveryAccountRequest, db: Session
 		data.manager.strip(),
 		data.email.strip().lower(),
 		data.phone.strip(),
-		data.vehicleType.strip() if data.vehicleType else "",
-		data.licensePlate.strip() if data.licensePlate else "",
+		data.vehicleType.strip(),
+		data.licensePlate.strip(),
 		data.password,
-		data.passwordStatus.strip().lower(),
+		data.activityStatus.strip().lower(),
 	)
 
 

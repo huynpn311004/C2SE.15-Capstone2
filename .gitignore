@@ -17,3 +17,4 @@ frontend/*.local
 .idea/
 .DS_Store
 *.log
+*.pyneat.bak

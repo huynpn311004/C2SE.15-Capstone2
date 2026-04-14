@@ -134,6 +134,17 @@ def create_app():
         allow_headers=["*"],
     )
 
+    # Add security headers middleware
+    @app.middleware("http")
+    async def add_security_headers(request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        response.headers["Content-Security-Policy"] = "default-src 'self'"
+        return response
+
     uploads_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads")
     os.makedirs(uploads_dir, exist_ok=True)
     if os.path.exists(uploads_dir):

@@ -205,7 +205,7 @@ class CreateDeliveryAccountRequest(BaseModel):
 	vehicleType: Optional[str] = None
 	licensePlate: Optional[str] = None
 	password: str = Field(min_length=6, max_length=128)
-	passwordStatus: str = Field(default="active")
+	activityStatus: str = Field(default="active")
 
 
 class CreateDeliveryResponse(BaseModel):

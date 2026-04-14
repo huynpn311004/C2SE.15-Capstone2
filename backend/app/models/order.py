@@ -2,7 +2,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import BigInteger, DECIMAL, DateTime, Enum, ForeignKey, String, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 
@@ -45,3 +45,8 @@ class Order(Base):
         DateTime(timezone=False),
         nullable=True,
     )
+    shipping_address: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+    # Relationships
+    customer: Mapped["User"] = relationship("User", foreign_keys=[customer_id])
+    store: Mapped["Store"] = relationship("Store", foreign_keys=[store_id])

@@ -126,6 +126,7 @@ def format_delivery_data(delivery: Delivery, db: Session, include_order_detail: 
         "status": delivery.status,
         "assigned_at": delivery.assigned_at.strftime("%Y-%m-%d %H:%M:%S") if delivery.assigned_at else "",
         "delivered_at": delivery.delivered_at.strftime("%Y-%m-%d %H:%M:%S") if delivery.delivered_at else None,
+        "completed_at": delivery.delivered_at.strftime("%Y-%m-%d %H:%M:%S") if delivery.delivered_at else None,
         "created_at": order.created_at.strftime("%Y-%m-%d %H:%M:%S") if order.created_at else "",
         "reward": reward,
     }
@@ -220,7 +221,7 @@ def get_delivery_history(db: Session, user_id: int, filter: str = "all") -> dict
     return {"items": orders, "total": len(orders)}
 
 
-def update_delivery_status(db: Session, delivery_id: int, status: str, user_id: int) -> dict:
+def update_delivery_status(db: Session, delivery_id: int, new_status: str, user_id: int) -> dict:
     """Update delivery status with validation."""
     dp = get_delivery_partner_user(db, user_id)
 
@@ -237,15 +238,15 @@ def update_delivery_status(db: Session, delivery_id: int, status: str, user_id: 
         )
 
     valid_statuses = ["assigned", "picking_up", "delivering", "completed"]
-    if status not in valid_statuses:
+    if new_status not in valid_statuses:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Trạng thái không hợp lệ. Các trạng thái hợp lệ: {', '.join(valid_statuses)}"
         )
 
-    delivery.status = status
+    delivery.status = new_status
 
-    if status == "completed":
+    if new_status == "completed":
         delivery.delivered_at = datetime.now()
 
         if delivery.order_id:

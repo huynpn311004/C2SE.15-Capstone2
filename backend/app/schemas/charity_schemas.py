@@ -50,3 +50,9 @@ class DonationRequestItem(BaseModel):
 
 class DonationRequestsResponse(BaseModel):
     items: list[DonationRequestItem]
+
+
+class CreateDonationRequestRequest(BaseModel):
+    offerId: int
+    requestQty: int
+    note: str = ""

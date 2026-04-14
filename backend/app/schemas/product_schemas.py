@@ -31,9 +31,7 @@ class UpdateProductRequest(BaseModel):
     name: str = Field(..., min_length=1)
     basePrice: float = Field(..., ge=0)
     categoryId: int | None = None
-    imageUrl: str | None = None
-
-
+    imageUrl: str | None = None 
 class ProductCategoryItem(BaseModel):
     id: int
     name: str

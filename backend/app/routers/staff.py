@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, File, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Query, UploadFile, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -29,6 +29,8 @@ from app.schemas.staff_schemas import (
     ImportInventoryLotsResponse,
     ImportProductsResponse,
     UploadImageResponse,
+    CreateBulkDonationOffersRequest,
+    UpdateDonationRequestStatusRequest,
 )
 from app.services import staff_service
 
@@ -250,6 +252,67 @@ def staff_dashboard_summary(
     return staff_service.staff_dashboard_summary(db, scope["store_id"])
 
 
+# ========== Donation Offers ==========
+@router.get("/donation-offers")
+def list_staff_donation_offers(
+    user_id: int = Query(...),
+    status_filter: str = Query(default="all"),
+    db: Session = Depends(get_db),
+):
+    return staff_service.list_staff_donation_offers(db, user_id, status_filter)
+
+
+@router.post("/donation-offers")
+def create_staff_donation_offer(
+    lot_id: int = Query(...),
+    offered_qty: int = Query(...),
+    user_id: int = Query(...),
+    db: Session = Depends(get_db),
+):
+    return staff_service.create_donation_offer(db, user_id, lot_id, offered_qty)
+
+
+@router.post("/donation-offers/bulk")
+def create_bulk_donation_offers(
+    data: CreateBulkDonationOffersRequest,
+    user_id: int = Query(...),
+    db: Session = Depends(get_db),
+):
+    if not data.items:
+        raise HTTPException(status_code=400, detail="Danh sách sản phẩm không được trống")
+    return staff_service.create_bulk_donation_offers(db, user_id, data.items)
+
+
+@router.put("/donation-offers/{offer_id}/status")
+def update_staff_donation_offer_status(
+    offer_id: int,
+    new_status: str = Query(...),
+    user_id: int = Query(...),
+    db: Session = Depends(get_db),
+):
+    return staff_service.update_donation_offer_status(db, user_id, offer_id, new_status)
+
+
+# ========== Donation Requests ==========
+@router.get("/donation-requests")
+def list_staff_donation_requests(
+    user_id: int = Query(...),
+    status_filter: str = Query(default="all"),
+    db: Session = Depends(get_db),
+):
+    return staff_service.list_staff_donation_requests(db, user_id, status_filter)
+
+
+@router.put("/donation-requests/{request_id}/status")
+def update_staff_donation_request_status(
+    request_id: int,
+    data: UpdateDonationRequestStatusRequest,
+    user_id: int = Query(...),
+    db: Session = Depends(get_db),
+):
+    return staff_service.update_donation_request_status(db, user_id, request_id, data.status)
+
+
 # ========== Inventory Lots ==========
 @router.get("/inventory-lots", response_model=InventoryLotsListResponse)
 def list_inventory_lots(
@@ -275,7 +338,8 @@ def create_inventory_lot(
         data.quantity,
         data.expiryDate,
         data.status,
-        data.actionNote
+        data.actionNote,
+        data.manufacturingDate
     )
 
 
@@ -293,7 +357,8 @@ def update_inventory_lot(
         data.productName,
         data.quantity,
         data.expiryDate,
-        data.status
+        data.status,
+        data.manufacturingDate
     )
 
 

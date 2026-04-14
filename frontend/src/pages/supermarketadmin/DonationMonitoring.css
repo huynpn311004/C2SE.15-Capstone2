@@ -127,15 +127,61 @@
 .badge-danger { color: var(--sa-error); background: rgba(185, 28, 28, 0.15); border-color: var(--sa-error); }
 
 /* ACTION BUTTONS */
-.action-group { display: flex; gap: 0.28rem; }
-.action-btn { background: none; border: 1px solid var(--sa-border); border-radius: 8px; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; }
-.action-btn:hover { transform: translateY(-1px); }
-.icon-action-btn { width: 30px; min-width: 30px; height: 30px; padding: 0; }
-.icon-action-btn svg { width: 15px; height: 15px; fill: currentColor; }
-.btn-approve { color: var(--sa-success); border-color: rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.06); }
-.btn-approve:hover { background: var(--sa-success); color: white; }
-.btn-reject { color: var(--sa-error); border-color: rgba(185, 28, 28, 0.4); background: rgba(185, 28, 28, 0.06); }
-.btn-reject:hover { background: var(--sa-error); color: white; }
+.sadonmon-actions { 
+  display: flex; 
+  gap: 0.8rem; 
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.sadonmon-btn-approve,
+.sadonmon-btn-reject {
+  padding: 0.48rem 0.8rem;
+  border: 1px solid;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: none;
+  white-space: nowrap;
+}
+
+.sadonmon-btn-approve {
+  color: var(--sa-success);
+  border-color: rgba(16, 185, 129, 0.4);
+  background: rgba(16, 185, 129, 0.08);
+}
+
+.sadonmon-btn-approve:hover:not(:disabled) {
+  background: var(--sa-success);
+  color: white;
+  border-color: var(--sa-success);
+}
+
+.sadonmon-btn-reject {
+  color: var(--sa-error);
+  border-color: rgba(185, 28, 28, 0.4);
+  background: rgba(185, 28, 28, 0.08);
+}
+
+.sadonmon-btn-reject:hover:not(:disabled) {
+  background: var(--sa-error);
+  color: white;
+  border-color: var(--sa-error);
+}
+
+.sadonmon-btn-approve:disabled,
+.sadonmon-btn-reject:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.sadonmon-status-text {
+  color: var(--sa-muted);
+  font-size: 0.8rem;
+  font-weight: 500;
+}
 
 @media (max-width: 768px) {
   .sadonmon-page { gap: 0.8rem; overflow-y: auto; height: auto; }

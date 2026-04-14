@@ -1,9 +1,13 @@
 """Product service layer with business logic."""
 
 import re
-from sqlalchemy import text
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
+
+from app.models.product import Product
+from app.models.category import Category
+from app.models.inventory_lot import InventoryLot
 
 
 # ========== Helper Functions ==========
@@ -22,17 +26,9 @@ def _generate_unique_sku(db: Session, supermarket_id: int, product_name: str) ->
     index = 1
 
     while True:
-        exists = db.execute(
-            text(
-                """
-                SELECT id
-                FROM products
-                WHERE supermarket_id = :supermarket_id
-                  AND sku = :sku
-                LIMIT 1
-                """
-            ),
-            {"supermarket_id": supermarket_id, "sku": candidate},
+        exists = db.query(Product).filter(
+            Product.supermarket_id == supermarket_id,
+            Product.sku == candidate
         ).first()
 
         if not exists:
@@ -49,23 +45,15 @@ def _ensure_unique_sku_for_product(
     current_product_id: int | None = None,
 ) -> None:
     """Check SKU uniqueness within supermarket."""
-    conflict = db.execute(
-        text(
-            """
-            SELECT id
-            FROM products
-            WHERE supermarket_id = :supermarket_id
-              AND sku = :sku
-              AND (:current_product_id IS NULL OR id != :current_product_id)
-            LIMIT 1
-            """
-        ),
-        {
-            "supermarket_id": supermarket_id,
-            "sku": sku,
-            "current_product_id": current_product_id,
-        },
-    ).first()
+    query = db.query(Product).filter(
+        Product.supermarket_id == supermarket_id,
+        Product.sku == sku
+    )
+    
+    if current_product_id is not None:
+        query = query.filter(Product.id != current_product_id)
+    
+    conflict = query.first()
 
     if conflict:
         raise ValueError(f"SKU '{sku}' da ton tai")
@@ -74,33 +62,26 @@ def _ensure_unique_sku_for_product(
 def _resolve_or_create_product(db: Session, supermarket_id: int, product_name: str) -> int:
     """Get or create product by name."""
     name = product_name.strip()
-    product = db.execute(
-        text(
-            """
-            SELECT id
-            FROM products
-            WHERE supermarket_id = :supermarket_id
-              AND LOWER(name) = LOWER(:name)
-            LIMIT 1
-            """
-        ),
-        {"supermarket_id": supermarket_id, "name": name},
+    product = db.query(Product.id).filter(
+        Product.supermarket_id == supermarket_id,
+        func.lower(Product.name) == func.lower(name)
     ).first()
 
     if product:
         return int(product.id)
 
     sku = _generate_unique_sku(db, supermarket_id, name)
-    result = db.execute(
-        text(
-            """
-            INSERT INTO products (supermarket_id, category_id, sku, name, base_price, image_url)
-            VALUES (:supermarket_id, NULL, :sku, :name, 0, NULL)
-            """
-        ),
-        {"supermarket_id": supermarket_id, "sku": sku, "name": name},
+    new_product = Product(
+        supermarket_id=supermarket_id,
+        category_id=None,
+        sku=sku,
+        name=name,
+        base_price=0,
+        image_url=None
     )
-    return int(result.lastrowid)
+    db.add(new_product)
+    db.flush()
+    return int(new_product.id)
 
 
 def _resolve_or_create_category(db: Session, category_name: object) -> int | None:
@@ -109,64 +90,65 @@ def _resolve_or_create_category(db: Session, category_name: object) -> int | Non
     if not name:
         return None
 
-    existing = db.execute(
-        text(
-            """
-            SELECT id
-            FROM categories
-            WHERE LOWER(name) = LOWER(:name)
-            LIMIT 1
-            """
-        ),
-        {"name": name},
+    existing = db.query(Category.id).filter(
+        func.lower(Category.name) == func.lower(name)
     ).first()
 
     if existing:
         return int(existing.id)
 
-    result = db.execute(
-        text("INSERT INTO categories (name) VALUES (:name)"),
-        {"name": name},
-    )
-    return int(result.lastrowid)
+    new_category = Category(name=name)
+    db.add(new_category)
+    db.flush()
+    return int(new_category.id)
 
 
 # ========== Product CRUD Services ==========
 def list_products(db: Session, supermarket_id: int, category_filter: int | None, search: str | None) -> dict:
     """List products with optional category and search filters."""
-    query = """
-        SELECT p.id, p.sku, p.name, p.base_price, p.image_url,
-               c.name AS category_name, c.id AS category_id,
-               COALESCE(SUM(il.qty_on_hand), 0) AS total_stock
-        FROM products p
-        LEFT JOIN categories c ON c.id = p.category_id
-        LEFT JOIN inventory_lots il ON il.product_id = p.id
-        WHERE p.supermarket_id = :supermarket_id
-    """
-    params = {"supermarket_id": supermarket_id}
+    query = db.query(
+        Product.id,
+        Product.sku,
+        Product.name,
+        Product.base_price,
+        Product.image_url,
+        Category.name.label('category_name'),
+        Category.id.label('category_id'),
+        func.coalesce(func.sum(InventoryLot.qty_on_hand), 0).label('total_stock')
+    ).outerjoin(
+        Category, Category.id == Product.category_id
+    ).outerjoin(
+        InventoryLot, InventoryLot.product_id == Product.id
+    ).filter(
+        Product.supermarket_id == supermarket_id
+    )
 
     if category_filter is not None:
-        query += " AND p.category_id = :category_id"
-        params["category_id"] = category_filter
+        query = query.filter(Product.category_id == category_filter)
 
     if search:
-        query += " AND (p.name LIKE :search OR p.sku LIKE :search)"
-        params["search"] = f"%{search}%"
+        search_term = f"%{search}%"
+        query = query.filter(
+            (Product.name.ilike(search_term)) | (Product.sku.ilike(search_term))
+        )
 
-    query += " GROUP BY p.id, p.sku, p.name, p.base_price, p.image_url, c.name, c.id ORDER BY p.name ASC"
+    query = query.group_by(
+        Product.id, Product.sku, Product.name, Product.base_price, 
+        Product.image_url, Category.name, Category.id
+    ).order_by(Product.name.asc())
 
-    rows = db.execute(text(query), params).all()
+    rows = query.all()
 
     items = [
         {
-            "id": row.id,
-            "sku": row.sku,
-            "name": row.name,
-            "basePrice": float(row.base_price),
-            "imageUrl": row.image_url,
-            "categoryName": row.category_name or "Chưa phân loại",
-            "categoryId": row.category_id,
-            "totalStock": int(row.total_stock),
+            "id": row[0],
+            "sku": row[1],
+            "name": row[2],
+            "basePrice": float(row[3]),
+            "imageUrl": row[4],
+            "categoryName": row[5] or "Chưa phân loại",
+            "categoryId": row[6],
+            "totalStock": int(row[7]),
         }
         for row in rows
     ]
@@ -188,27 +170,22 @@ def create_product(db: Session, supermarket_id: int, name: str, sku: str, base_p
     if base_price is None or float(base_price) < 0:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Giá không hợp lệ")
 
-    existing = db.execute(
-        text("SELECT id FROM products WHERE supermarket_id = :sm AND sku = :sku LIMIT 1"),
-        {"sm": supermarket_id, "sku": sku},
+    existing = db.query(Product.id).filter(
+        Product.supermarket_id == supermarket_id,
+        Product.sku == sku
     ).first()
     if existing:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="SKU đã tồn tại")
 
-    db.execute(
-        text(
-            "INSERT INTO products (supermarket_id, category_id, sku, name, base_price, image_url) "
-            "VALUES (:sm, :cat, :sku, :name, :price, :img)"
-        ),
-        {
-            "sm": supermarket_id,
-            "cat": category_id if category_id else None,
-            "sku": sku,
-            "name": name,
-            "price": float(base_price),
-            "img": image_url,
-        },
+    new_product = Product(
+        supermarket_id=supermarket_id,
+        category_id=category_id if category_id else None,
+        sku=sku,
+        name=name,
+        base_price=float(base_price),
+        image_url=image_url
     )
+    db.add(new_product)
     db.commit()
 
     return {"message": "Tạo sản phẩm thành công"}
@@ -225,26 +202,19 @@ def update_product(db: Session, product_id: int, supermarket_id: int, name: str,
     if base_price is None or float(base_price) < 0:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Giá không hợp lệ")
 
-    product = db.execute(
-        text("SELECT id FROM products WHERE id = :id AND supermarket_id = :sm LIMIT 1"),
-        {"id": product_id, "sm": supermarket_id},
+    product = db.query(Product.id).filter(
+        Product.id == product_id,
+        Product.supermarket_id == supermarket_id
     ).first()
     if not product:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sản phẩm không tìm thấy")
 
-    db.execute(
-        text(
-            "UPDATE products SET name = :name, base_price = :price, "
-            "category_id = :cat, image_url = :img WHERE id = :id"
-        ),
-        {
-            "name": name,
-            "price": float(base_price),
-            "cat": category_id if category_id else None,
-            "img": image_url,
-            "id": product_id,
-        },
-    )
+    db.query(Product).filter(Product.id == product_id).update({
+        Product.name: name,
+        Product.base_price: float(base_price),
+        Product.category_id: category_id if category_id else None,
+        Product.image_url: image_url
+    }, synchronize_session=False)
     db.commit()
 
     return {"message": "Cập nhật sản phẩm thành công"}
@@ -252,16 +222,15 @@ def update_product(db: Session, product_id: int, supermarket_id: int, name: str,
 
 def delete_product(db: Session, product_id: int, supermarket_id: int) -> dict:
     """Delete product if no inventory lots reference it."""
-    product = db.execute(
-        text("SELECT id FROM products WHERE id = :id AND supermarket_id = :sm LIMIT 1"),
-        {"id": product_id, "sm": supermarket_id},
+    product = db.query(Product.id).filter(
+        Product.id == product_id,
+        Product.supermarket_id == supermarket_id
     ).first()
     if not product:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sản phẩm không tìm thấy")
 
-    has_lots = db.execute(
-        text("SELECT COUNT(*) FROM inventory_lots WHERE product_id = :product_id"),
-        {"product_id": product_id},
+    has_lots = db.query(func.count(InventoryLot.id)).filter(
+        InventoryLot.product_id == product_id
     ).scalar() or 0
 
     if has_lots > 0:
@@ -270,7 +239,7 @@ def delete_product(db: Session, product_id: int, supermarket_id: int) -> dict:
             detail=f"Không thể xóa: có {has_lots} lô hàng liên quan đến sản phẩm này"
         )
 
-    db.execute(text("DELETE FROM products WHERE id = :id"), {"id": product_id})
+    db.query(Product).filter(Product.id == product_id).delete()
     db.commit()
 
     return {"message": "Xóa sản phẩm thành công"}
@@ -278,19 +247,17 @@ def delete_product(db: Session, product_id: int, supermarket_id: int) -> dict:
 
 def list_product_categories(db: Session, supermarket_id: int) -> dict:
     """List all categories used by products."""
-    rows = db.execute(
-        text(
-            """
-            SELECT DISTINCT c.id, c.name
-            FROM categories c
-            LEFT JOIN products p ON p.category_id = c.id AND p.supermarket_id = :sm
-            WHERE c.id IN (SELECT category_id FROM products WHERE supermarket_id = :sm)
-               OR c.id NOT IN (SELECT DISTINCT category_id FROM products WHERE supermarket_id = :sm AND category_id IS NOT NULL)
-            ORDER BY c.name ASC
-            """
-        ),
-        {"sm": supermarket_id},
-    ).all()
+    # Get all distinct categories used by products in this supermarket
+    categories = db.query(
+        Category.id, Category.name
+    ).filter(
+        Category.id.in_(
+            db.query(Product.category_id).filter(
+                Product.supermarket_id == supermarket_id,
+                Product.category_id.isnot(None)
+            ).distinct()
+        )
+    ).order_by(Category.name.asc()).all()
 
-    items = [{"id": row.id, "name": row.name} for row in rows]
+    items = [{"id": row[0], "name": row[1]} for row in categories]
     return {"items": items}

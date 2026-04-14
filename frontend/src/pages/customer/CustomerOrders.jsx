@@ -22,7 +22,7 @@ function OrderCard({ order, onCancel, onCancelLoading }) {
       <div className="order-card-header">
         <div>
           <p className="order-card-id">Mã đơn: {order.id}</p>
-          <p className="order-card-date">📅 {order.createdAt}</p>
+          <p className="order-card-date">{order.createdAt}</p>
         </div>
         <span className="order-card-status" style={{ background: config.bg, color: config.color }}>
           {config.label}
@@ -43,18 +43,18 @@ function OrderCard({ order, onCancel, onCancelLoading }) {
 
       {/* Store Info */}
       {order.storeName && (
-        <p className="order-card-store">🏪 {order.storeName} {order.storeAddress && `- ${order.storeAddress}`}</p>
+        <p className="order-card-store">{order.storeName} {order.storeAddress && `- ${order.storeAddress}`}</p>
       )}
 
       {/* Payment Info */}
-      <p className="order-card-payment">💳 Thanh toán: {order.paymentMethod === 'cod' ? 'Tiền mặt (COD)' : order.paymentMethod}</p>
+      <p className="order-card-payment">Thanh toán: {order.paymentMethod === 'cod' ? 'Tiền mặt (COD)' : order.paymentMethod}</p>
 
       {/* Footer */}
       <div className="order-card-footer">
         <div>
           {order.paymentStatus && (
             <span className="order-card-payment-status" style={{ color: order.paymentStatus === 'paid' ? 'var(--seims-success)' : 'var(--seims-warning)' }}>
-              {order.paymentStatus === 'paid' ? '✅ Đã thanh toán' : '⏳ Chưa thanh toán'}
+              {order.paymentStatus === 'paid' ? 'Đã thanh toán' : 'Chưa thanh toán'}
             </span>
           )}
         </div>
@@ -70,13 +70,13 @@ function OrderCard({ order, onCancel, onCancelLoading }) {
           onClick={() => onCancel(order.orderId || order.id)}
           disabled={onCancelLoading}
         >
-          ❌ Hủy đơn hàng
+          Hủy đơn hàng
         </button>
       )}
 
       {order.status === 'completed' && (
         <button className="order-card-review-btn">
-          ⭐ Đánh giá đơn hàng
+          Đánh giá đơn hàng
         </button>
       )}
     </div>
@@ -162,7 +162,6 @@ const CustomerOrders = () => {
           </div>
         ) : filteredOrders.length === 0 ? (
           <div className="order-empty">
-            <p className="order-empty-icon">📦</p>
             <p className="order-empty-title">Không có đơn hàng nào</p>
             <p className="order-empty-text">
               {activeTab === 'pending' ? 'Bạn chưa có đơn hàng đang xử lý' :

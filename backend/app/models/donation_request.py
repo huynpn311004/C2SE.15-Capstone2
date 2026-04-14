@@ -22,7 +22,6 @@ class DonationRequest(Base):
     )
     request_qty: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
-    proof_image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=False), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=False),

@@ -163,8 +163,13 @@ class InventoryLotItem(BaseModel):
     lotCode: str
     productName: str
     quantity: int
+    manufacturingDate: str | None = None
     expiryDate: str
     status: str
+    basePrice: float
+    salePrice: float
+    discount: float
+    daysLeft: int
 
 
 class InventoryLotsListResponse(BaseModel):
@@ -175,6 +180,7 @@ class CreateInventoryLotRequest(BaseModel):
     lotCode: str = Field(..., min_length=1)
     productName: str = Field(..., min_length=1)
     quantity: int = Field(..., ge=0)
+    manufacturingDate: str | date | None = None
     expiryDate: str | date = Field(...)
     status: str | None = None
     actionNote: str = ""
@@ -184,6 +190,7 @@ class UpdateInventoryLotRequest(BaseModel):
     lotCode: str = Field(..., min_length=1)
     productName: str = Field(..., min_length=1)
     quantity: int = Field(..., ge=0)
+    manufacturingDate: str | date | None = None
     expiryDate: str | date = Field(...)
     status: str | None = None
 
@@ -219,3 +226,17 @@ class ImportProductsResponse(BaseModel):
 class UploadImageResponse(BaseModel):
     url: str
     image_url: str
+
+
+# ========== Donation Offers & Requests ==========
+class DonationOfferItem(BaseModel):
+    lot_id: int
+    offered_qty: int
+
+
+class CreateBulkDonationOffersRequest(BaseModel):
+    items: list[DonationOfferItem]
+
+
+class UpdateDonationRequestStatusRequest(BaseModel):
+    status: str

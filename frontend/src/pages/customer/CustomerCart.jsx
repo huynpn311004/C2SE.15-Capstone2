@@ -31,7 +31,7 @@ function Toast({ message, visible }) {
   if (!visible) return null;
   return (
     <div className="customer-cart-toast">
-      &#10003; {message}
+      {message}
     </div>
   );
 }
@@ -109,16 +109,7 @@ const CustomerCart = () => {
           <div className="customer-cart-content">
             {cart.length === 0 ? (
               <div className="customer-cart-empty">
-                <p className="customer-cart-empty-icon">🛒</p>
                 <p className="customer-cart-empty-title">Giỏ hàng trống</p>
-                <p className="customer-cart-empty-text">Hãy thêm sản phẩm từ trang chủ</p>
-                <button
-                  onClick={() => navigate('/customer/home')}
-                  className="customer-add-to-cart-btn"
-                  style={{ marginTop: '1rem', maxWidth: '200px' }}
-                >
-                  Khám phá sản phẩm
-                </button>
               </div>
             ) : (
               cart.map((item) => (
@@ -198,7 +189,7 @@ const CustomerCart = () => {
               style={{ padding: '0.875rem', fontSize: '1rem', marginTop: '1rem' }}
               disabled={cart.length === 0}
             >
-              💳 Thanh toán ngay
+              Thanh toán ngay
             </button>
 
             <button
@@ -206,7 +197,7 @@ const CustomerCart = () => {
               className="customer-filter-btn"
               style={{ width: '100%', marginTop: '0.5rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}
             >
-              ← Tiếp tục mua sắm
+              Tiếp tục mua sắm
             </button>
           </div>
         </div>

@@ -38,14 +38,6 @@ export default function DeliveryDashboard() {
   return (
     <DeliveryLayout>
       <div className="dashboard-page">
-        {/* WELCOME BANNER */}
-        <div className="dashboard-welcome">
-          <div className="welcome-content">
-            <h2>Chào mừng, {user?.full_name || user?.username || 'Đối Tác Giao Hàng'}</h2>
-            <p>Hôm nay là một ngày tuyệt vời để giao hàng!</p>
-          </div>
-        </div>
-
         {/* STATS GRID */}
         <div className="dashboard-stats">
           {stats.map((stat, idx) => (

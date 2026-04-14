@@ -194,11 +194,36 @@ export async function fetchDonationOffers() {
   return response.data.items || []
 }
 
+export async function fetchInventoryLotsForDonation() {
+  const userId = getUserId()
+  if (!userId) throw new Error('Không tìm thấy thông tin người dùng')
+
+  const response = await API.get('/staff/inventory-lots', {
+    params: { user_id: userId, status_filter: 'all' },
+  })
+  return response.data.items || []
+}
+
 export async function createDonationOffer(payload) {
   const userId = getUserId()
   if (!userId) throw new Error('Không tìm thấy thông tin người dùng')
 
-  const response = await API.post('/staff/donation-offers', payload, {
+  // Single create using Query params
+  const response = await API.post('/staff/donation-offers', null, {
+    params: {
+      user_id: userId,
+      lot_id: payload.lotId,
+      offered_qty: payload.offeredQty,
+    },
+  })
+  return response.data
+}
+
+export async function createBulkDonationOffers(items) {
+  const userId = getUserId()
+  if (!userId) throw new Error('Không tìm thấy thông tin người dùng')
+
+  const response = await API.post('/staff/donation-offers/bulk', items, {
     params: { user_id: userId },
   })
   return response.data

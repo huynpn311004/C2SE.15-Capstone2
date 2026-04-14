@@ -193,7 +193,7 @@ export default function SupermarketManagement() {
       }
 
       await createAdminSupermarketWithAccount(payload)
-      setCreateSuccess(`Đã tạo tài khoản thành công cho ${payload.name}.`)
+      setCreateSuccess('Đã tạo siêu thị thành công.')
       await loadSupermarkets()
     } catch (err) {
       setCreateError(err?.response?.data?.detail || 'Không thể tạo tài khoản siêu thị.')

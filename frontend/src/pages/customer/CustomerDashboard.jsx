@@ -59,8 +59,6 @@ const CustomerDashboard = () => {
       <div className="customer-dashboard-stats">
         <div className="customer-dashboard-stat-card">
           <div className="customer-dashboard-stat-header">
-            <span className="customer-dashboard-stat-icon">📦</span>
-            <span className="customer-dashboard-stat-change">+{stats.totalProducts}</span>
           </div>
           <div className="customer-dashboard-stat-value">{stats.totalProducts}</div>
           <div className="customer-dashboard-stat-label">Sản phẩm khả dụng</div>
@@ -68,8 +66,6 @@ const CustomerDashboard = () => {
 
         <div className="customer-dashboard-stat-card">
           <div className="customer-dashboard-stat-header">
-            <span className="customer-dashboard-stat-icon">📉</span>
-            <span className="customer-dashboard-stat-change">+{stats.avgDiscount}%</span>
           </div>
           <div className="customer-dashboard-stat-value">{stats.avgDiscount}%</div>
           <div className="customer-dashboard-stat-label">Giảm giá trung bình</div>
@@ -77,8 +73,6 @@ const CustomerDashboard = () => {
 
         <div className="customer-dashboard-stat-card customer-dashboard-stat-warning">
           <div className="customer-dashboard-stat-header">
-            <span className="customer-dashboard-stat-icon">⏰</span>
-            <span className="customer-dashboard-stat-change">{stats.expiringSoon}</span>
           </div>
           <div className="customer-dashboard-stat-value">{stats.expiringSoon}</div>
           <div className="customer-dashboard-stat-label">Sắp hết hạn (≤ 2 ngày)</div>
@@ -86,38 +80,12 @@ const CustomerDashboard = () => {
 
         <div className="customer-dashboard-stat-card">
           <div className="customer-dashboard-stat-header">
-            <span className="customer-dashboard-stat-icon">💰</span>
-            <span className="customer-dashboard-stat-change">+{(stats.totalSavings / 1000).toFixed(0)}K</span>
           </div>
           <div className="customer-dashboard-stat-value">{(stats.totalSavings / 1000).toFixed(0)}K</div>
           <div className="customer-dashboard-stat-label">Tiết kiệm tối đa</div>
         </div>
       </div>
 
-      {/* Quick Actions */}
-      <div className="customer-products-section">
-        <div className="customer-section-header">
-          <div>
-            <h3 className="customer-section-title">Lối tắt</h3>
-            <p className="customer-section-subtitle">Đi tới đúng chức năng bạn cần</p>
-          </div>
-        </div>
-
-        <div style={{ padding: '1rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem' }}>
-          <button className="customer-dashboard-btn" onClick={() => navigate('/customer/shop')}>
-            🛍 Mua sắm
-          </button>
-          <button className="customer-dashboard-btn" onClick={() => navigate('/customer/cart')}>
-            🛒 Xem giỏ hàng
-          </button>
-          <button className="customer-dashboard-btn" onClick={() => navigate('/customer/orders')}>
-            📦 Theo dõi đơn hàng
-          </button>
-          <button className="customer-dashboard-btn" onClick={() => navigate('/customer/profile')}>
-            👤 Cập nhật tài khoản
-          </button>
-        </div>
-      </div>
     </div>
   );
 };

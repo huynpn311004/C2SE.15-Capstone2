@@ -30,24 +30,6 @@
   margin-bottom: 0.5rem;
 }
 
-.customer-dashboard-stat-change {
-  font-size: 0.85rem;
-  font-weight: 600;
-  padding: 0.25rem 0.75rem;
-  background: rgba(16, 185, 129, 0.15);
-  color: var(--seims-success);
-  border-radius: 999px;
-}
-
-.customer-dashboard-stat-warning .customer-dashboard-stat-change {
-  background: rgba(245, 158, 11, 0.15);
-  color: var(--seims-warning);
-}
-
-.customer-dashboard-stat-icon {
-  font-size: 1.5rem;
-}
-
 .customer-dashboard-stat-value {
   font-size: 1.45rem;
   font-weight: 700;
@@ -59,29 +41,6 @@
   font-size: 0.8rem;
   color: var(--seims-muted);
   font-weight: 500;
-}
-
-/* Dashboard Buttons */
-.customer-dashboard-btn {
-  width: 100%;
-  padding: 0.5rem;
-  margin-top: 0.5rem;
-  background: var(--seims-teal);
-  color: white;
-  border: none;
-  border-radius: 6px;
-  font-weight: 600;
-  font-size: 0.8rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.35rem;
-}
-
-.customer-dashboard-btn:hover {
-  background: var(--seims-teal-dark);
 }
 
 /* Responsive */

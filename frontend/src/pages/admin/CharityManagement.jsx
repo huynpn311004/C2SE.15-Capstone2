@@ -285,7 +285,7 @@ export default function CharityManagement() {
       }
 
       await createAdminCharityWithAccount(payload)
-      setCreateSuccess(`Đã tạo tài khoản thành công cho ${payload.name}.`)
+      setCreateSuccess(`Đã tạo tài khoản thành công.`)
       await loadCharities()
     } catch (err) {
       setCreateError(err?.response?.data?.detail || 'Không thể tạo tài khoản charity.')
@@ -517,6 +517,7 @@ export default function CharityManagement() {
               </div>
               <form onSubmit={submitCreateAccount}>
                 <div className="charities-modal-body">
+                  <div className="charities-section-title">Thông Tin Tổ Chức</div>
                   <div className="charities-create-grid">
                     <div className="charities-form-field">
                       <label>Tên Tổ Chức</label>
@@ -570,7 +571,7 @@ export default function CharityManagement() {
                       />
                     </div>
 
-                    <div className="charities-form-field">
+                    <div className="charities-form-field charities-form-field-full">
                       <label>Địa Chỉ</label>
                       <input
                         type="text"
@@ -583,6 +584,21 @@ export default function CharityManagement() {
                       />
                     </div>
 
+                    <div className="charities-form-field">
+                      <label>Ngày Đăng Ký</label>
+                      <input
+                        type="date"
+                        name="requestDate"
+                        value={createForm.requestDate}
+                        onChange={handleCreateFormChange}
+                        className="charities-input"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="charities-section-title">Thông Tin Tài Khoản</div>
+                  <div className="charities-create-grid">
                     <div className="charities-form-field">
                       <label>Mật Khẩu</label>
                       <input
@@ -605,18 +621,6 @@ export default function CharityManagement() {
                         onChange={handleCreateFormChange}
                         className="charities-input"
                         placeholder="Nhập lại mật khẩu"
-                        required
-                      />
-                    </div>
-
-                    <div className="charities-form-field">
-                      <label>Ngày Đăng Ký</label>
-                      <input
-                        type="date"
-                        name="requestDate"
-                        value={createForm.requestDate}
-                        onChange={handleCreateFormChange}
-                        className="charities-input"
                         required
                       />
                     </div>

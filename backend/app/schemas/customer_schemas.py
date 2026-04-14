@@ -74,7 +74,6 @@ class ProductDetailResponse(BaseModel):
 	categoryName: str
 	supermarketId: Optional[int]
 	supermarketName: str
-	supermarketPhone: str
 	totalStock: int
 	stores: List[StoreLocationDetail]
 
@@ -183,6 +182,7 @@ class CreateOrderRequest(BaseModel):
 	items: List[OrderItemCreateRequest]
 	storeId: int
 	paymentMethod: str = Field(default="cod")
+	shippingAddress: Optional[str] = None
 
 
 class CreateOrderResponse(BaseModel):

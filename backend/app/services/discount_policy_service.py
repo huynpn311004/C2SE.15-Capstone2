@@ -2,25 +2,20 @@
 
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-from sqlalchemy import text
+from sqlalchemy import update, func, text
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
+
+from app.models.discount_policy import DiscountPolicy
+from app.models.user import User
+from app.models.product import Product
+from app.models.category import Category
 
 
 # ========== Helper Functions ==========
 def _check_supermarket_admin(db: Session, user_id: int) -> int:
     """Check if user is supermarket admin and return supermarket_id."""
-    user = db.execute(
-        text(
-            """
-            SELECT id, role, supermarket_id
-            FROM users
-            WHERE id = :user_id
-            LIMIT 1
-            """
-        ),
-        {"user_id": user_id},
-    ).first()
+    user = db.query(User).filter(User.id == user_id).first()
 
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -46,10 +41,7 @@ def _validate_category_id(db: Session, category_id: int | None) -> None:
     if category_id is None:
         return
     
-    exists = db.execute(
-        text("SELECT id FROM categories WHERE id = :category_id LIMIT 1"),
-        {"category_id": category_id},
-    ).first()
+    exists = db.query(Category).filter(Category.id == category_id).first()
     
     if not exists:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Danh muc khong ton tai")
@@ -60,10 +52,7 @@ def _validate_product_id(db: Session, product_id: int | None) -> None:
     if product_id is None:
         return
     
-    exists = db.execute(
-        text("SELECT id FROM products WHERE id = :product_id LIMIT 1"),
-        {"product_id": product_id},
-    ).first()
+    exists = db.query(Product.id).filter(Product.id == product_id).first()
     
     if not exists:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="San pham khong ton tai")
@@ -73,10 +62,7 @@ def _validate_product_id(db: Session, product_id: int | None) -> None:
 def list_discount_policies(db: Session, user_id: int | None = None, supermarket_id: int | None = None) -> dict:
     """List discount policies with optional filters."""
     if user_id:
-        scope = db.execute(
-            text("SELECT role, supermarket_id FROM users WHERE id = :user_id LIMIT 1"),
-            {"user_id": user_id},
-        ).first()
+        scope = db.query(User.role, User.supermarket_id).filter(User.id == user_id).first()
         if scope:
             if scope.role == "supermarket_admin":
                 supermarket_id = scope.supermarket_id
@@ -88,39 +74,48 @@ def list_discount_policies(db: Session, user_id: int | None = None, supermarket_
                     detail="Tai khoan khong co quyen xem chinh sach giam gia.",
                 )
 
-    query = """
-        SELECT dp.id, dp.supermarket_id, dp.name, dp.min_days_left, dp.max_days_left,
-               dp.discount_percent, dp.is_active, dp.category_id, dp.product_id,
-               c.name AS category_name, p.name AS product_name
-        FROM discount_policies dp
-        LEFT JOIN categories c ON c.id = dp.category_id
-        LEFT JOIN products p ON p.id = dp.product_id
-        WHERE 1=1
-    """
-    params = {}
+    query = db.query(
+        DiscountPolicy.id,
+        DiscountPolicy.supermarket_id,
+        DiscountPolicy.name,
+        DiscountPolicy.min_days_left,
+        DiscountPolicy.max_days_left,
+        DiscountPolicy.discount_percent,
+        DiscountPolicy.is_active,
+        DiscountPolicy.category_id,
+        DiscountPolicy.product_id,
+        Category.name.label('category_name'),
+        Product.name.label('product_name')
+    ).outerjoin(
+        Category, Category.id == DiscountPolicy.category_id
+    ).outerjoin(
+        Product, Product.id == DiscountPolicy.product_id
+    )
 
     if supermarket_id:
-        query += " AND dp.supermarket_id = :supermarket_id"
-        params["supermarket_id"] = supermarket_id
+        query = query.filter(DiscountPolicy.supermarket_id == supermarket_id)
 
-    query += " ORDER BY dp.discount_percent DESC, dp.min_days_left ASC"
+    query = query.order_by(
+        DiscountPolicy.discount_percent.desc(),
+        DiscountPolicy.min_days_left.asc()
+    )
 
-    rows = db.execute(text(query), params).all()
+    rows = query.all()
 
     items = [
         {
-            "id": row.id,
-            "supermarketId": row.supermarket_id,
-            "name": row.name,
-            "minDaysLeft": row.min_days_left,
-            "maxDaysLeft": row.max_days_left,
-            "discountPercent": float(row.discount_percent),
-            "isActive": bool(row.is_active),
-            "categoryId": row.category_id,
-            "categoryName": row.category_name,
-            "productId": row.product_id,
-            "productName": row.product_name,
-            "appliesTo": row.product_name or row.category_name or "Tat ca san pham",
+            "id": row[0],
+            "supermarketId": row[1],
+            "name": row[2],
+            "minDaysLeft": row[3],
+            "maxDaysLeft": row[4],
+            "discountPercent": float(row[5]),
+            "isActive": bool(row[6]),
+            "categoryId": row[7],
+            "categoryName": row[9],
+            "productId": row[8],
+            "productName": row[10],
+            "appliesTo": row[10] or row[9] or "Tat ca san pham",
         }
         for row in rows
     ]
@@ -130,38 +125,40 @@ def list_discount_policies(db: Session, user_id: int | None = None, supermarket_
 
 def get_discount_policy(db: Session, policy_id: int) -> dict:
     """Get discount policy details."""
-    row = db.execute(
-        text(
-            """
-            SELECT dp.id, dp.supermarket_id, dp.name, dp.min_days_left, dp.max_days_left,
-                   dp.discount_percent, dp.is_active, dp.category_id, dp.product_id,
-                   c.name AS category_name, p.name AS product_name
-            FROM discount_policies dp
-            LEFT JOIN categories c ON c.id = dp.category_id
-            LEFT JOIN products p ON p.id = dp.product_id
-            WHERE dp.id = :policy_id
-            LIMIT 1
-            """
-        ),
-        {"policy_id": policy_id},
-    ).first()
+    row = db.query(
+        DiscountPolicy.id,
+        DiscountPolicy.supermarket_id,
+        DiscountPolicy.name,
+        DiscountPolicy.min_days_left,
+        DiscountPolicy.max_days_left,
+        DiscountPolicy.discount_percent,
+        DiscountPolicy.is_active,
+        DiscountPolicy.category_id,
+        DiscountPolicy.product_id,
+        Category.name.label('category_name'),
+        Product.name.label('product_name')
+    ).outerjoin(
+        Category, Category.id == DiscountPolicy.category_id
+    ).outerjoin(
+        Product, Product.id == DiscountPolicy.product_id
+    ).filter(DiscountPolicy.id == policy_id).first()
 
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Khong tim thay chinh sach")
 
     return {
-        "id": row.id,
-        "supermarketId": row.supermarket_id,
-        "name": row.name,
-        "minDaysLeft": row.min_days_left,
-        "maxDaysLeft": row.max_days_left,
-        "discountPercent": float(row.discount_percent),
-        "isActive": bool(row.is_active),
-        "categoryId": row.category_id,
-        "categoryName": row.category_name,
-        "productId": row.product_id,
-        "productName": row.product_name,
-        "appliesTo": row.product_name or row.category_name or "Tat ca san pham",
+        "id": row[0],
+        "supermarketId": row[1],
+        "name": row[2],
+        "minDaysLeft": row[3],
+        "maxDaysLeft": row[4],
+        "discountPercent": float(row[5]),
+        "isActive": bool(row[6]),
+        "categoryId": row[7],
+        "categoryName": row[9],
+        "productId": row[8],
+        "productName": row[10],
+        "appliesTo": row[10] or row[9] or "Tat ca san pham",
     }
 
 
@@ -212,26 +209,17 @@ def create_discount_policy(
     if product_id is not None:
         _validate_product_id(db, product_id)
 
-    db.execute(
-        text(
-            """
-            INSERT INTO discount_policies
-                (supermarket_id, category_id, product_id, name, min_days_left, max_days_left, discount_percent, is_active)
-            VALUES
-                (:supermarket_id, :category_id, :product_id, :name, :min_days, :max_days, :discount, :is_active)
-            """
-        ),
-        {
-            "supermarket_id": supermarket_id,
-            "category_id": category_id,
-            "product_id": product_id,
-            "name": name,
-            "min_days": min_days,
-            "max_days": max_days,
-            "discount": float(discount),
-            "is_active": is_active,
-        },
+    new_policy = DiscountPolicy(
+        supermarket_id=supermarket_id,
+        category_id=category_id,
+        product_id=product_id,
+        name=name,
+        min_days_left=min_days,
+        max_days_left=max_days,
+        discount_percent=float(discount),
+        is_active=is_active,
     )
+    db.add(new_policy)
     db.commit()
 
     return {"success": True, "message": "Tao chinh sach thanh cong"}
@@ -263,10 +251,8 @@ def update_discount_policy(
     if discount is not None and (discount < 0 or discount > 100):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Phan tram giam gia khong hop le (0-100)")
 
-    policy = db.execute(
-        text("SELECT id FROM discount_policies WHERE id = :policy_id LIMIT 1"),
-        {"policy_id": policy_id},
-    ).first()
+    # Check if policy exists using ORM
+    policy = db.query(DiscountPolicy).filter(DiscountPolicy.id == policy_id).first()
     if not policy:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Khong tim thay chinh sach")
 
@@ -283,34 +269,31 @@ def update_discount_policy(
     if product_id is not None:
         _validate_product_id(db, product_id)
 
-    updates = []
-    params = {"policy_id": policy_id}
-
+    # Build update values dictionary - no SQL concatenation
+    update_values = {}
+    
     if name is not None:
-        updates.append("name = :name")
-        params["name"] = name
+        update_values["name"] = name
     if min_days is not None:
-        updates.append("min_days_left = :min_days")
-        params["min_days"] = min_days
+        update_values["min_days_left"] = min_days
     if max_days is not None:
-        updates.append("max_days_left = :max_days")
-        params["max_days"] = max_days
+        update_values["max_days_left"] = max_days
     if discount is not None:
-        updates.append("discount_percent = :discount")
-        params["discount"] = float(discount)
+        update_values["discount_percent"] = float(discount)
     if category_id is not None or (category_id is None and "category_id" in locals()):
-        updates.append("category_id = :category_id")
-        params["category_id"] = category_id
+        update_values["category_id"] = category_id
     if product_id is not None or (product_id is None and "product_id" in locals()):
-        updates.append("product_id = :product_id")
-        params["product_id"] = product_id
+        update_values["product_id"] = product_id
     if is_active is not None:
-        updates.append("is_active = :is_active")
-        params["is_active"] = is_active
+        update_values["is_active"] = is_active
 
-    if updates:
-        query = f"UPDATE discount_policies SET {', '.join(updates)} WHERE id = :policy_id"
-        db.execute(text(query), params)
+    if update_values:
+        # Use SQLAlchemy update() method - completely parameterized, no SQL string building
+        db.execute(
+            update(DiscountPolicy)
+            .where(DiscountPolicy.id == policy_id)
+            .values(**update_values)
+        )
         db.commit()
 
     return {"success": True, "message": "Cap nhat chinh sach thanh cong"}
@@ -319,13 +302,12 @@ def update_discount_policy(
 def delete_discount_policy(db: Session, policy_id: int, user_id: int) -> dict:
     """Delete discount policy."""
     _check_supermarket_admin(db, user_id)
-    result = db.execute(
-        text("DELETE FROM discount_policies WHERE id = :policy_id"),
-        {"policy_id": policy_id},
-    )
+    result = db.query(DiscountPolicy).filter(
+        DiscountPolicy.id == policy_id
+    ).delete()
     db.commit()
 
-    if (result.rowcount or 0) == 0:
+    if result == 0:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Khong tim thay chinh sach")
 
     return {"success": True, "message": "Xoa chinh sach thanh cong"}
@@ -334,20 +316,16 @@ def delete_discount_policy(db: Session, policy_id: int, user_id: int) -> dict:
 def toggle_discount_policy(db: Session, policy_id: int, user_id: int) -> dict:
     """Toggle discount policy active status."""
     _check_supermarket_admin(db, user_id)
-    result = db.execute(
-        text(
-            """
-            UPDATE discount_policies
-            SET is_active = NOT is_active
-            WHERE id = :policy_id
-            """
-        ),
-        {"policy_id": policy_id},
-    )
-    db.commit()
-
-    if (result.rowcount or 0) == 0:
+    
+    policy = db.query(DiscountPolicy).filter(
+        DiscountPolicy.id == policy_id
+    ).first()
+    
+    if not policy:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Khong tim thay chinh sach")
+    
+    policy.is_active = not policy.is_active
+    db.commit()
 
     return {"success": True, "message": "Cap nhat trang thai thanh cong"}
 
@@ -379,21 +357,12 @@ def calculate_discount(
 
     # LEVEL 1: Check for PRODUCT-SPECIFIC policy
     if product_id:
-        policy = db.execute(
-            text(
-                """
-                SELECT discount_percent
-                FROM discount_policies
-                WHERE product_id = :product_id
-                  AND is_active = 1
-                  AND min_days_left <= :days_left
-                  AND max_days_left >= :days_left
-                ORDER BY discount_percent DESC
-                LIMIT 1
-                """
-            ),
-            {"product_id": product_id, "days_left": days_left},
-        ).first()
+        policy = db.query(DiscountPolicy.discount_percent).filter(
+            DiscountPolicy.product_id == product_id,
+            DiscountPolicy.is_active == True,
+            DiscountPolicy.min_days_left <= days_left,
+            DiscountPolicy.max_days_left >= days_left
+        ).order_by(DiscountPolicy.discount_percent.desc()).first()
 
         if policy:
             discount_percent = float(policy.discount_percent)
@@ -409,27 +378,17 @@ def calculate_discount(
 
     # LEVEL 2: Check for CATEGORY policy
     if product_id:
-        category = db.execute(
-            text("SELECT category_id FROM products WHERE id = :product_id LIMIT 1"),
-            {"product_id": product_id},
+        category = db.query(Product.category_id).filter(
+            Product.id == product_id
         ).first()
 
         if category and category.category_id:
-            policy = db.execute(
-                text(
-                    """
-                    SELECT discount_percent
-                    FROM discount_policies
-                    WHERE category_id = :category_id
-                      AND is_active = 1
-                      AND min_days_left <= :days_left
-                      AND max_days_left >= :days_left
-                    ORDER BY discount_percent DESC
-                    LIMIT 1
-                    """
-                ),
-                {"category_id": category.category_id, "days_left": days_left},
-            ).first()
+            policy = db.query(DiscountPolicy.discount_percent).filter(
+                DiscountPolicy.category_id == category.category_id,
+                DiscountPolicy.is_active == True,
+                DiscountPolicy.min_days_left <= days_left,
+                DiscountPolicy.max_days_left >= days_left
+            ).order_by(DiscountPolicy.discount_percent.desc()).first()
 
             if policy:
                 discount_percent = float(policy.discount_percent)
@@ -445,23 +404,14 @@ def calculate_discount(
 
     # LEVEL 3: Check for SUPERMARKET DEFAULT policy
     if supermarket_id:
-        policy = db.execute(
-            text(
-                """
-                SELECT discount_percent
-                FROM discount_policies
-                WHERE supermarket_id = :supermarket_id
-                  AND category_id IS NULL
-                  AND product_id IS NULL
-                  AND is_active = 1
-                  AND min_days_left <= :days_left
-                  AND max_days_left >= :days_left
-                ORDER BY discount_percent DESC
-                LIMIT 1
-                """
-            ),
-            {"supermarket_id": supermarket_id, "days_left": days_left},
-        ).first()
+        policy = db.query(DiscountPolicy.discount_percent).filter(
+            DiscountPolicy.supermarket_id == supermarket_id,
+            DiscountPolicy.category_id.is_(None),
+            DiscountPolicy.product_id.is_(None),
+            DiscountPolicy.is_active == True,
+            DiscountPolicy.min_days_left <= days_left,
+            DiscountPolicy.max_days_left >= days_left
+        ).order_by(DiscountPolicy.discount_percent.desc()).first()
 
         if policy:
             discount_percent = float(policy.discount_percent)

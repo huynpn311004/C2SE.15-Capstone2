@@ -132,3 +132,31 @@ export async function fetchSupermarketReports(range = '30d') {
     })),
   }
 }
+
+export async function fetchDonationMonitoring(userId, statusFilter = 'all') {
+  const response = await API.get('/supermarket-admin/donations', {
+    params: { user_id: userId, status_filter: statusFilter },
+  })
+  return response.data.items || []
+}
+
+export async function updateDonationStatus(userId, requestId, newStatus) {
+  const response = await API.put(`/supermarket-admin/donations/${requestId}/status`, {}, {
+    params: { user_id: userId, status: newStatus },
+  })
+  return response.data
+}
+
+export async function fetchSupermarketProducts(userId) {
+  const response = await API.get('/supermarket-admin/products', {
+    params: { user_id: userId },
+  })
+  return response.data.items || []
+}
+
+export async function fetchSupermarketCategories(userId) {
+  const response = await API.get('/supermarket-admin/categories', {
+    params: { user_id: userId },
+  })
+  return response.data.items || []
+}

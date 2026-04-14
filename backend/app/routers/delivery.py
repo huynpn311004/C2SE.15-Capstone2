@@ -1,6 +1,6 @@
 """Delivery router - delegates to service layer."""
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Body, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -9,6 +9,7 @@ from app.schemas.delivery_schemas import (
     DeliveryListResponse,
     DeliveryStatsResponse,
     DeliveryProfileResponse,
+    UpdateDeliveryStatusRequest,
     StatusUpdateResponse,
 )
 from app.services import delivery_service

@@ -33,7 +33,7 @@ function Toast({ message, visible }) {
   if (!visible) return null;
   return (
     <div className="customer-shop-toast">
-      &#10003; {message}
+      {message}
     </div>
   );
 }
@@ -106,7 +106,7 @@ const CustomerShop = () => {
           onClick={() => navigate('/customer/cart')}
           className="customer-cart-btn"
         >
-          &#128722; Giỏ hàng
+          Giỏ hàng
           {cartCount > 0 && (
             <span className="customer-cart-badge">
               {cartCount}
@@ -152,59 +152,65 @@ const CustomerShop = () => {
       <div className="customer-shop-grid">
         {products.length === 0 ? (
           <div className="customer-shop-empty">
-            <p className="customer-shop-empty-icon">&#128230;</p>
             <p className="customer-shop-empty-text">Không có sản phẩm nào</p>
           </div>
         ) : (
           products.map((product) => (
             <div 
               key={product.id} 
-              className="customer-product-card"
+              className="customer-shop-product-card"
               onClick={() => navigate(`/customer/product/${product.id}`)}
             >
-              <div className="customer-product-image">
+              {/* Phần 1: Hình ảnh (fill) */}
+              <div className="customer-shop-product-image-wrapper">
                 <img 
-                  src={getProductImageUrl(product.imageUrl) || 'https://via.placeholder.com/120'} 
+                  src={getProductImageUrl(product.imageUrl) || 'https://via.placeholder.com/200'} 
                   alt={product.name}
+                  className="customer-shop-product-image"
                 />
               </div>
               
-              <div className="customer-product-content">
-                <p className="customer-product-shop">
+              {/* Phần 2: Thông tin (bên dưới) */}
+              <div className="customer-shop-product-info">
+                <p className="customer-shop-product-store">
                   {product.storeName || 'Cửa hàng'}
                 </p>
-                <h4 className="customer-product-name">
+                
+                <h4 className="customer-shop-product-title">
                   {product.name}
                 </h4>
                 
-                <div className="customer-product-price-row">
-                  <span className="customer-price-sale">
+                {/* Giá */}
+                <div className="customer-shop-product-price">
+                  <span className="customer-shop-sale-price">
                     {(product.salePrice || 0).toLocaleString()}đ
                   </span>
-                  {product.originalPrice && (
-                    <span className="customer-price-original">
+                  {product.originalPrice && product.salePrice !== product.originalPrice && (
+                    <span className="customer-shop-original-price">
                       {(product.originalPrice || 0).toLocaleString()}đ
                     </span>
                   )}
                 </div>
-
-                <div className="customer-product-meta">
+                
+                {/* Discount & ngày còn lại */}
+                <div className="customer-shop-product-footer">
                   {product.discount > 0 && (
-                    <span className="customer-discount-badge">-{product.discount}%</span>
+                    <span className="customer-shop-discount-tag">-{product.discount}%</span>
                   )}
-                  <span className="customer-days-left">
-                    Còn {product.daysLeft || 0} ngày
+                  <span className="customer-shop-days-left">
+                    {product.daysLeft || 0}d
                   </span>
                 </div>
-
+                
+                {/* Nút thêm vào giỏ */}
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     handleAddToCart(product);
                   }}
-                  className="customer-add-to-cart-btn"
+                  className="customer-shop-add-btn"
                 >
-                  &#128722; Thêm vào giỏ
+                  Thêm
                 </button>
               </div>
             </div>

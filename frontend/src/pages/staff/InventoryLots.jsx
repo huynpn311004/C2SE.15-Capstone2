@@ -51,6 +51,7 @@ export default function InventoryLots() {
     lotCode: '',
     productName: '',
     quantity: '',
+    manufacturingDate: '',
     expiryDate: '',
   })
 
@@ -58,9 +59,9 @@ export default function InventoryLots() {
     lotCode: '',
     productName: '',
     quantity: '',
+    manufacturingDate: '',
     expiryDate: '',
     status: 'Moi',
-    actionNote: '',
   })
 
   useEffect(() => {
@@ -108,6 +109,7 @@ export default function InventoryLots() {
       lotCode: lot.lotCode,
       productName: lot.productName,
       quantity: String(lot.quantity),
+      manufacturingDate: lot.manufacturingDate || '',
       expiryDate: lot.expiryDate,
     })
     setEditError('')
@@ -157,6 +159,7 @@ export default function InventoryLots() {
         lotCode: editForm.lotCode.trim(),
         productName: editForm.productName.trim(),
         quantity: Number(editForm.quantity),
+        manufacturingDate: editForm.manufacturingDate || null,
         expiryDate: editForm.expiryDate,
       })
 
@@ -168,6 +171,7 @@ export default function InventoryLots() {
                 lotCode: editForm.lotCode.trim(),
                 productName: editForm.productName.trim(),
                 quantity: Number(editForm.quantity),
+                manufacturingDate: editForm.manufacturingDate || null,
                 expiryDate: editForm.expiryDate,
               }
             : item
@@ -186,11 +190,11 @@ export default function InventoryLots() {
   function resetCreateForm() {
     setCreateForm({
       lotCode: '',
+      manufacturingDate: '',
       productName: '',
       quantity: '',
       expiryDate: '',
       status: 'Moi',
-      actionNote: '',
     })
     setCreateError('')
     setCreateSuccess('')
@@ -240,16 +244,13 @@ export default function InventoryLots() {
       const response = await createInventoryLot({
         lotCode: createForm.lotCode.trim(),
         productName: createForm.productName.trim(),
+        manufacturingDate: createForm.manufacturingDate || null,
         quantity: Number(createForm.quantity),
         expiryDate: createForm.expiryDate,
         status: createForm.status,
-        actionNote: createForm.actionNote.trim(),
       })
       await loadLots()
-      const actionNoteMessage = response?.actionNote
-        ? ` (Thao tác: ${response.actionNote})`
-        : ''
-      setCreateSuccess(`Đã tạo lô hàng mới thành công.${actionNoteMessage}`)
+      setCreateSuccess(`Đã tạo lô hàng mới thành công.`)
       setTimeout(() => closeCreateModal(), 600)
     } catch (err) {
       console.error('Failed to create lot:', err)
@@ -421,105 +422,74 @@ export default function InventoryLots() {
       {showEditModal && selectedLot && (
         <div className="inventory-modal-overlay" onClick={closeEditModal}>
           <div className="inventory-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
+            <div className="inventory-modal-header">
               <h3>Chỉnh Sửa Lô Hàng</h3>
-              <button className="modal-close" onClick={closeEditModal}>✕</button>
+              <button className="inventory-modal-close" onClick={closeEditModal}>×</button>
             </div>
-            <form className="modal-body" onSubmit={submitEditLot}>
-              <div className="inventory-form-grid">
-                <div className="inventory-form-column">
-                  <div className="inventory-form-field">
-                    <label>Mã Lô</label>
-                    <input
-                      type="text"
-                      name="lotCode"
-                      value={editForm.lotCode}
-                      onChange={handleEditFormChange}
-                      className="inventory-input"
-                      placeholder="VD: LOT-001"
-                      required
-                    />
-                  </div>
-                  <div className="inventory-form-field">
-                    <label>Tên Sản Phẩm</label>
-                    <input
-                      type="text"
-                      name="productName"
-                      value={editForm.productName}
-                      onChange={handleEditFormChange}
-                      className="inventory-input"
-                      placeholder="Nhập tên sản phẩm"
-                      required
-                    />
-                  </div>
-                  <div className="inventory-form-field">
-                    <label>Số Lượng</label>
-                    <input
-                      type="number"
-                      name="quantity"
-                      value={editForm.quantity}
-                      onChange={handleEditFormChange}
-                      className="inventory-input"
-                      placeholder="Nhập số lượng"
-                      min="0"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="inventory-form-column">
-                  <div className="inventory-form-field">
-                    <label>Ngày Hết Hạn</label>
-                    <input
-                      type="date"
-                      name="expiryDate"
-                      value={editForm.expiryDate}
-                      onChange={handleEditFormChange}
-                      className="inventory-input"
-                      required
-                    />
-                  </div>
-                  <div className="inventory-form-field">
-                    <label>Trạng Thái</label>
-                    <select
-                      name="status"
-                      value={createForm.status}
-                      onChange={handleCreateFormChange}
-                      className="inventory-input"
-                    >
-                      {lotStatusOptions.map((status) => (
-                        <option key={status} value={status}>
-                          {getStatusLabel(status)}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="inventory-form-field">
-                    <label>Thao Tác</label>
-                    <input
-                      type="text"
-                      name="actionNote"
-                      value={createForm.actionNote}
-                      onChange={handleCreateFormChange}
-                      className="inventory-input"
-                      placeholder="VD: Ưu tiên nhập kho"
-                    />
-                  </div>
-                </div>
+            <form onSubmit={submitEditLot}>
+              <div className="inventory-modal-body">
+                <label className="inventory-field">
+                  <span>Mã Lô <em>*</em></span>
+                  <input
+                    type="text"
+                    name="lotCode"
+                    value={editForm.lotCode}
+                    onChange={handleEditFormChange}
+                    placeholder="VD: LOT-001"
+                    required
+                  />
+                </label>
+                <label className="inventory-field">
+                  <span>Tên Sản Phẩm <em>*</em></span>
+                  <input
+                    type="text"
+                    name="productName"
+                    value={editForm.productName}
+                    onChange={handleEditFormChange}
+                    placeholder="Nhập tên sản phẩm"
+                    required
+                  />
+                </label>
+                <label className="inventory-field">
+                  <span>Số Lượng <em>*</em></span>
+                  <input
+                    type="number"
+                    name="quantity"
+                    value={editForm.quantity}
+                    onChange={handleEditFormChange}
+                    placeholder="Nhập số lượng"
+                    min="0"
+                    required
+                  />
+                </label>
+                <label className="inventory-field">
+                  <span>Ngày Sản Xuất</span>
+                  <input
+                    type="date"
+                    name="manufacturingDate"
+                    value={editForm.manufacturingDate}
+                    onChange={handleEditFormChange}
+                  />
+                </label>
+                <label className="inventory-field">
+                  <span>Ngày Hết Hạn <em>*</em></span>
+                  <input
+                    type="date"
+                    name="expiryDate"
+                    value={editForm.expiryDate}
+                    onChange={handleEditFormChange}
+                    required
+                  />
+                </label>
+                {editError && <p className="inventory-error">{editError}</p>}
               </div>
-
-              {editError && <p className="inventory-error">{editError}</p>}
-              {editSuccess && <p className="inventory-success">{editSuccess}</p>}
-
-              <div className="inventory-form-footer">
-                <div className="inventory-form-actions">
-                  <button type="submit" className="btn-large inventory-btn-create" disabled={isSubmitting}>
-                    {isSubmitting ? 'Đang lưu...' : 'Lưu Thay Đổi'}
-                  </button>
-                  <button type="button" className="btn-large btn-close" onClick={closeEditModal}>
-                    Hủy
-                  </button>
-                </div>
+              <div className="inventory-modal-footer">
+                <button type="button" className="inventory-btn-cancel" onClick={closeEditModal}>
+                  Hủy
+                </button>
+                <button type="submit" className="inventory-btn-save" disabled={isSubmitting}>
+                  {isSubmitting ? 'Đang lưu...' : 'Cập Nhật'}
+                </button>
               </div>
             </form>
           </div>
@@ -530,79 +500,88 @@ export default function InventoryLots() {
       {showCreateModal && (
         <div className="inventory-modal-overlay" onClick={closeCreateModal}>
           <div className="inventory-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
+            <div className="inventory-modal-header">
               <h3>Tạo Lô Hàng Mới</h3>
-              <button className="modal-close" onClick={closeCreateModal}>✕</button>
+              <button className="inventory-modal-close" onClick={closeCreateModal}>×</button>
             </div>
-            <form className="modal-body" onSubmit={submitCreateLot}>
-              <div className="inventory-form-grid">
-                <div className="inventory-form-column">
-                  <div className="inventory-form-field">
-                    <label>Mã Lô</label>
-                    <input
-                      type="text"
-                      name="lotCode"
-                      value={createForm.lotCode}
-                      onChange={handleCreateFormChange}
-                      className="inventory-input"
-                      placeholder="VD: LOT-001"
-                      required
-                    />
-                  </div>
-                  <div className="inventory-form-field">
-                    <label>Tên Sản Phẩm</label>
-                    <input
-                      type="text"
-                      name="productName"
-                      value={createForm.productName}
-                      onChange={handleCreateFormChange}
-                      className="inventory-input"
-                      placeholder="Nhập tên sản phẩm"
-                      required
-                    />
-                  </div>
-                  <div className="inventory-form-field">
-                    <label>Số Lượng</label>
-                    <input
-                      type="number"
-                      name="quantity"
-                      value={createForm.quantity}
-                      onChange={handleCreateFormChange}
-                      className="inventory-input"
-                      placeholder="Nhập số lượng"
-                      min="0"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="inventory-form-column">
-                  <div className="inventory-form-field">
-                    <label>Ngày Hết Hạn</label>
-                    <input
-                      type="date"
-                      name="expiryDate"
-                      value={createForm.expiryDate}
-                      onChange={handleCreateFormChange}
-                      className="inventory-input"
-                      required
-                    />
-                  </div>
-                </div>
+            <form onSubmit={submitCreateLot}>
+              <div className="inventory-modal-body">
+                <label className="inventory-field">
+                  <span>Mã Lô <em>*</em></span>
+                  <input
+                    type="text"
+                    name="lotCode"
+                    value={createForm.lotCode}
+                    onChange={handleCreateFormChange}
+                    placeholder="VD: LOT-001"
+                    required
+                  />
+                </label>
+                <label className="inventory-field">
+                  <span>Tên Sản Phẩm <em>*</em></span>
+                  <input
+                    type="text"
+                    name="productName"
+                    value={createForm.productName}
+                    onChange={handleCreateFormChange}
+                    placeholder="Nhập tên sản phẩm"
+                    required
+                  />
+                </label>
+                <label className="inventory-field">
+                  <span>Số Lượng <em>*</em></span>
+                  <input
+                    type="number"
+                    name="quantity"
+                    value={createForm.quantity}
+                    onChange={handleCreateFormChange}
+                    placeholder="Nhập số lượng"
+                    min="0"
+                    required
+                  />
+                </label>
+                <label className="inventory-field">
+                  <span>Ngày Sản Xuất</span>
+                  <input
+                    type="date"
+                    name="manufacturingDate"
+                    value={createForm.manufacturingDate}
+                    onChange={handleCreateFormChange}
+                  />
+                </label>
+                <label className="inventory-field">
+                  <span>Ngày Hết Hạn <em>*</em></span>
+                  <input
+                    type="date"
+                    name="expiryDate"
+                    value={createForm.expiryDate}
+                    onChange={handleCreateFormChange}
+                    required
+                  />
+                </label>
+                <label className="inventory-field">
+                  <span>Trạng Thái</span>
+                  <select
+                    name="status"
+                    value={createForm.status}
+                    onChange={handleCreateFormChange}
+                  >
+                    {lotStatusOptions.map((status) => (
+                      <option key={status} value={status}>
+                        {getStatusLabel(status)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {createError && <p className="inventory-error">{createError}</p>}
               </div>
-
-              {createError && <p className="inventory-error">{createError}</p>}
-              {createSuccess && <p className="inventory-success">{createSuccess}</p>}
-
-              <div className="inventory-form-footer">
-                <div className="inventory-form-actions">
-                  <button type="submit" className="btn-large inventory-btn-create" disabled={isSubmitting}>
-                    {isSubmitting ? 'Đang tạo...' : 'Tạo Lô Mới'}
-                  </button>
-                  <button type="button" className="btn-large btn-close" onClick={closeCreateModal}>
-                    Hủy
-                  </button>
-                </div>
+              <div className="inventory-modal-footer">
+                <button type="button" className="inventory-btn-cancel" onClick={closeCreateModal}>
+                  Hủy
+                </button>
+                <button type="submit" className="inventory-btn-save" disabled={isSubmitting}>
+                  {isSubmitting ? 'Đang tạo...' : 'Tạo Mới'}
+                </button>
               </div>
             </form>
           </div>

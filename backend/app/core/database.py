@@ -1,22 +1,42 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, URL
 from sqlalchemy.orm import sessionmaker, declarative_base
 from dotenv import load_dotenv
 import os
 
 load_dotenv()
 
-DB_USER = os.getenv("DB_USER")
-DB_PASSWORD = os.getenv("DB_PASSWORD")
-DB_HOST = os.getenv("DB_HOST")
-DB_PORT = os.getenv("DB_PORT")
-DB_NAME = os.getenv("DB_NAME")
-DATABASE_URL = (
-    f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+def get_env(name: str, default: str | None = None) -> str:
+    value = os.getenv(name, default)
+    if value is None:
+        raise ValueError(f"Missing environment variable: {name}")
+    return value
+
+DB_USER = get_env("DB_USER")
+DB_PASSWORD = get_env("DB_PASSWORD")
+DB_HOST = get_env("DB_HOST")
+DB_PORT = get_env("DB_PORT", "3306")
+DB_NAME = get_env("DB_NAME")
+
+database_url = URL.create(
+    drivername="mysql+pymysql",
+    username=DB_USER,
+    password=DB_PASSWORD,
+    host=DB_HOST,
+    port=int(DB_PORT) if DB_PORT else 3306,
+    database=DB_NAME
 )
 
-engine = create_engine(DATABASE_URL, echo=False)
-SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+engine = create_engine(database_url, echo=False
+)
+
+SessionLocal = sessionmaker(
+    bind=engine,
+    autoflush=False,
+    autocommit=False
+)
+
 Base = declarative_base()
+
 
 def get_db():
     db = SessionLocal()
@@ -24,3 +44,4 @@ def get_db():
         yield db
     finally:
         db.close()
+        

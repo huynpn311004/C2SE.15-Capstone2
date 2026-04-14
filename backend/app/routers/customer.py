@@ -154,7 +154,8 @@ def create_order(
 		user_id,
 		data.items,
 		data.storeId,
-		data.paymentMethod
+		data.paymentMethod,
+		data.shippingAddress
 	)
 
 

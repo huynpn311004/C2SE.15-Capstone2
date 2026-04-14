@@ -7,7 +7,7 @@ from app.schemas.supermarket_admin_schemas import (
     CreateStoreRequest,
     UpdateStoreRequest,
 )
-from app.services import supermarket_admin_service
+from app.services import supermarket_admin_service, product_service
 
 
 router = APIRouter(prefix="/supermarket-admin", tags=["supermarket-admin"])
@@ -59,3 +59,44 @@ def delete_store(
     db: Session = Depends(get_db),
 ):
     return supermarket_admin_service.delete_store(db, user_id, store_id)
+
+
+# ========== Products & Categories for Policy Configuration ==========
+@router.get("/products")
+def list_all_products(
+    user_id: int = Query(...),
+    db: Session = Depends(get_db),
+):
+    """Get all products for supermarket admin (no inventory filtering)"""
+    scope = supermarket_admin_service._get_supermarket_scope(db, user_id)
+    return product_service.list_products(db, scope, None, None)
+
+
+@router.get("/categories")
+def list_all_categories(
+    user_id: int = Query(...),
+    db: Session = Depends(get_db),
+):
+    """Get all categories for supermarket admin"""
+    scope = supermarket_admin_service._get_supermarket_scope(db, user_id)
+    return product_service.list_product_categories(db, scope)
+
+
+# ========== Donation Monitoring ==========
+@router.get("/donations")
+def list_donation_monitoring(
+    user_id: int = Query(...),
+    status_filter: str = Query(default="all"),
+    db: Session = Depends(get_db),
+):
+    return supermarket_admin_service.list_donation_monitoring(db, user_id, status_filter)
+
+
+@router.put("/donations/{request_id}/status")
+def update_donation_status(
+    request_id: int,
+    status: str = Query(...),
+    user_id: int = Query(...),
+    db: Session = Depends(get_db),
+):
+    return supermarket_admin_service.update_donation_request_status(db, user_id, request_id, status)

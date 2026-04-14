@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.services import charity_service
+from app.schemas.charity_schemas import CreateDonationRequestRequest
 
 
 router = APIRouter(prefix="/charity", tags=["charity"])
@@ -53,12 +54,11 @@ def list_charity_donation_offers(user_id: int = Query(...), db: Session = Depend
 # ========== Donation Requests ==========
 @router.post("/donation-requests")
 def create_charity_donation_request(
-    offer_id: int = Query(...),
-    request_qty: int = Query(...),
+    data: CreateDonationRequestRequest,
     user_id: int = Query(...),
     db: Session = Depends(get_db),
 ):
-    return charity_service.create_charity_donation_request(db, user_id, offer_id, request_qty)
+    return charity_service.create_charity_donation_request(db, user_id, data.offerId, data.requestQty)
 
 
 @router.get("/donation-requests")
