@@ -58,6 +58,79 @@ def _validate_product_id(db: Session, product_id: int | None) -> None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="San pham khong ton tai")
 
 
+def _check_policy_overlap(
+    db: Session,
+    supermarket_id: int,
+    min_days: int,
+    max_days: int,
+    category_id: int | None = None,
+    product_id: int | None = None,
+    exclude_policy_id: int | None = None,
+) -> dict:
+    """
+    Check for overlapping discount policies.
+    
+    Overlap occurs when:
+    1. Same supermarket
+    2. Same scope (product_id, category_id, or both None)
+    3. Days range overlaps: min_days <= other_max_days AND max_days >= other_min_days
+    
+    Returns dict with overlapping policies if found, empty dict if none.
+    """
+    query = db.query(
+        DiscountPolicy.id,
+        DiscountPolicy.name,
+        DiscountPolicy.min_days_left,
+        DiscountPolicy.max_days_left,
+        DiscountPolicy.discount_percent,
+        DiscountPolicy.is_active,
+    ).filter(
+        DiscountPolicy.supermarket_id == supermarket_id,
+        # Check days overlap: new_min <= existing_max AND new_max >= existing_min
+        DiscountPolicy.min_days_left <= max_days,
+        DiscountPolicy.max_days_left >= min_days,
+    )
+    
+    # Match same scope (product_id, category_id)
+    if product_id is not None:
+        query = query.filter(DiscountPolicy.product_id == product_id)
+    elif category_id is not None:
+        query = query.filter(DiscountPolicy.category_id == category_id)
+    else:
+        # Both None - match default policies (no product, no category)
+        query = query.filter(
+            DiscountPolicy.product_id.is_(None),
+            DiscountPolicy.category_id.is_(None),
+        )
+    
+    # Exclude current policy if updating
+    if exclude_policy_id is not None:
+        query = query.filter(DiscountPolicy.id != exclude_policy_id)
+    
+    overlapping = query.all()
+    
+    if not overlapping:
+        return {}
+    
+    # Return overlapping policies info
+    return {
+        "hasOverlap": True,
+        "count": len(overlapping),
+        "overlappingPolicies": [
+            {
+                "id": row[0],
+                "name": row[1],
+                "minDaysLeft": row[2],
+                "maxDaysLeft": row[3],
+                "discountPercent": float(row[4]),
+                "isActive": bool(row[5]),
+                "message": f"Policy '{row[1]}': Days {row[2]}-{row[3]}, {row[4]}% discount"
+            }
+            for row in overlapping
+        ]
+    }
+
+
 # ========== Discount Policies CRUD ==========
 def list_discount_policies(db: Session, user_id: int | None = None, supermarket_id: int | None = None) -> dict:
     """List discount policies with optional filters."""
@@ -66,8 +139,6 @@ def list_discount_policies(db: Session, user_id: int | None = None, supermarket_
         if scope:
             if scope.role == "supermarket_admin":
                 supermarket_id = scope.supermarket_id
-            elif scope.role == "system_admin":
-                pass  # System admin sees all
             else:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
@@ -209,6 +280,9 @@ def create_discount_policy(
     if product_id is not None:
         _validate_product_id(db, product_id)
 
+    # Note: overlapping policies are allowed; calculate_discount will use
+    # the highest discount_percent among all active overlapping policies.
+
     new_policy = DiscountPolicy(
         supermarket_id=supermarket_id,
         category_id=category_id,
@@ -268,6 +342,33 @@ def update_discount_policy(
         _validate_category_id(db, category_id)
     if product_id is not None:
         _validate_product_id(db, product_id)
+
+    # CHECK FOR OVERLAPPING POLICIES when updating scope or days (Option A: Strict)
+    # Only check if we're changing min_days, max_days, product_id, or category_id
+    if min_days is not None or max_days is not None or category_id is not None or product_id is not None:
+        # Use current values if not being updated
+        check_min_days = min_days if min_days is not None else policy.min_days_left
+        check_max_days = max_days if max_days is not None else policy.max_days_left
+        check_category_id = category_id if category_id is not None else policy.category_id
+        check_product_id = product_id if product_id is not None else policy.product_id
+        
+        overlap_result = _check_policy_overlap(
+            db,
+            supermarket_id=policy.supermarket_id,
+            min_days=check_min_days,
+            max_days=check_max_days,
+            category_id=check_category_id,
+            product_id=check_product_id,
+            exclude_policy_id=policy_id,  # Don't check against itself
+        )
+        
+        if overlap_result.get("hasOverlap"):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Chinh sach xung dot voi {overlap_result['count']} chinh sach hien tai. "
+                       f"Vui long sua lai cac chinh sach cu trc: "
+                       f"{'; '.join(p['message'] for p in overlap_result['overlappingPolicies'])}"
+            )
 
     # Build update values dictionary - no SQL concatenation
     update_values = {}
@@ -330,7 +431,7 @@ def toggle_discount_policy(db: Session, policy_id: int, user_id: int) -> dict:
     return {"success": True, "message": "Cap nhat trang thai thanh cong"}
 
 
-# ========== Discount Calculation with 3-Level Priority ==========
+# ========== Discount Calculation ==========
 def calculate_discount(
     db: Session,
     base_price: float,
@@ -341,11 +442,11 @@ def calculate_discount(
     """
     Calculate discount for a product based on expiry date.
     
-    Priority order:
-    1. Product-specific policy (highest priority)
-    2. Category policy (medium priority)
-    3. Supermarket default policy (lowest priority)
-    4. No policy (0% discount)
+    Business Rules:
+    1. Each product gets ONLY ONE discount policy at a time
+    2. Product-specific policy overrides category-specific policy
+    3. Category-specific policy overrides supermarket default
+    4. Policies must be active and match days range
     """
     try:
         expiry = datetime.strptime(expiry_date, "%Y-%m-%d").date()
@@ -353,84 +454,91 @@ def calculate_discount(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ngay het han khong hop le")
 
     days_left = (expiry - date.today()).days
-    discount_percent = 0.0
-
-    # LEVEL 1: Check for PRODUCT-SPECIFIC policy
+    
+    # 1. PRODUCT-SPECIFIC policies
     if product_id:
-        policy = db.query(DiscountPolicy.discount_percent).filter(
+        product_policies = db.query(
+            DiscountPolicy.id,
+            DiscountPolicy.discount_percent,
+        ).filter(
             DiscountPolicy.product_id == product_id,
             DiscountPolicy.is_active == True,
             DiscountPolicy.min_days_left <= days_left,
             DiscountPolicy.max_days_left >= days_left
-        ).order_by(DiscountPolicy.discount_percent.desc()).first()
-
-        if policy:
-            discount_percent = float(policy.discount_percent)
+        ).all()
+        if product_policies:
+            policy = product_policies[0]
+            discount_percent = float(policy[1])
             discount_amount = base_price * (discount_percent / 100.0)
-            final_price = base_price - discount_amount
             return {
                 "discountPercent": discount_percent,
                 "originalPrice": float(base_price),
                 "discountAmount": discount_amount,
-                "finalPrice": float(final_price),
+                "finalPrice": float(base_price - discount_amount),
                 "appliedLevel": "product",
+                "appliedPolicyId": int(policy[0]),
             }
 
-    # LEVEL 2: Check for CATEGORY policy
+    # 2. CATEGORY policies
+    category_id = None
     if product_id:
-        category = db.query(Product.category_id).filter(
-            Product.id == product_id
-        ).first()
-
+        category = db.query(Product.category_id).filter(Product.id == product_id).first()
         if category and category.category_id:
-            policy = db.query(DiscountPolicy.discount_percent).filter(
-                DiscountPolicy.category_id == category.category_id,
+            category_id = category.category_id
+            category_policies = db.query(
+                DiscountPolicy.id,
+                DiscountPolicy.discount_percent,
+            ).filter(
+                DiscountPolicy.category_id == category_id,
                 DiscountPolicy.is_active == True,
                 DiscountPolicy.min_days_left <= days_left,
                 DiscountPolicy.max_days_left >= days_left
-            ).order_by(DiscountPolicy.discount_percent.desc()).first()
-
-            if policy:
-                discount_percent = float(policy.discount_percent)
+            ).all()
+            if category_policies:
+                policy = category_policies[0]
+                discount_percent = float(policy[1])
                 discount_amount = base_price * (discount_percent / 100.0)
-                final_price = base_price - discount_amount
                 return {
                     "discountPercent": discount_percent,
                     "originalPrice": float(base_price),
                     "discountAmount": discount_amount,
-                    "finalPrice": float(final_price),
+                    "finalPrice": float(base_price - discount_amount),
                     "appliedLevel": "category",
+                    "appliedPolicyId": int(policy[0]),
                 }
 
-    # LEVEL 3: Check for SUPERMARKET DEFAULT policy
+    # 3. SUPERMARKET DEFAULT policies
     if supermarket_id:
-        policy = db.query(DiscountPolicy.discount_percent).filter(
+        supermarket_policies = db.query(
+            DiscountPolicy.id,
+            DiscountPolicy.discount_percent,
+        ).filter(
             DiscountPolicy.supermarket_id == supermarket_id,
             DiscountPolicy.category_id.is_(None),
             DiscountPolicy.product_id.is_(None),
             DiscountPolicy.is_active == True,
             DiscountPolicy.min_days_left <= days_left,
             DiscountPolicy.max_days_left >= days_left
-        ).order_by(DiscountPolicy.discount_percent.desc()).first()
-
-        if policy:
-            discount_percent = float(policy.discount_percent)
+        ).all()
+        if supermarket_policies:
+            policy = supermarket_policies[0]
+            discount_percent = float(policy[1])
             discount_amount = base_price * (discount_percent / 100.0)
-            final_price = base_price - discount_amount
             return {
                 "discountPercent": discount_percent,
                 "originalPrice": float(base_price),
                 "discountAmount": discount_amount,
-                "finalPrice": float(final_price),
+                "finalPrice": float(base_price - discount_amount),
                 "appliedLevel": "supermarket_default",
+                "appliedPolicyId": int(policy[0]),
             }
 
-    # NO POLICY FOUND
     return {
         "discountPercent": 0.0,
         "originalPrice": float(base_price),
         "discountAmount": 0.0,
         "finalPrice": float(base_price),
         "appliedLevel": "none",
+        "appliedPolicyId": None,
     }
 

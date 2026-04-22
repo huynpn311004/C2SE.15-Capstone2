@@ -8,6 +8,14 @@ from fastapi import HTTPException, status
 from app.models.product import Product
 from app.models.category import Category
 from app.models.inventory_lot import InventoryLot
+from app.services.audit_service import log_action
+from app.core.audit_actions import (
+    CREATE_PRODUCT,
+    UPDATE_PRODUCT,
+    DELETE_PRODUCT,
+    UPDATE_PRICE,
+    ENTITY_PRODUCT,
+)
 
 
 # ========== Helper Functions ==========
@@ -156,9 +164,10 @@ def list_products(db: Session, supermarket_id: int, category_filter: int | None,
     return {"items": items}
 
 
-def create_product(db: Session, supermarket_id: int, name: str, sku: str, base_price: float,
+def create_product(db: Session, supermarket_id: int, store_id: int, user_id: int,
+                   name: str, sku: str, base_price: float,
                    category_id: int | None, image_url: str | None) -> dict:
-    """Create new product."""
+    """Create new product and log the action."""
     name = name.strip()
     sku = sku.strip()
     image_url = (image_url or "").strip() or None
@@ -186,14 +195,20 @@ def create_product(db: Session, supermarket_id: int, name: str, sku: str, base_p
         image_url=image_url
     )
     db.add(new_product)
+    db.flush()
+    product_id = new_product.id
     db.commit()
+
+    log_action(db, user_id=user_id, store_id=store_id,
+               action=CREATE_PRODUCT, entity_type=ENTITY_PRODUCT, entity_id=product_id)
 
     return {"message": "Tạo sản phẩm thành công"}
 
 
-def update_product(db: Session, product_id: int, supermarket_id: int, name: str, base_price: float,
+def update_product(db: Session, product_id: int, supermarket_id: int, store_id: int, user_id: int,
+                   name: str, base_price: float,
                    category_id: int | None, image_url: str | None) -> dict:
-    """Update product information."""
+    """Update product information and log the action."""
     name = name.strip()
     image_url = (image_url or "").strip() or None
 
@@ -202,27 +217,38 @@ def update_product(db: Session, product_id: int, supermarket_id: int, name: str,
     if base_price is None or float(base_price) < 0:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Giá không hợp lệ")
 
-    product = db.query(Product.id).filter(
+    product = db.query(Product).filter(
         Product.id == product_id,
         Product.supermarket_id == supermarket_id
     ).first()
     if not product:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sản phẩm không tìm thấy")
 
+    old_price = float(product.base_price)
+    new_price = float(base_price)
+
     db.query(Product).filter(Product.id == product_id).update({
         Product.name: name,
-        Product.base_price: float(base_price),
+        Product.base_price: new_price,
         Product.category_id: category_id if category_id else None,
         Product.image_url: image_url
     }, synchronize_session=False)
     db.commit()
 
+    log_action(db, user_id=user_id, store_id=store_id,
+               action=UPDATE_PRODUCT, entity_type=ENTITY_PRODUCT, entity_id=product_id)
+
+    if old_price != new_price:
+        log_action(db, user_id=user_id, store_id=store_id,
+                   action=UPDATE_PRICE, entity_type=ENTITY_PRODUCT, entity_id=product_id)
+
     return {"message": "Cập nhật sản phẩm thành công"}
 
 
-def delete_product(db: Session, product_id: int, supermarket_id: int) -> dict:
-    """Delete product if no inventory lots reference it."""
-    product = db.query(Product.id).filter(
+def delete_product(db: Session, product_id: int, supermarket_id: int,
+                   store_id: int, user_id: int) -> dict:
+    """Delete product if no inventory lots reference it, then log the action."""
+    product = db.query(Product).filter(
         Product.id == product_id,
         Product.supermarket_id == supermarket_id
     ).first()
@@ -241,6 +267,9 @@ def delete_product(db: Session, product_id: int, supermarket_id: int) -> dict:
 
     db.query(Product).filter(Product.id == product_id).delete()
     db.commit()
+
+    log_action(db, user_id=user_id, store_id=store_id,
+               action=DELETE_PRODUCT, entity_type=ENTITY_PRODUCT, entity_id=product_id)
 
     return {"message": "Xóa sản phẩm thành công"}
 

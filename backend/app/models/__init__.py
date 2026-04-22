@@ -1,6 +1,7 @@
 from app.models.audit_log import AuditLog
 from app.models.category import Category
 from app.models.charity_organization import CharityOrganization
+from app.models.coupon import Coupon
 from app.models.delivery import Delivery
 from app.models.delivery_partner import DeliveryPartner
 from app.models.discount_policy import DiscountPolicy
@@ -20,6 +21,7 @@ __all__ = [
 	"User",
 	"Supermarket",
 	"Store",
+	"Coupon",
 	"DiscountPolicy",
 	"InventoryLot",
 	"PriceHistory",

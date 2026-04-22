@@ -3,7 +3,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 
-from app.core.security import get_password_hash, verify_password
+from app.core.security import get_password_hash, verify_password, create_access_token
 from app.models.store import Store
 from app.models.user import User
 from app.schemas.auth_schemas import LoginRequest, RegisterRequest
@@ -91,7 +91,7 @@ def register_user(db: Session, payload: RegisterRequest) -> User:
 	return user
 
 
-def login_user(db: Session, payload: LoginRequest) -> User:
+def login_user(db: Session, payload: LoginRequest) -> tuple[User, str]:
 	identity = payload.username.strip()
 	user = (
 		db.query(User)
@@ -136,17 +136,42 @@ def login_user(db: Session, payload: LoginRequest) -> User:
 	if user.failed_login_attempts:
 		user.failed_login_attempts = 0
 	db.commit()
-	return user
+
+	# Generate JWT token
+	token = create_access_token(data={"sub": str(user.id), "role": user.role})
+	return user, token
 
 
-def forgot_password(db: Session, email: str) -> bool:
+def forgot_password(db: Session, email: str, frontend_reset_url: str = None) -> dict:
+	"""Generate password reset token and send email to user."""
+	from app.utils.email import send_reset_password_email
+	
 	user = db.query(User).filter(User.email == email.lower()).first()
 	if user:
 		user.reset_token = generate_reset_token()
 		user.reset_token_expires = datetime.utcnow() + timedelta(hours=1)
 		db.commit()
-		return True
-	return False
+		
+		# Generate reset URL (default to frontend app)
+		if frontend_reset_url is None:
+			frontend_reset_url = "http://localhost:5173"  # Default to local frontend
+		
+		reset_link = f"{frontend_reset_url}/forgot-password?token={user.reset_token}"
+		
+		# Send reset email
+		email_sent = send_reset_password_email(email, user.reset_token, reset_link)
+		
+		return {
+			"success": True,
+			"email_sent": email_sent,
+			"message": "Nếu email tồn tại, link đặt lại mật khẩu đã được gửi."
+		}
+	
+	return {
+		"success": False,
+		"email_sent": False,
+		"message": "Nếu email tồn tại, link đặt lại mật khẩu đã được gửi."
+	}
 
 
 def reset_password(db: Session, token: str, new_password: str) -> bool:

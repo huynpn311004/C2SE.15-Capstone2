@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { fetchDonationMonitoring, updateDonationStatus } from '../../services/supermarketAdminApi'
+import { fetchDonationMonitoring } from '../../services/supermarketAdminApi'
 import './DonationMonitoring.css'
 
 const statusBadge = { pending: 'badge-warning', approved: 'badge-info', completed: 'badge-success', rejected: 'badge-danger', received: 'badge-success' }
@@ -21,34 +21,13 @@ export default function DonationMonitoring() {
   const [filter, setFilter] = useState('all')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [updating, setUpdating] = useState(null) // Track which donation is being updated
-
-  const handleStatusUpdate = async (requestId, newStatus) => {
-    try {
-      setUpdating(requestId)
-      const userId = getUserId()
-      if (!userId) throw new Error('Không tìm thấy user')
-      await updateDonationStatus(userId, requestId, newStatus)
-      // Refresh the donation list after successful update
-      const data = await fetchDonationMonitoring(userId, filter)
-      setDonations(data)
-      setError('')
-    } catch (err) {
-      console.error('Failed to update status:', err)
-      setError(err.message || 'Không thể cập nhật trạng thái')
-    } finally {
-      setUpdating(null)
-    }
-  }
 
   useEffect(() => {
     let active = true
 
     async function loadDonations() {
       try {
-        const userId = getUserId()
-        if (!userId) throw new Error('Không tìm thấy user')
-        const data = await fetchDonationMonitoring(userId, filter)
+        const data = await fetchDonationMonitoring(filter)
         if (!active) return
         setDonations(data)
         setError('')
@@ -151,36 +130,14 @@ export default function DonationMonitoring() {
                     <td>{d.exp}</td>
                     <td>{d.date}</td>
                     <td><span className={`badge ${statusBadge[d.status]}`}>{statusLabel[d.status]}</span></td>
-                    <td className="sadonmon-actions">
-                      {d.status === 'pending' && (
-                        <>
-                          <button
-                            className="sadonmon-btn-approve"
-                            onClick={() => handleStatusUpdate(d.id, 'approved')}
-                            disabled={updating === d.id}
-                            title="Duyệt đơn"
-                          >
-                            {updating === d.id ? 'Đang xử lý...' : 'Duyệt'}
-                          </button>
-                          <button
-                            className="sadonmon-btn-reject"
-                            onClick={() => handleStatusUpdate(d.id, 'rejected')}
-                            disabled={updating === d.id}
-                            title="Từ chối đơn"
-                          >
-                            {updating === d.id ? 'Đang xử lý...' : 'Từ Chối'}
-                          </button>
-                        </>
-                      )}
-                      {d.status === 'approved' && (
-                        <span className="sadonmon-status-text">Đã duyệt</span>
-                      )}
-                      {d.status === 'rejected' && (
-                        <span className="sadonmon-status-text">Đã từ chối</span>
-                      )}
-                      {d.status === 'received' && (
-                        <span className="sadonmon-status-text">Đã nhận</span>
-                      )}
+                    <td>
+                      <span className="sadonmon-status-text">
+                        {d.status === 'pending' && 'Chờ duyệt từ nhân viên'}
+                        {d.status === 'approved' && 'Đã duyệt'}
+                        {d.status === 'rejected' && 'Đã từ chối'}
+                        {d.status === 'received' && 'Đã nhận'}
+                        {d.status === 'completed' && 'Hoàn thành'}
+                      </span>
                     </td>
                   </tr>
                 ))}

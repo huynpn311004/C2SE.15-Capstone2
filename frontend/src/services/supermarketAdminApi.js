@@ -1,7 +1,6 @@
 import API from './api'
 import {
   fetchAdminAuditLogs,
-  fetchAdminDashboardSummary,
   fetchAdminReports,
   fetchAdminSupermarkets,
   fetchAdminUsers,
@@ -10,6 +9,40 @@ import {
   deleteAdminUser,
 } from './adminApi'
 
+function getUserId() {
+  try {
+    const raw = localStorage.getItem('seims_auth_user')
+    if (!raw) return null
+    const user = JSON.parse(raw)
+    return user?.id || null
+  } catch {
+    return null
+  }
+}
+
+function getUserRole() {
+  try {
+    const raw = localStorage.getItem('seims_auth_user')
+    if (!raw) return null
+    const user = JSON.parse(raw)
+    return user?.role || null
+  } catch {
+    return null
+  }
+}
+
+function requireSupermarketAdmin() {
+  const role = getUserRole()
+  if (role !== 'supermarket_admin') {
+    throw new Error('Tai khoan khong phai la quan ly sieu thi')
+  }
+  const userId = getUserId()
+  if (!userId) {
+    throw new Error('Chua dang nhap')
+  }
+  return userId
+}
+
 function toNumber(value) {
   if (typeof value === 'number') return value
   if (typeof value !== 'string') return 0
@@ -17,9 +50,10 @@ function toNumber(value) {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
-export async function fetchSupermarketDashboardData(userId) {
+export async function fetchSupermarketDashboardData() {
+  const userId = requireSupermarketAdmin()
   const [stores, reports, users, logs] = await Promise.all([
-    userId ? fetchSupermarketStores(userId) : [],
+    fetchSupermarketStores(),
     fetchAdminReports('30d'),
     fetchAdminUsers(),
     fetchAdminAuditLogs({ limit: 30 }),
@@ -52,34 +86,31 @@ export async function fetchSupermarketDashboardData(userId) {
   }
 }
 
-export async function fetchSupermarketStores(userId) {
-  const response = await API.get('/supermarket-admin/stores', {
-    params: { user_id: userId },
-  })
+export async function fetchSupermarketStores() {
+  requireSupermarketAdmin()
+  const response = await API.get('/supermarket-admin/stores')
   return response.data.items || []
 }
 
-export async function saveSupermarketStore(storeId, payload, userId) {
-  await API.put(`/supermarket-admin/stores/${storeId}`, payload, {
-    params: { user_id: userId },
-  })
+export async function saveSupermarketStore(storeId, payload) {
+  requireSupermarketAdmin()
+  await API.put(`/supermarket-admin/stores/${storeId}`, payload)
 }
 
-export async function createSupermarketStore(payload, userId) {
-  await API.post('/supermarket-admin/stores', payload, {
-    params: { user_id: userId },
-  })
+export async function createSupermarketStore(payload) {
+  requireSupermarketAdmin()
+  await API.post('/supermarket-admin/stores', payload)
 }
 
-export async function removeSupermarketStore(storeId, userId) {
-  await API.delete(`/supermarket-admin/stores/${storeId}`, {
-    params: { user_id: userId },
-  })
+export async function removeSupermarketStore(storeId) {
+  requireSupermarketAdmin()
+  await API.delete(`/supermarket-admin/stores/${storeId}`)
 }
 
 export async function fetchSupermarketStaff() {
-  const users = await fetchAdminUsers()
-  return users.filter((item) => (item.role || '').toLowerCase() === 'store staff')
+  requireSupermarketAdmin()
+  const response = await API.get('/supermarket-admin/staff')
+  return response.data.items || []
 }
 
 export async function saveSupermarketStaff(userId, payload) {
@@ -107,8 +138,10 @@ export async function createSupermarketStaff(payload) {
   return response.data
 }
 
-export async function fetchSupermarketAuditLogs(limit = 200) {
-  return fetchAdminAuditLogs({ limit })
+export async function fetchSupermarketAuditLogs(params = {}) {
+  requireSupermarketAdmin()
+  const response = await API.get('/supermarket-admin/audit-logs', { params })
+  return response.data.items || []
 }
 
 export async function fetchSupermarketReports(range = '30d') {
@@ -133,30 +166,46 @@ export async function fetchSupermarketReports(range = '30d') {
   }
 }
 
-export async function fetchDonationMonitoring(userId, statusFilter = 'all') {
+export async function fetchDonationMonitoring(statusFilter = 'all') {
+  requireSupermarketAdmin()
   const response = await API.get('/supermarket-admin/donations', {
-    params: { user_id: userId, status_filter: statusFilter },
+    params: { status_filter: statusFilter },
   })
   return response.data.items || []
 }
 
-export async function updateDonationStatus(userId, requestId, newStatus) {
-  const response = await API.put(`/supermarket-admin/donations/${requestId}/status`, {}, {
-    params: { user_id: userId, status: newStatus },
+export async function fetchSupermarketProducts() {
+  requireSupermarketAdmin()
+  const response = await API.get('/supermarket-admin/products')
+  return response.data.items || []
+}
+
+export async function fetchSupermarketCategories() {
+  requireSupermarketAdmin()
+  const response = await API.get('/supermarket-admin/categories')
+  return response.data.items || []
+}
+
+export async function fetchSupermarketDashboardSummary(period = 'daily') {
+  requireSupermarketAdmin()
+  const response = await API.get('/supermarket-admin/dashboard-summary', {
+    params: { period },
   })
   return response.data
 }
 
-export async function fetchSupermarketProducts(userId) {
-  const response = await API.get('/supermarket-admin/products', {
-    params: { user_id: userId },
-  })
-  return response.data.items || []
+export async function fetchSupermarketProfile() {
+  requireSupermarketAdmin()
+  const response = await API.get('/supermarket-admin/profile')
+  return response.data
 }
 
-export async function fetchSupermarketCategories(userId) {
-  const response = await API.get('/supermarket-admin/categories', {
-    params: { user_id: userId },
+export async function updateSupermarketProfile(payload) {
+  requireSupermarketAdmin()
+  const params = new URLSearchParams({
+    name: payload.name || '',
+    address: payload.address || '',
   })
-  return response.data.items || []
+  const response = await API.put('/supermarket-admin/profile?' + params.toString())
+  return response.data
 }

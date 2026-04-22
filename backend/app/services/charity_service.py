@@ -60,6 +60,7 @@ def get_charity_profile(db: Session, user_id: int) -> dict:
         CharityOrganization.id,
         CharityOrganization.org_name,
         CharityOrganization.phone,
+        CharityOrganization.address,
         User.username,
         User.email,
         User.full_name,
@@ -78,6 +79,7 @@ def get_charity_profile(db: Session, user_id: int) -> dict:
             "username": "",
             "email": user.email,
             "phone": user.phone,
+            "address": "",
             "createdAt": _format_date(user.created_at) if hasattr(user, 'created_at') else "",
         }
 
@@ -88,11 +90,12 @@ def get_charity_profile(db: Session, user_id: int) -> dict:
         "username": charity.username or "",
         "email": charity.email or "",
         "phone": charity.phone or "",
+        "address": charity.address or "",
         "createdAt": _format_date(charity.created_at),
     }
 
 
-def update_charity_profile(db: Session, user_id: int, full_name: str, email: str, phone: str, org_name: str) -> dict:
+def update_charity_profile(db: Session, user_id: int, full_name: str, email: str, phone: str, org_name: str, address: str = "") -> dict:
     """Update charity profile information."""
     user = _get_charity_user(db, user_id)
 
@@ -100,6 +103,7 @@ def update_charity_profile(db: Session, user_id: int, full_name: str, email: str
     email = (email or "").strip().lower()
     phone = (phone or "").strip()
     org_name = (org_name or "").strip()
+    address = (address or "").strip()
 
     if not full_name:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ho ten khong duoc trong")
@@ -122,7 +126,11 @@ def update_charity_profile(db: Session, user_id: int, full_name: str, email: str
         db.query(CharityOrganization).filter(
             CharityOrganization.user_id == user_id
         ).update(
-            {CharityOrganization.org_name: org_name, CharityOrganization.phone: phone or None},
+            {
+                CharityOrganization.org_name: org_name,
+                CharityOrganization.phone: phone or None,
+                CharityOrganization.address: address or None,
+            },
             synchronize_session=False
         )
 
@@ -199,12 +207,77 @@ def get_charity_dashboard_summary(db: Session, user_id: int) -> dict:
         func.lower(DonationRequest.status) == 'received'
     ).scalar() or 0
 
+    # Received list
+    received_rows = db.query(
+        DonationRequest.id,
+        DonationRequest.request_qty,
+        DonationRequest.status,
+        DonationRequest.received_at,
+        Product.name.label('product_name'),
+        Store.name.label('store_name'),
+        DonationOffer.lot_id,
+    ).join(
+        DonationOffer, DonationOffer.id == DonationRequest.offer_id
+    ).join(
+        Store, Store.id == DonationOffer.store_id
+    ).join(
+        InventoryLot, InventoryLot.id == DonationOffer.lot_id
+    ).join(
+        Product, Product.id == InventoryLot.product_id
+    ).filter(
+        DonationRequest.charity_id == user_id,
+        func.lower(DonationRequest.status) == 'received'
+    ).order_by(DonationRequest.received_at.desc()).limit(20).all()
+
+    received_list = []
+    for row in received_rows:
+        received_list.append({
+            "id": row.id,
+            "product": row.product_name,
+            "qty": row.request_qty,
+            "store": row.store_name,
+            "date": row.received_at.strftime("%d/%m/%Y") if row.received_at else "-",
+        })
+
+    # Pending requests
+    pending_rows = db.query(
+        DonationRequest.id,
+        DonationRequest.request_qty,
+        DonationRequest.status,
+        DonationRequest.created_at,
+        Product.name.label('product_name'),
+        Store.name.label('store_name'),
+    ).join(
+        DonationOffer, DonationOffer.id == DonationRequest.offer_id
+    ).join(
+        Store, Store.id == DonationOffer.store_id
+    ).join(
+        InventoryLot, InventoryLot.id == DonationOffer.lot_id
+    ).join(
+        Product, Product.id == InventoryLot.product_id
+    ).filter(
+        DonationRequest.charity_id == user_id,
+        func.lower(DonationRequest.status) == 'pending'
+    ).order_by(DonationRequest.created_at.desc()).limit(20).all()
+
+    pending_list = []
+    for row in pending_rows:
+        pending_list.append({
+            "id": row.id,
+            "product": row.product_name,
+            "qty": row.request_qty,
+            "store": row.store_name,
+            "date": row.created_at.strftime("%d/%m/%Y"),
+        })
+
     return {
         "totalReceived": int(total_received),
         "totalPending": int(total_pending),
         "totalApproved": int(total_approved),
         "totalProducts": int(total_products),
         "uniqueStores": int(unique_stores),
+        "receivedList": received_list,
+        "pendingList": pending_list,
     }
 
 
@@ -222,6 +295,7 @@ def list_charity_donation_offers(db: Session, user_id: int) -> dict:
         InventoryLot.expiry_date,
         Store.name.label('store_name'),
         Supermarket.name.label('supermarket_name'),
+        Supermarket.address.label('supermarket_address'),
         func.coalesce(DonationRequest.id, 0).label('my_request_id'),
         func.coalesce(DonationRequest.status, '').label('my_request_status')
     ).join(
@@ -256,6 +330,7 @@ def list_charity_donation_offers(db: Session, user_id: int) -> dict:
             "exp": _format_date(row.expiry_date),
             "store": row.store_name or "",
             "supermarket": row.supermarket_name or "",
+            "supermarketAddress": row.supermarket_address or "",
             "status": display_status,
             "myRequestId": int(row.my_request_id) if row.my_request_id else None,
             "myRequestStatus": row.my_request_status,
@@ -286,8 +361,16 @@ def create_charity_donation_request(db: Session, user_id: int, offer_id: int, re
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Donation offer khong ton tai")
     if offer.status != "open":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Donation offer da dong")
-    if request_qty > int(offer.offered_qty or 0):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="So luong vuot qua so luong co san")
+    
+    # Calculate total already requested (pending + approved) to prevent overbooking
+    total_requested = db.query(func.sum(DonationRequest.request_qty)).filter(
+        DonationRequest.offer_id == offer_id,
+        DonationRequest.status.in_(['pending', 'approved'])
+    ).scalar() or 0
+    
+    available_qty = int(offer.offered_qty or 0) - int(total_requested)
+    if request_qty > available_qty:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"So luong vuot qua so luong co san. Con lai: {available_qty}")
 
     existing = db.query(DonationRequest.id).filter(
         DonationRequest.offer_id == offer_id,
@@ -326,6 +409,7 @@ def list_charity_donation_requests(db: Session, user_id: int) -> dict:
         InventoryLot.expiry_date,
         Store.name.label('store_name'),
         Supermarket.name.label('supermarket_name'),
+        Supermarket.address.label('supermarket_address'),
         DonationOffer.offered_qty.label('original_qty'),
         DonationOffer.created_at.label('offer_created_at')
     ).join(
@@ -357,6 +441,7 @@ def list_charity_donation_requests(db: Session, user_id: int) -> dict:
             "exp": _format_date(row.expiry_date),
             "store": row.store_name or "",
             "supermarket": row.supermarket_name or "",
+            "supermarketAddress": row.supermarket_address or "",
             "date": _format_date(row.created_at),
             "createdAt": _format_date(row.created_at),
             "approvedDate": _format_date(row.created_at) if row.status and row.status.lower() in ['approved', 'received'] else "-",

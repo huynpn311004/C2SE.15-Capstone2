@@ -234,7 +234,6 @@ def get_reports(db: Session, days: int = 30) -> dict:
 
 
 # ========== Audit Logs ==========
-
 def list_audit_logs(
 	db: Session,
 	action: str = None,
@@ -242,56 +241,71 @@ def list_audit_logs(
 	user_keyword: str = None,
 	from_date: str = None,
 	to_date: str = None,
-	limit: int = 200
+	limit: int = 200,
+	offset: int = 0,
 ) -> dict:
-	"""List audit logs with filters"""
-	query = db.query(AuditLog, User).outerjoin(User, AuditLog.user_id == User.id)
-	
-	# Apply filters dynamically without string concatenation
+	"""List audit logs with filters (system-admin view)."""
+	from app.models.audit_log import AuditLog
+	from app.models.user import User
+
+	q = (
+		db.query(AuditLog, User)
+		.outerjoin(User, AuditLog.user_id == User.id)
+	)
+
 	if action:
-		query = query.filter(AuditLog.action == action.strip())
-	
+		q = q.filter(AuditLog.action == action.strip())
+
 	if entity_type:
-		query = query.filter(AuditLog.entity_type == entity_type.strip())
-	
+		q = q.filter(AuditLog.entity_type == entity_type.strip())
+
 	if user_keyword:
 		keyword = f"%{user_keyword.strip()}%"
-		query = query.filter(
+		q = q.filter(
 			or_(
 				User.username.ilike(keyword),
 				User.full_name.ilike(keyword),
 				User.email.ilike(keyword)
 			)
 		)
-	
+
 	if from_date:
-		query = query.filter(AuditLog.created_at >= from_date)
-	
+		q = q.filter(AuditLog.created_at >= from_date)
+
 	if to_date:
 		from datetime import datetime as dt
 		to_date_obj = dt.fromisoformat(to_date)
 		to_date_next = to_date_obj.replace(hour=0, minute=0, second=0) + timedelta(days=1)
-		query = query.filter(AuditLog.created_at < to_date_next)
-	
-	query = query.order_by(AuditLog.created_at.desc(), AuditLog.id.desc()).limit(limit)
-	rows = query.all()
-	
+		q = q.filter(AuditLog.created_at < to_date_next)
+
+	total = q.count()
+	rows = (
+		q.order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
+		 .limit(limit)
+		 .offset(offset)
+		 .all()
+	)
+
 	items = []
 	for audit_log, user in rows:
-		actor = (user.full_name if user else None) or (user.username if user else None) or (user.email if user else None) or "System"
+		actor = (
+			(user.full_name if user else None)
+			or (user.username if user else None)
+			or (user.email if user else None)
+			or "System"
+		)
 		items.append({
 			"id": audit_log.id,
-			"time": _format_datetime(audit_log.created_at) or "-",
-			"actor": actor,
-			"action": audit_log.action or "-",
-			"entityType": audit_log.entity_type or "-",
-			"entityId": audit_log.entity_id,
-			"oldValue": audit_log.old_value,
-			"newValue": audit_log.new_value,
 			"userId": audit_log.user_id,
+			"storeId": audit_log.store_id,
+			"actor": actor,
+			"action": audit_log.action,
+			"entityType": audit_log.entity_type,
+			"entityId": audit_log.entity_id,
+			"time": audit_log.created_at.strftime("%Y-%m-%d %H:%M") if audit_log.created_at else "-",
 		})
-	
-	return {"items": items}
+
+	return {"items": items, "total": total, "limit": limit, "offset": offset}
 
 
 # ========== User Management ==========
@@ -309,6 +323,7 @@ def list_users(db: Session) -> dict:
 		User.created_at,
 		User.last_login_at,
 		Supermarket.name.label('supermarket_name'),
+		Supermarket.address.label('supermarket_address'),
 		Store.name.label('store_name')
 	).outerjoin(
 		Supermarket, Supermarket.id == User.supermarket_id
@@ -335,6 +350,7 @@ def list_users(db: Session) -> dict:
 				"joinDate": _format_date(item["created_at"]),
 				"lastLogin": _format_datetime(item["last_login_at"]) or "-",
 				"supermarket": item["supermarket_name"] or "N/A",
+				"supermarketAddress": item["supermarket_address"] or "",
 				"store": item["store_name"] or "-",
 			}
 		)
@@ -495,9 +511,9 @@ def list_supermarkets(db: Session) -> dict:
 			{
 				"id": s.id,
 				"name": s.name,
+				"address": s.address or "",
 				"email": admin.email or "" if admin else "",
 				"phone": admin.phone or "" if admin else "",
-				"address": admin.address or "" if admin else "",
 				"requestDate": _format_date(s.created_at),
 				"status": "active" if (not is_locked and account_created) else "inactive",
 				"director": admin.full_name or "" if admin else "",
@@ -511,14 +527,15 @@ def list_supermarkets(db: Session) -> dict:
 	return {"items": data}
 
 
-def update_supermarket(db: Session, supermarket_id: int, name: str, director: str, 
+def update_supermarket(db: Session, supermarket_id: int, name: str, director: str,
 					   email: str, phone: str, address: str) -> dict:
 	"""Update supermarket information"""
 	if not name or not email or not director:
 		raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid data")
 
 	db.query(Supermarket).filter(Supermarket.id == supermarket_id).update({
-		Supermarket.name: name
+		Supermarket.name: name,
+		Supermarket.address: address or None
 	}, synchronize_session=False)
 
 	admin = _get_supermarket_admin(db, supermarket_id)
@@ -526,8 +543,7 @@ def update_supermarket(db: Session, supermarket_id: int, name: str, director: st
 		db.query(User).filter(User.id == admin.id).update({
 			User.full_name: director,
 			User.email: email,
-			User.phone: phone or None,
-			User.address: address or None
+			User.phone: phone or None
 		}, synchronize_session=False)
 
 	db.commit()
@@ -593,7 +609,7 @@ def create_supermarket_with_account(db: Session, name: str, director: str, email
 
 	try:
 		# Create supermarket using ORM
-		new_supermarket = Supermarket(name=name)
+		new_supermarket = Supermarket(name=name, address=address or None)
 		db.add(new_supermarket)
 		db.flush()  # Flush to get the ID
 		supermarket_id = new_supermarket.id
@@ -691,12 +707,12 @@ def list_charities(db: Session) -> dict:
 		CharityOrganization.id,
 		CharityOrganization.org_name,
 		CharityOrganization.phone,
+		CharityOrganization.address,
 		CharityOrganization.user_id,
 		User.username,
 		User.full_name,
 		User.email,
 		User.phone.label('user_phone'),
-		User.address,
 		User.is_active,
 		User.created_at
 	).outerjoin(
@@ -740,15 +756,15 @@ def update_charity(db: Session, charity_id: int, name: str, director: str, email
 
 	db.query(CharityOrganization).filter(CharityOrganization.id == charity_id).update({
 		CharityOrganization.org_name: name,
-		CharityOrganization.phone: phone or None
+		CharityOrganization.phone: phone or None,
+		CharityOrganization.address: address or None
 	}, synchronize_session=False)
 
 	if charity.user_id:
 		db.query(User).filter(User.id == charity.user_id).update({
 			User.full_name: director,
 			User.email: email,
-			User.phone: phone or None,
-			User.address: address or None
+			User.phone: phone or None
 		}, synchronize_session=False)
 
 	db.commit()
@@ -773,7 +789,8 @@ def create_charity_account(db: Session, charity_id: int, name: str, director: st
 	try:
 		db.query(CharityOrganization).filter(CharityOrganization.id == charity_id).update({
 			CharityOrganization.org_name: name,
-			CharityOrganization.phone: phone or None
+			CharityOrganization.phone: phone or None,
+			CharityOrganization.address: address or None
 		}, synchronize_session=False)
 
 		if charity.user_id:
@@ -781,7 +798,6 @@ def create_charity_account(db: Session, charity_id: int, name: str, director: st
 				User.full_name: director,
 				User.email: email,
 				User.phone: phone or None,
-				User.address: address or None,
 				User.is_active: is_active,
 				User.password_hash: password_hash,
 				User.role: 'charity',
@@ -796,7 +812,6 @@ def create_charity_account(db: Session, charity_id: int, name: str, director: st
 				password_hash=password_hash,
 				full_name=director,
 				phone=phone or None,
-				address=address or None,
 				role='charity',
 				is_active=is_active,
 				failed_login_attempts=0
@@ -834,7 +849,6 @@ def create_charity_with_account(db: Session, name: str, director: str, email: st
 			password_hash=password_hash,
 			full_name=director,
 			phone=phone or None,
-			address=address or None,
 			role='charity',
 			is_active=is_active,
 			failed_login_attempts=0
@@ -846,7 +860,8 @@ def create_charity_with_account(db: Session, name: str, director: str, email: st
 		new_charity = CharityOrganization(
 			user_id=user_id,
 			org_name=name,
-			phone=phone or None
+			phone=phone or None,
+			address=address or None
 		)
 		db.add(new_charity)
 		db.flush()

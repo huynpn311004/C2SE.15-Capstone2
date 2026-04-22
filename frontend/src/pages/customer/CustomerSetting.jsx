@@ -80,6 +80,7 @@ export default function CustomerSetting() {
         fullName: formData.fullName.trim(),
         email: formData.email.trim().toLowerCase(),
         phone: formData.phone.trim(),
+        address: formData.address.trim(),
       }
 
       await updateCustomerSetting(payload)

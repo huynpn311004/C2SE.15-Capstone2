@@ -1,12 +1,16 @@
 """Supermarket admin service layer with business logic."""
 
 import re
-from sqlalchemy import func, and_
+from datetime import datetime, timedelta
+from sqlalchemy import func, and_, Integer, case
 from sqlalchemy.orm import Session, aliased
 from fastapi import HTTPException, status
 
 from app.models.user import User
 from app.models.store import Store
+from app.models.supermarket import Supermarket
+from app.models.order import Order
+from app.models.audit_log import AuditLog
 from app.models.donation_request import DonationRequest
 from app.models.donation_offer import DonationOffer
 from app.models.inventory_lot import InventoryLot
@@ -65,6 +69,39 @@ def _generate_unique_store_code(db: Session, supermarket_id: int, name: str) -> 
 
         index += 1
         candidate = f"{_build_store_code(name)}_{index}"
+
+
+# ========== Supermarket Profile ==========
+def get_supermarket_profile(db: Session, user_id: int) -> dict:
+    """Get supermarket profile for the current admin."""
+    supermarket_id = _get_supermarket_scope(db, user_id)
+
+    sm = db.query(Supermarket).filter(Supermarket.id == supermarket_id).first()
+    if not sm:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Supermarket not found")
+
+    return {
+        "id": sm.id,
+        "name": sm.name or "",
+        "address": sm.address or "",
+        "createdAt": sm.created_at.strftime("%d/%m/%Y") if sm.created_at else "",
+    }
+
+
+def update_supermarket_profile(db: Session, user_id: int, name: str, address: str) -> dict:
+    """Update supermarket profile (name and address)."""
+    supermarket_id = _get_supermarket_scope(db, user_id)
+
+    name = (name or "").strip()
+    if not name:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ten sieu thi khong duoc trong")
+
+    db.query(Supermarket).filter(Supermarket.id == supermarket_id).update({
+        Supermarket.name: name,
+        Supermarket.address: address or None
+    }, synchronize_session=False)
+    db.commit()
+    return {"success": True}
 
 
 # ========== Store Management ==========
@@ -263,34 +300,295 @@ def list_donation_monitoring(db: Session, user_id: int, status_filter: str = "al
     return {"items": items}
 
 
-def update_donation_request_status(db: Session, user_id: int, request_id: int, new_status: str) -> dict:
-    """Update donation request status for supermarket admin."""
+# ========== Staff Management ==========
+def list_supermarket_staff(db: Session, user_id: int) -> dict:
+    """List all staff for supermarket admin."""
     supermarket_id = _get_supermarket_scope(db, user_id)
 
-    valid_statuses = ['pending', 'approved', 'rejected']
-    if new_status not in valid_statuses:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Trạng thái không hợp lệ. Chỉ chấp nhận: {', '.join(valid_statuses)}"
-        )
+    rows = db.query(
+        User.id,
+        User.full_name,
+        User.email,
+        User.phone,
+        User.username,
+        User.role,
+        User.is_active,
+        Store.name.label('store_name'),
+        Store.id.label('store_id'),
+        User.created_at
+    ).outerjoin(
+        Store,
+        User.store_id == Store.id
+    ).filter(
+        User.role == 'store_staff',
+        Store.supermarket_id == supermarket_id
+    ).order_by(
+        User.id.desc()
+    ).all()
 
-    # Verify that the request belongs to a store in this supermarket
-    request = db.query(DonationRequest).join(
+    items = []
+    for row in rows:
+        items.append({
+            "id": row.id,
+            "fullName": row.full_name,
+            "email": row.email,
+            "phone": row.phone or "",
+            "username": row.username,
+            "role": row.role,
+            "store": row.store_name or "-",
+            "storeId": row.store_id or "",
+            "status": "active" if row.is_active else "inactive",
+            "joinDate": row.created_at.strftime("%d/%m/%Y") if row.created_at else "-",
+        })
+
+    return {"items": items}
+
+
+# ========== Audit Log ==========
+def list_supermarket_audit_logs(
+    db: Session,
+    user_id: int,
+    store_id: int | None = None,
+    action: str = None,
+    entity_type: str = None,
+    from_date: str = None,
+    to_date: str = None,
+    limit: int = 200,
+    offset: int = 0,
+) -> dict:
+    """List audit logs for supermarket admin's scope.
+
+    Logs are scoped to:
+      - Actions performed by staff in stores belonging to this supermarket
+      - Optionally filtered by specific store_id
+
+    Results are sorted newest-first.
+    """
+    from app.models.audit_log import AuditLog
+    from app.models.user import User
+    from app.models.store import Store
+
+    supermarket_id = _get_supermarket_scope(db, user_id)
+
+    # Base: logs from staff in stores of this supermarket
+    staff_ids_sub = db.query(User.id).join(
+        Store, Store.id == User.store_id
+    ).filter(
+        Store.supermarket_id == supermarket_id
+    ).subquery()
+
+    # Join with User to get actor name
+    q = (
+        db.query(AuditLog, User)
+        .outerjoin(User, AuditLog.user_id == User.id)
+        .filter(AuditLog.user_id.in_(db.query(staff_ids_sub.c.id)))
+    )
+
+    if store_id is not None:
+        q = q.filter(AuditLog.store_id == store_id)
+
+    if action:
+        q = q.filter(AuditLog.action == action.strip())
+
+    if entity_type:
+        q = q.filter(AuditLog.entity_type == entity_type.strip())
+
+    if from_date:
+        q = q.filter(AuditLog.created_at >= from_date)
+
+    if to_date:
+        to_date_obj = datetime.fromisoformat(to_date)
+        to_date_next = to_date_obj.replace(hour=0, minute=0, second=0) + timedelta(days=1)
+        q = q.filter(AuditLog.created_at < to_date_next)
+
+    total = q.count()
+    rows = (
+        q.order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
+         .limit(limit)
+         .offset(offset)
+         .all()
+    )
+
+    items = []
+    for audit_log, user in rows:
+        actor = (
+            (user.full_name if user else None)
+            or (user.username if user else None)
+            or (user.email if user else None)
+            or "System"
+        )
+        items.append({
+            "id": audit_log.id,
+            "time": audit_log.created_at.strftime("%Y-%m-%d %H:%M") if audit_log.created_at else "-",
+            "actor": actor,
+            "action": audit_log.action,
+            "entityType": audit_log.entity_type,
+            "entityId": audit_log.entity_id,
+            "userId": audit_log.user_id,
+            "storeId": audit_log.store_id,
+        })
+
+    return {"items": items, "total": total, "limit": limit, "offset": offset}
+
+
+# ========== Dashboard ==========
+def get_dashboard_summary(db: Session, user_id: int, period: str = "daily") -> dict:
+    """
+    Get dashboard summary for supermarket admin.
+    period: 'daily', 'weekly', 'monthly'
+    """
+    supermarket_id = _get_supermarket_scope(db, user_id)
+
+    # Time range
+    now = datetime.now()
+    if period == "daily":
+        current_from = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        prev_from = current_from - timedelta(days=1)
+        prev_to = current_from
+    elif period == "weekly":
+        current_from = now - timedelta(days=now.weekday())
+        current_from = current_from.replace(hour=0, minute=0, second=0, microsecond=0)
+        prev_from = current_from - timedelta(days=7)
+        prev_to = current_from
+    else:  # monthly
+        current_from = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        prev_from = (current_from - timedelta(days=1)).replace(day=1)
+        prev_to = current_from
+
+    # --- Counts (all time for the supermarket) ---
+    total_stores = db.query(func.count(Store.id)).filter(
+        Store.supermarket_id == supermarket_id
+    ).scalar() or 0
+
+    staff_alias = aliased(User)
+    total_staff = db.query(func.count(staff_alias.id)).filter(
+        staff_alias.supermarket_id == supermarket_id,
+        staff_alias.role.in_(["store_staff", "staff"])
+    ).scalar() or 0
+
+    total_products = db.query(func.count(Product.id)).join(
+        Store, Store.supermarket_id == supermarket_id
+    ).join(
+        InventoryLot, InventoryLot.store_id == Store.id
+    ).filter(
+        Product.id == InventoryLot.product_id
+    ).scalar() or 0
+
+    # --- Near expiry (expires in 7 days) ---
+    expiry_threshold = now + timedelta(days=7)
+    near_expiry = db.query(func.count(InventoryLot.id)).join(
+        Store, Store.id == InventoryLot.store_id
+    ).filter(
+        Store.supermarket_id == supermarket_id,
+        InventoryLot.expiry_date <= expiry_threshold,
+        InventoryLot.expiry_date >= now,
+    ).scalar() or 0
+
+    # --- Orders in period ---
+    orders_metric = db.query(
+        func.count(Order.id).label("total_orders"),
+        func.coalesce(func.sum(Order.total_amount), 0).label("total_revenue"),
+        func.coalesce(
+            func.sum(func.cast(case((Order.status == "completed", 1), else_=0), Integer)), 0
+        ).label("completed_orders"),
+    ).join(
+        Store, Store.id == Order.store_id
+    ).filter(
+        Store.supermarket_id == supermarket_id,
+        Order.created_at >= current_from,
+    ).first()
+
+    total_orders = int(orders_metric.total_orders or 0)
+    total_revenue = float(orders_metric.total_revenue or 0)
+    completed_orders = int(orders_metric.completed_orders or 0)
+
+    # Previous period
+    prev_orders = db.query(func.count(Order.id)).join(
+        Store, Store.id == Order.store_id
+    ).filter(
+        Store.supermarket_id == supermarket_id,
+        Order.created_at >= prev_from,
+        Order.created_at < prev_to,
+    ).scalar() or 0
+
+    prev_revenue = db.query(func.coalesce(func.sum(Order.total_amount), 0)).join(
+        Store, Store.id == Order.store_id
+    ).filter(
+        Store.supermarket_id == supermarket_id,
+        Order.created_at >= prev_from,
+        Order.created_at < prev_to,
+    ).scalar() or 0
+
+    orders_growth = round(((total_orders - int(prev_orders)) / int(prev_orders)) * 100, 1) if prev_orders else 0
+    revenue_growth = round(((total_revenue - float(prev_revenue)) / float(prev_revenue)) * 100, 1) if prev_revenue else 0
+
+    # --- Donations in period ---
+    donation_metric = db.query(
+        func.count(DonationRequest.id).label("donation_count"),
+        func.coalesce(func.sum(DonationRequest.request_qty), 0).label("donation_products"),
+    ).join(
         DonationOffer, DonationOffer.id == DonationRequest.offer_id
     ).join(
         Store, Store.id == DonationOffer.store_id
     ).filter(
-        DonationRequest.id == request_id,
-        Store.supermarket_id == supermarket_id
+        Store.supermarket_id == supermarket_id,
+        DonationRequest.created_at >= current_from,
     ).first()
 
-    if not request:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Donation request không tồn tại hoặc không thuộc supermarket của bạn"
-        )
+    donation_count = int(donation_metric.donation_count or 0)
+    donation_products = int(donation_metric.donation_products or 0)
 
-    request.status = new_status
-    db.commit()
+    # Sales vs donation breakdown by store
+    store_breakdown = db.query(
+        Store.id,
+        Store.name,
+        func.count(Order.id).label("order_count"),
+        func.coalesce(func.sum(Order.total_amount), 0).label("order_revenue"),
+        func.count(
+            func.distinct(
+                case(
+                    (func.lower(DonationRequest.status) == "received", DonationRequest.id),
+                    else_=None
+                )
+            )
+        ).label("donation_count"),
+    ).outerjoin(
+        Order, and_(Order.store_id == Store.id, Order.created_at >= current_from)
+    ).outerjoin(
+        DonationOffer, DonationOffer.store_id == Store.id
+    ).outerjoin(
+        DonationRequest,
+        and_(DonationRequest.offer_id == DonationOffer.id, DonationRequest.created_at >= current_from)
+    ).filter(
+        Store.supermarket_id == supermarket_id
+    ).group_by(Store.id, Store.name).limit(10).all()
 
-    return {"success": True, "message": f"Cập nhật trạng thái thành {new_status} thành công"}
+    store_stats = []
+    for row in store_breakdown:
+        store_stats.append({
+            "id": row.id,
+            "name": row.name,
+            "orders": int(row.order_count or 0),
+            "revenue": float(row.order_revenue or 0),
+            "donations": int(row.donation_count or 0) if row.donation_count else 0,
+        })
+
+    return {
+        "period": period,
+        "stats": {
+            "totalStores": int(total_stores),
+            "totalStaff": int(total_staff),
+            "totalProducts": int(total_products),
+            "nearExpiry": int(near_expiry),
+            "totalOrders": total_orders,
+            "totalRevenue": total_revenue,
+            "completedOrders": completed_orders,
+            "donationCount": donation_count,
+            "donationProducts": donation_products,
+        },
+        "growth": {
+            "orders": orders_growth,
+            "revenue": revenue_growth,
+        },
+        "storeStats": store_stats,
+    }

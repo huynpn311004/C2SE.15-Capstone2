@@ -1,10 +1,7 @@
 from datetime import date, datetime
-
 from sqlalchemy import BigInteger, Date, DateTime, ForeignKey, Index, Integer, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
-
 from app.core.database import Base
-
 
 class InventoryLot(Base):
     __tablename__ = "inventory_lots"

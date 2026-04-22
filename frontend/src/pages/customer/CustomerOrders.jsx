@@ -132,9 +132,9 @@ const CustomerOrders = () => {
   };
 
   return (
-    <div className="customer-page">
+    <div className="customer-orders-page">
       {/* Tabs */}
-      <div className="customer-search-bar">
+      <div className="customer-orders-search-bar">
         <div className="order-tabs">
           {TABS.map((tab, idx) => (
             <button

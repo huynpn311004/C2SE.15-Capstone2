@@ -157,12 +157,13 @@ export default function Register() {
           <span className="register-brand-badge">SEIMS</span>
           <h1 id="register-brand-title">Tham gia cùng SEIMS</h1>
           <p>
-            Đăng ký để xem sản phẩm cận hạn, khuyến mãi và đặt hàng tại các cửa
-            hàng tham gia nền tảng.
+            Tạo tài khoản để tiếp cận các sản phẩm cận hạn với mức giá tốt,
+            đặt hàng nhanh chóng và theo dõi toàn bộ quá trình mua sắm.
           </p>
           <ul className="register-brand-list">
-            <li>Theo dõi đơn hàng và lịch sử mua</li>
-            <li>Nhận thông báo ưu đãi theo cửa hàng</li>
+            <li>Quản lý đơn hàng thuận tiện</li>
+            <li>Lưu trữ lịch sử mua sắm</li>
+            <li>Cập nhật ưu đãi mới nhất từ cửa hàng</li>
           </ul>
         </aside>
 

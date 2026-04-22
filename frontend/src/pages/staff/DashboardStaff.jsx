@@ -1,18 +1,46 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import StaffLayout from '../../components/layout/StaffLayout'
-import { fetchStaffDashboardSummary, fetchCategoryStats } from '../../services/staffApi'
+import { fetchStaffDashboardSummary, fetchStaffOrders, fetchDashboardAlerts } from '../../services/staffApi'
 import './DashboardStaff.css'
+
+function getStatusBadge(status) {
+  const s = (status || '').toLowerCase()
+  if (s === 'pending' || s === 'đang chờ') return { text: 'Đang Chờ', cls: 'badge-pending' }
+  if (s === 'completed' || s === 'đã hoàn thành') return { text: 'Hoàn Thành', cls: 'badge-completed' }
+  if (s === 'processing' || s === 'đang xử lý') return { text: 'Đang Xử Lý', cls: 'badge-processing' }
+  if (s === 'cancelled' || s === 'đã hủy') return { text: 'Đã Hủy', cls: 'badge-cancelled' }
+  if (s === 'delivered' || s === 'đã giao') return { text: 'Đã Giao', cls: 'badge-completed' }
+  return { text: status, cls: 'badge-default' }
+}
+
+function getExpiryBadge(daysLeft) {
+  if (daysLeft < 0) return { text: `Hết hạn ${Math.abs(daysLeft)} ngày`, cls: 'badge-danger' }
+  if (daysLeft <= 3) return { text: `${daysLeft} ngày`, cls: 'badge-danger' }
+  if (daysLeft <= 7) return { text: `${daysLeft} ngày`, cls: 'badge-warning' }
+  return { text: `${daysLeft} ngày`, cls: 'badge-success' }
+}
+
+function getLowStockBadge(qty) {
+  if (qty <= 2) return { text: `Còn ${qty}`, cls: 'badge-danger' }
+  if (qty <= 5) return { text: `Còn ${qty}`, cls: 'badge-warning' }
+  return { text: `Còn ${qty}`, cls: 'badge-success' }
+}
 
 export default function Dashboard() {
   const [stats, setStats] = useState({
     totalLots: 0,
+    totalInventoryQty: 0,
     nearExpiryProducts: 0,
+    lowStockProducts: 0,
     ordersToday: 0,
+    ordersPending: 0,
+    ordersCompleted: 0,
     pendingRequests: 0,
   })
-  const [categoryData, setCategoryData] = useState([])
-  const [orderTrend] = useState([18, 22, 15, 30, 25, 32, 28])
+  const [orders, setOrders] = useState([])
+  const [alerts, setAlerts] = useState([])
   const [loading, setLoading] = useState(true)
+  const [orderFilter, setOrderFilter] = useState('all')
 
   useEffect(() => {
     loadDashboardData()
@@ -21,12 +49,22 @@ export default function Dashboard() {
   async function loadDashboardData() {
     try {
       setLoading(true)
-      const [summary, categories] = await Promise.all([
+      const [summary, ordersData, allLots] = await Promise.all([
         fetchStaffDashboardSummary(),
-        fetchCategoryStats(),
+        fetchStaffOrders(),
+        fetchDashboardAlerts(),
       ])
       setStats(summary)
-      setCategoryData(categories)
+      setOrders(ordersData)
+
+      const alertItems = allLots
+        .filter(lot => {
+          const daysLeft = Math.ceil((new Date(lot.expiryDate) - new Date()) / (1000 * 60 * 60 * 24))
+          return daysLeft <= 7 || lot.quantity <= 5
+        })
+        .slice(0, 20)
+
+      setAlerts(alertItems)
     } catch (err) {
       console.error('Failed to load dashboard data:', err)
     } finally {
@@ -34,11 +72,19 @@ export default function Dashboard() {
     }
   }
 
+  const filteredOrders = useMemo(() => {
+    if (orderFilter === 'all') return orders.slice(0, 10)
+    if (orderFilter === 'pending') return orders.filter(o => (o.status || '').toLowerCase() === 'pending').slice(0, 10)
+    if (orderFilter === 'completed') return orders.filter(o => (o.status || '').toLowerCase() === 'completed').slice(0, 10)
+    return orders.slice(0, 10)
+  }, [orders, orderFilter])
+
   const statCards = [
-    { label: 'Tổng Số Lô Hàng', value: stats.totalLots, change: '+12', tone: 'success' },
-    { label: 'Sản Phẩm Sắp Hết Hạn', value: stats.nearExpiryProducts, change: stats.nearExpiryProducts > 0 ? '!' : 'OK', tone: stats.nearExpiryProducts > 0 ? 'warning' : 'success' },
-    { label: 'Đơn Hàng Hôm Nay', value: stats.ordersToday, change: '+5', tone: 'success' },
-    { label: 'Yêu Cầu Đang Chờ', value: stats.pendingRequests, change: stats.pendingRequests > 0 ? '!' : 'OK', tone: stats.pendingRequests > 0 ? 'warning' : 'success' },
+    { label: 'Tổng Lô Hàng', value: stats.totalLots, sub: `${stats.totalInventoryQty} sản phẩm`, tone: 'success' },
+    { label: 'Sắp Hết Hạn', value: stats.nearExpiryProducts, sub: '≤ 7 ngày', tone: stats.nearExpiryProducts > 0 ? 'warning' : 'success' },
+    { label: 'Tồn Kho Thấp', value: stats.lowStockProducts, sub: '≤ 5 sản phẩm', tone: stats.lowStockProducts > 0 ? 'warning' : 'success' },
+    { label: 'Đơn Hàng Hôm Nay', value: stats.ordersToday, sub: `${stats.ordersPending} chờ · ${stats.ordersCompleted} xong`, tone: 'success' },
+    { label: 'Yêu Cầu Đang Chờ', value: stats.pendingRequests, sub: 'quyên góp', tone: stats.pendingRequests > 0 ? 'warning' : 'success' },
   ]
 
   if (loading) {
@@ -57,47 +103,82 @@ export default function Dashboard() {
         <div className="dashboard-stats">
           {statCards.map((stat, idx) => (
             <div key={idx} className={`stat-card ${stat.tone === 'warning' ? 'stat-card-warning' : ''}`}>
-              <div className="stat-header">
-                <span className={`stat-change stat-change-${stat.tone}`}>{stat.change}</span>
-              </div>
               <div className="stat-value">{stat.value}</div>
               <div className="stat-label">{stat.label}</div>
+              <div className="stat-sub">{stat.sub}</div>
             </div>
           ))}
         </div>
 
         <div className="dashboard-content-grid">
-          <div className="dashboard-section">
-            <h3 className="dashboard-section-title">Sắp Hết Hạn Theo Danh Mục</h3>
-            <div className="category-progress-list">
-              {categoryData.length > 0 ? (
-                categoryData.map((item) => (
-                  <div key={item.name} className="category-progress-item">
-                    <div className="category-progress-header">
-                      <span className="category-name">{item.name}</span>
-                      <span className="category-percent">{item.percent}%</span>
+          {/* Alerts Section */}
+          <div className="dashboard-section dashboard-section-alerts">
+            <div className="section-header-row">
+              <h3 className="dashboard-section-title">Cảnh Báo</h3>
+              <span className="section-badge-count">{alerts.length}</span>
+            </div>
+            <div className="alerts-list">
+              {alerts.length > 0 ? (
+                alerts.map((alert) => {
+                  const daysLeft = Math.ceil((new Date(alert.expiryDate) - new Date()) / (1000 * 60 * 60 * 24))
+                  const isExpiry = daysLeft <= 7
+                  const badge = isExpiry ? getExpiryBadge(daysLeft) : getLowStockBadge(alert.quantity)
+                  return (
+                    <div key={alert.id} className="alert-item">
+                      <div className="alert-item-info">
+                        <p className="alert-name">{alert.productName}</p>
+                        <p className="alert-meta">
+                          {alert.lotCode} · HSD: {new Date(alert.expiryDate).toLocaleDateString('vi-VN')}
+                        </p>
+                      </div>
+                      <div className="alert-item-right">
+                        <span className={`badge ${badge.cls}`}>{badge.text}</span>
+                      </div>
                     </div>
-                    <div className="progress-bar">
-                      <div className="progress-bar-fill" style={{ width: `${item.percent}%` }} />
-                    </div>
-                  </div>
-                ))
+                  )
+                })
               ) : (
-                <div className="empty-cell">Không có dữ liệu</div>
+                <div className="empty-cell">Không có cảnh báo nào</div>
               )}
             </div>
           </div>
 
-          <div className="dashboard-section">
-            <h3 className="dashboard-section-title">Xu Hướng Đơn Hàng</h3>
-            <p className="dashboard-section-subtitle">7 ngày gần nhất</p>
-            <div className="orders-trend-container">
-              {orderTrend.map((value, index) => (
-                <div key={index} className="trend-bar-wrapper">
-                  <div className="trend-bar" style={{ height: `${value * 3}px` }} />
-                  <span className="trend-label">T{index + 1}</span>
-                </div>
-              ))}
+          {/* Orders Section */}
+          <div className="dashboard-section dashboard-section-orders">
+            <div className="section-header-row">
+              <h3 className="dashboard-section-title">Đơn Hàng Gần Đây</h3>
+              <div className="order-filter-tabs">
+                {['all', 'pending', 'completed'].map(f => (
+                  <button
+                    key={f}
+                    className={`order-filter-tab ${orderFilter === f ? 'active' : ''}`}
+                    onClick={() => setOrderFilter(f)}
+                  >
+                    {f === 'all' ? 'Tất cả' : f === 'pending' ? 'Đang chờ' : 'Hoàn thành'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="orders-list">
+              {filteredOrders.length > 0 ? (
+                filteredOrders.map((order) => {
+                  const badge = getStatusBadge(order.status)
+                  return (
+                    <div key={order.id} className="order-item">
+                      <div className="order-item-info">
+                        <p className="order-id">{order.id}</p>
+                        <p className="order-meta">{order.customer} · {order.createdAt}</p>
+                      </div>
+                      <div className="order-item-right">
+                        <span className={`badge ${badge.cls}`}>{badge.text}</span>
+                        <span className="order-amount">{order.amount}</span>
+                      </div>
+                    </div>
+                  )
+                })
+              ) : (
+                <div className="empty-cell">Không có đơn hàng</div>
+              )}
             </div>
           </div>
         </div>

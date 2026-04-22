@@ -124,14 +124,6 @@ export default function StaffLayout({ children }) {
               </li>
               <li>
                 <NavLink
-                  to="/staff/near-expiry"
-                  className={({ isActive }) => `staff-nav-link${isActive ? ' active' : ''}`}
-                >
-                  <span className="staff-nav-label">Sản Phẩm Sắp Hết Hạn</span>
-                </NavLink>
-              </li>
-              <li>
-                <NavLink
                   to="/staff/orders"
                   className={({ isActive }) => `staff-nav-link${isActive ? ' active' : ''}`}
                 >

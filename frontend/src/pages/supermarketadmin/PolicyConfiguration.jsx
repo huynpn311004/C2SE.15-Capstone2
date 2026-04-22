@@ -71,15 +71,7 @@ export default function PolicyConfiguration() {
 
   async function loadCategories() {
     try {
-      const userId = getUserId()
-      if (!userId) {
-        console.warn('No user ID found')
-        setError('Vui lòng đăng nhập lại')
-        return
-      }
-      console.log('Loading categories for user:', userId)
-      const data = await fetchSupermarketCategories(userId)
-      console.log('Categories response:', data)
+      const data = await fetchSupermarketCategories()
       setCategories(Array.isArray(data) ? data : [])
     } catch (err) {
       console.error('Error loading categories:', err)
@@ -90,15 +82,7 @@ export default function PolicyConfiguration() {
 
   async function loadProducts() {
     try {
-      const userId = getUserId()
-      if (!userId) {
-        console.warn('No user ID found')
-        setError('Vui lòng đăng nhập lại')
-        return
-      }
-      console.log('Loading products for user:', userId)
-      const data = await fetchSupermarketProducts(userId)
-      console.log('Products response:', data)
+      const data = await fetchSupermarketProducts()
       setProducts(Array.isArray(data) ? data : [])
     } catch (err) {
       console.error('Error loading products:', err)
@@ -252,7 +236,7 @@ export default function PolicyConfiguration() {
       {/* TOOLBAR */}
       <div className="sapolicy-toolbar">
         <div className="sapolicy-toolbar-info">
-          Cấu hình chính sách giảm giá theo danh mục hoặc sản phẩm
+          {loading ? 'Đang tải...' : `Hiển thị ${policies.length} chính sách`}
         </div>
         <button className="sapolicy-btn-create" onClick={openCreateModal}>
           Thêm Chính Sách
@@ -504,6 +488,7 @@ export default function PolicyConfiguration() {
                       required
                     />
                   </div>
+
                 </div>
                 {error && <p className="sapolicy-error">{error}</p>}
                 {success && <p className="sapolicy-success">{success}</p>}

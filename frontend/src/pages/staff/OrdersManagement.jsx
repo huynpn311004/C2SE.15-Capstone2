@@ -22,7 +22,8 @@ const statusText = {
 const nextStatusMap = {
   pending: 'preparing',
   preparing: 'ready',
-  ready: 'completed',
+  // ready status: Staff đã hoàn thành việc, Delivery Partner sẽ xử lý tiếp
+  // ready → picking_up → delivering → completed (do Delivery Partner)
 }
 
 export default function OrdersManagement() {
@@ -174,7 +175,7 @@ export default function OrdersManagement() {
                           </svg>
                           Xem
                         </button>
-                        {order.status !== 'completed' && order.status !== 'cancelled' && (
+                        {order.status !== 'completed' && order.status !== 'cancelled' && order.status !== 'ready' && (
                           <button
                             className="orders-btn-update"
                             onClick={() => handleUpdateStatus(order.orderId, nextStatusMap[order.status])}
@@ -185,6 +186,9 @@ export default function OrdersManagement() {
                             </svg>
                             {updating ? 'Đang cập nhật...' : 'Cập Nhật'}
                           </button>
+                        )}
+                        {order.status === 'ready' && (
+                          <span className="orders-ready-badge">Chờ Delivery</span>
                         )}
                       </td>
                     </tr>
@@ -298,7 +302,7 @@ export default function OrdersManagement() {
               )}
             </div>
             <div className="orders-modal-footer">
-              {selectedOrder.status !== 'completed' && selectedOrder.status !== 'cancelled' && (
+              {selectedOrder.status !== 'completed' && selectedOrder.status !== 'cancelled' && selectedOrder.status !== 'ready' && (
                 <button
                   className="orders-btn-confirm"
                   onClick={() => handleUpdateStatus(selectedOrder.orderId, nextStatusMap[selectedOrder.status])}
@@ -306,6 +310,11 @@ export default function OrdersManagement() {
                 >
                   {updating ? 'Đang cập nhật...' : 'Cập Nhật Trạng Thái'}
                 </button>
+              )}
+              {selectedOrder.status === 'ready' && (
+                <div className="orders-ready-info">
+                  Đơn hàng đã sẵn sàng. Đang chờ Delivery Partner lấy hàng.
+                </div>
               )}
               <button className="orders-btn-cancel" onClick={closeDetail}>
                 Đóng

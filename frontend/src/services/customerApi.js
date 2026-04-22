@@ -36,26 +36,20 @@ function requireCustomer() {
 
 // Setting APIs
 export async function fetchCustomerSetting() {
-  const userId = requireCustomer()
-  const response = await API.get('/customer/profile', {
-    params: { user_id: userId },
-  })
+  requireCustomer()
+  const response = await API.get('/customer/profile')
   return response.data
 }
 
 export async function updateCustomerSetting(payload) {
-  const userId = requireCustomer()
-  const response = await API.put('/customer/profile', payload, {
-    params: { user_id: userId },
-  })
+  requireCustomer()
+  const response = await API.put('/customer/profile', payload)
   return response.data
 }
 
 export async function changeCustomerPassword(payload) {
-  const userId = requireCustomer()
-  const response = await API.post('/customer/change-password', payload, {
-    params: { user_id: userId },
-  })
+  requireCustomer()
+  const response = await API.post('/customer/change-password', payload)
   return response.data
 }
 
@@ -100,8 +94,8 @@ export async function fetchCustomerSupermarkets() {
 
 // Orders APIs
 export async function fetchCustomerOrders(statusFilter = 'all') {
-  const userId = requireCustomer()
-  const params = { user_id: userId }
+  requireCustomer()
+  const params = {}
   if (statusFilter !== 'all') params.status_filter = statusFilter
 
   const response = await API.get('/customer/orders', { params })
@@ -109,35 +103,41 @@ export async function fetchCustomerOrders(statusFilter = 'all') {
 }
 
 export async function fetchCustomerOrderDetail(orderId) {
-  const userId = requireCustomer()
-  const response = await API.get(`/customer/orders/${orderId}`, {
-    params: { user_id: userId },
-  })
+  requireCustomer()
+  const response = await API.get(`/customer/orders/${orderId}`)
   return response.data
 }
 
 export async function createCustomerOrder(payload) {
-  const userId = requireCustomer()
-  const response = await API.post('/customer/orders', payload, {
-    params: { user_id: userId },
-  })
+  requireCustomer()
+  const response = await API.post('/customer/orders', payload)
+  return response.data
+}
+
+// Multi-store order - creates separate orders per store
+export async function createMultiStoreOrder(payload) {
+  requireCustomer()
+  const response = await API.post('/customer/orders/multi-store', payload)
+  return response.data
+}
+
+// Cart validation - check stock availability before adding to cart
+export async function validateCartStock(items) {
+  requireCustomer()
+  const response = await API.post('/customer/cart/validate', { items })
   return response.data
 }
 
 export async function cancelCustomerOrder(orderId) {
-  const userId = requireCustomer()
-  const response = await API.put(`/customer/orders/${orderId}/cancel`, {}, {
-    params: { user_id: userId },
-  })
+  requireCustomer()
+  const response = await API.put(`/customer/orders/${orderId}/cancel`)
   return response.data
 }
 
 // Dashboard
 export async function fetchCustomerDashboardSummary() {
-  const userId = requireCustomer()
-  const response = await API.get('/customer/dashboard-summary', {
-    params: { user_id: userId },
-  })
+  requireCustomer()
+  const response = await API.get('/customer/dashboard-summary')
   return response.data
 }
 

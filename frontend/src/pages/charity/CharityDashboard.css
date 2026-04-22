@@ -314,6 +314,57 @@
   flex: 1;
 }
 
+/* TABS */
+.chdash-tabs {
+  display: flex;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.chdash-tab {
+  padding: 0.45rem 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--char-border);
+  background: transparent;
+  color: var(--char-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.chdash-tab:hover {
+  border-color: var(--char-teal);
+  color: var(--char-teal);
+}
+
+.chdash-tab.active {
+  background: var(--char-teal);
+  border-color: var(--char-teal);
+  color: #fff;
+}
+
+/* FULL WIDTH CARD */
+.chdash-full-card {
+  grid-column: 1 / -1;
+}
+
+/* STAT SUB */
+.chdash-stat-sub {
+  font-size: 0.72rem;
+  color: var(--char-muted);
+}
+
+/* BADGE-INFO */
+.badge-info {
+  color: #0369a1;
+  background: rgba(14, 165, 233, 0.15);
+  border-color: #0369a1;
+}
+
+/* DOT TEAL */
+.chdash-dot-teal { background: var(--char-teal); }
+
 /* RESPONSIVE */
 @media (max-width: 768px) {
   .chdash-page {

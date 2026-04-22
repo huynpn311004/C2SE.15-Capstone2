@@ -1,8 +1,6 @@
 from sqlalchemy import BigInteger, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
-
 from app.core.database import Base
-
 
 class Store(Base):
     __tablename__ = "stores"

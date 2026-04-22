@@ -19,7 +19,8 @@ function saveCart(cart) {
 
 function addToCart(product) {
   const cart = getCart();
-  const existing = cart.find(item => item.id === product.id);
+  // Find existing item with same id AND same storeId
+  const existing = cart.find(item => item.id === product.id && item.storeId === product.storeId);
   if (existing) {
     existing.quantity += 1;
   } else {
@@ -90,7 +91,7 @@ const CustomerShop = () => {
 
   if (loading && products.length === 0) {
     return (
-      <div className="customer-page" style={{ justifyContent: 'center', alignItems: 'center' }}>
+      <div className="customer-shop-page" style={{ justifyContent: 'center', alignItems: 'center' }}>
         <div style={{ textAlign: 'center', color: 'var(--seims-muted)' }}>
           Đang tải sản phẩm...
         </div>
@@ -99,7 +100,7 @@ const CustomerShop = () => {
   }
 
   return (
-    <div className="customer-page">
+    <div className="customer-shop-page">
       {/* Header with cart button */}
       <div className="customer-shop-header">
         <button 

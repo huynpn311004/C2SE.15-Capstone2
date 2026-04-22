@@ -152,8 +152,12 @@ class ProductCategoriesListResponse(BaseModel):
 # ========== Dashboard Schemas ==========
 class DashboardSummaryResponse(BaseModel):
     totalLots: int
+    totalInventoryQty: int
     nearExpiryProducts: int
+    lowStockProducts: int
     ordersToday: int
+    ordersPending: int
+    ordersCompleted: int
     pendingRequests: int
 
 

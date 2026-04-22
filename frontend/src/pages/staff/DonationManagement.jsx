@@ -320,7 +320,7 @@ export default function DonationManagement() {
         <div className="donation-modal-overlay" onClick={closeCreateModal}>
           <div className="donation-modal donation-modal-large" onClick={(e) => e.stopPropagation()}>
             <div className="donation-modal-header">
-              <h3>Tạo Đề Nghị Quyên Góp (Nhiều Sản Phẩm)</h3>
+              <h3>Tạo Đề Nghị Quyên Góp</h3>
               <button className="donation-modal-close" onClick={closeCreateModal}>✕</button>
             </div>
             <form className="donation-modal-body" onSubmit={submitCreateOffer}>
@@ -329,7 +329,7 @@ export default function DonationManagement() {
                 <div className="donation-selection-header">
                   <h4>Chọn Sản Phẩm Từ Kho Hàng</h4>
                   <span className="donation-selection-hint">
-                    Đánh dấu ✓ các sản phẩm muốn donate, nhập số lượng
+                    Chọn sản phẩm và nhập số lượng muốn quyên góp
                   </span>
                 </div>
 

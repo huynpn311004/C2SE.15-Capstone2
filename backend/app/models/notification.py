@@ -1,10 +1,7 @@
 from datetime import datetime
-
 from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
-
 from app.core.database import Base
-
 
 class Notification(Base):
     __tablename__ = "notifications"

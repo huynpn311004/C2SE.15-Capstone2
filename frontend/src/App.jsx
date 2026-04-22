@@ -16,7 +16,6 @@ import AdminSettings from './pages/admin/AdminSettings.jsx';
 import StaffDashboard from './pages/staff/DashboardStaff.jsx';
 import InventoryLots from './pages/staff/InventoryLots.jsx';
 import ExpiryTracking from './pages/staff/ExpiryTracking.jsx';
-import NearExpiryProducts from './pages/staff/NearExpiryProducts.jsx';
 import OrdersManagement from './pages/staff/OrdersManagement.jsx';
 import DonationManagement from './pages/staff/DonationManagement.jsx';
 import Notifications from './pages/staff/Notifications.jsx';
@@ -28,6 +27,7 @@ import SupermarketAdminDashboard from './pages/supermarketadmin/SupermarketAdmin
 import StoreManagement from './pages/supermarketadmin/StoreManagement.jsx';
 import StaffManagement from './pages/supermarketadmin/StaffManagement.jsx';
 import PolicyConfiguration from './pages/supermarketadmin/PolicyConfiguration.jsx';
+import CouponManagement from './pages/supermarketadmin/CouponManagement.jsx';
 import SupermarketReports from './pages/supermarketadmin/SupermarketReports.jsx';
 import DonationMonitoring from './pages/supermarketadmin/DonationMonitoring.jsx';
 import AuditLog from './pages/supermarketadmin/AuditLog.jsx';
@@ -78,6 +78,7 @@ function App() {
           <Route path="/supermarketadmin/stores" element={<SupermarketAdminLayout><StoreManagement /></SupermarketAdminLayout>} />
           <Route path="/supermarketadmin/staff" element={<SupermarketAdminLayout><StaffManagement /></SupermarketAdminLayout>} />
           <Route path="/supermarketadmin/policies" element={<SupermarketAdminLayout><PolicyConfiguration /></SupermarketAdminLayout>} />
+          <Route path="/supermarketadmin/coupons" element={<SupermarketAdminLayout><CouponManagement /></SupermarketAdminLayout>} />
           <Route path="/supermarketadmin/reports" element={<SupermarketAdminLayout><SupermarketReports /></SupermarketAdminLayout>} />
           <Route path="/supermarketadmin/donations" element={<SupermarketAdminLayout><DonationMonitoring /></SupermarketAdminLayout>} />
           <Route path="/supermarketadmin/audit-logs" element={<SupermarketAdminLayout><AuditLog /></SupermarketAdminLayout>} />
@@ -88,7 +89,6 @@ function App() {
           <Route path="/staff/dashboard" element={<StaffDashboard />} />
           <Route path="/staff/inventory-lots" element={<InventoryLots />} />
           <Route path="/staff/expiry-tracking" element={<ExpiryTracking />} />
-          <Route path="/staff/near-expiry" element={<NearExpiryProducts />} />
           <Route path="/staff/orders" element={<OrdersManagement />} />
           <Route path="/staff/donations" element={<DonationManagement />} />
           <Route path="/staff/notifications" element={<Notifications />} />

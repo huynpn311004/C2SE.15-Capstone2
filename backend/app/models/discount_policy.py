@@ -1,10 +1,7 @@
 from decimal import Decimal
-
 from sqlalchemy import BigInteger, Boolean, DECIMAL, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
-
 from app.core.database import Base
-
 
 class DiscountPolicy(Base):
     __tablename__ = "discount_policies"

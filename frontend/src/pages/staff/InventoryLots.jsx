@@ -362,6 +362,7 @@ export default function InventoryLots() {
                 <th>Mã Lô</th>
                 <th>Tên Sản Phẩm</th>
                 <th>Số Lượng</th>
+                <th>Ngày Sản Xuất</th>
                 <th>Ngày Hết Hạn</th>
                 <th>Trạng Thái</th>
                 <th>Thao Tác</th>
@@ -376,6 +377,11 @@ export default function InventoryLots() {
                     </td>
                     <td>{lot.productName}</td>
                     <td>{lot.quantity}</td>
+                    <td>
+                      {lot.manufacturingDate
+                        ? new Date(lot.manufacturingDate).toLocaleDateString('vi-VN')
+                        : '—'}
+                    </td>
                     <td>{new Date(lot.expiryDate).toLocaleDateString('vi-VN')}</td>
                     <td>
                       <span className={`badge ${statusColors[lot.status]}`}>
@@ -407,8 +413,8 @@ export default function InventoryLots() {
                   </tr>
                 ))
               ) : (
-                <tr>
-                  <td colSpan="6" className="empty-cell">
+                  <tr>
+                  <td colSpan="7" className="empty-cell">
                     Không có dữ liệu
                   </td>
                 </tr>

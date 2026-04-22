@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { fetchCustomerProductDetail } from "../../services/customerApi";
+import { useNavigate, useParams } from "react-router-dom";
+import { fetchCustomerProductDetail, validateCartStock } from "../../services/customerApi";
 import { getProductImageUrl } from "../../services/staffApi";
 import './CustomerProductDetail.css';
 
@@ -15,7 +15,12 @@ function getCart() {
 
 function addToCart(product) {
   const cart = getCart();
-  const existing = cart.find(item => item.id === product.id);
+  // Find existing item with same id AND same storeId (same lotCode)
+  const existing = cart.find(item =>
+    item.id === product.id &&
+    (item.storeId || item.store_id) === (product.storeId || product.store_id) &&
+    (item.lotCode || item.lot_code) === (product.lotCode || product.lot_code)
+  );
   if (existing) {
     existing.quantity += 1;
   } else {
@@ -39,6 +44,7 @@ const CustomerProductDetail = () => {
   const navigate = useNavigate();
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [addingToCart, setAddingToCart] = useState(false);
   const [error, setError] = useState(null);
   const [toast, setToast] = useState({ visible: false, message: '' });
 
@@ -62,16 +68,55 @@ const CustomerProductDetail = () => {
     setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 2500);
   };
 
-  const handleAddToCart = () => {
-    if (!product) return;
-    addToCart(product);
-    showToast(`"${product.name}" đã thêm vào giỏ hàng!`);
+  const handleAddToCart = async () => {
+    if (!product || addingToCart) return;
+    
+    try {
+      setAddingToCart(true);
+      
+      // Validate stock before adding to cart
+      const storeId = product.stores?.[0]?.storeId || product.storeId;
+      if (!storeId) {
+        showToast('Không xác định được cửa hàng');
+        return;
+      }
+      
+      const validation = await validateCartStock([{
+        productId: product.id,
+        quantity: 1,
+        storeId: storeId
+      }]);
+      
+      if (!validation.valid) {
+        const outOfStock = validation.outOfStockItems.join(', ');
+        showToast(`⚠️ ${outOfStock}`);
+        return;
+      }
+      
+      // Check if requested quantity exceeds available
+      const itemValidation = validation.items[0];
+      if (!itemValidation.enoughStock) {
+        showToast(` Sản phẩm chỉ còn ${itemValidation.availableQuantity} trong kho`);
+        return;
+      }
+      
+      // Stock OK - add to cart
+      addToCart(product);
+      showToast(`"${product.name}" đã thêm vào giỏ hàng!`);
+    } catch (err) {
+      console.error('Failed to validate cart:', err);
+      // If validation fails, still allow adding (graceful degradation)
+      addToCart(product);
+      showToast(`"${product.name}" đã thêm vào giỏ hàng!`);
+    } finally {
+      setAddingToCart(false);
+    }
   };
 
   if (loading) {
     return (
-      <div className="customer-page">
-        <div className="customer-products-section">
+      <div className="customer-product-page">
+        <div className="customer-product-card-wrapper">
           <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--seims-muted)' }}>
             Đang tải sản phẩm...
           </div>
@@ -82,8 +127,8 @@ const CustomerProductDetail = () => {
 
   if (error || !product) {
     return (
-      <div className="customer-page">
-        <div className="customer-products-section">
+      <div className="customer-product-page">
+        <div className="customer-product-card-wrapper">
           <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--seims-muted)' }}>
             {error || 'Không tìm thấy sản phẩm'}
           </div>
@@ -93,19 +138,17 @@ const CustomerProductDetail = () => {
   }
 
   return (
-    <>
-      <div className="customer-page">
+    <div className="customer-product-page">
         {/* Back Button */}
         <button
           onClick={() => navigate(-1)}
           className="customer-product-detail-back"
         >
-          &#8592; Quay lại
+          Quay lại
         </button>
 
         {/* Product Card */}
-        <div className="customer-products-section">
-          <div className="customer-product-detail-card">
+        <div className="customer-product-card-wrapper">
             {/* Product Image */}
             <div className="customer-product-detail-image">
               <img 
@@ -141,15 +184,14 @@ const CustomerProductDetail = () => {
               <button
                 onClick={handleAddToCart}
                 className="customer-product-detail-add-btn"
+                disabled={addingToCart || loading}
               >
-                &#128722; Thêm vào giỏ hàng
+                Thêm vào giỏ hàng
               </button>
             </div>
-          </div>
-        </div>
       </div>
       <Toast visible={toast.visible} message={toast.message} />
-    </>
+    </div>
   );
 };
 

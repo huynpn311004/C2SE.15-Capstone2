@@ -36,6 +36,7 @@ class RegisterResponse(BaseModel):
 class LoginResponse(BaseModel):
 	message: str
 	user: UserPublic
+	token: str
 
 
 class ForgotPasswordRequest(BaseModel):
@@ -45,6 +46,7 @@ class ForgotPasswordRequest(BaseModel):
 class ForgotPasswordResponse(BaseModel):
 	message: str
 	success: bool
+	email_sent: bool = False
 
 
 class ResetPasswordRequest(BaseModel):
