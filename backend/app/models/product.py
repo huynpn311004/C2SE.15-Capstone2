@@ -1,10 +1,7 @@
 from decimal import Decimal
-
 from sqlalchemy import BigInteger, DECIMAL, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
-
 from app.core.database import Base
-
 
 class Product(Base):
     __tablename__ = "products"

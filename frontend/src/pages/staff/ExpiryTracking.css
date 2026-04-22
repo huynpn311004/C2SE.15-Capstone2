@@ -35,6 +35,12 @@
   flex-shrink: 0;
 }
 
+.expiry-filters {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
 .expiry-filter-group {
   display: flex;
   align-items: center;
@@ -162,6 +168,11 @@
   border-color: var(--seims-error);
 }
 
+.discount-tag {
+  font-weight: 600;
+  color: var(--seims-teal);
+}
+
 .empty-cell {
   text-align: center;
   padding: 2rem 1rem;
@@ -178,6 +189,11 @@
   }
 
   .expiry-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .expiry-filters {
     flex-direction: column;
     align-items: stretch;
   }

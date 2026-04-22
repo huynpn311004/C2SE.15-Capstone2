@@ -1,10 +1,7 @@
 from datetime import date, datetime
-
 from sqlalchemy import BigInteger, Date, DateTime, ForeignKey, Index, Integer, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
-
 from app.core.database import Base
-
 
 class InventoryLot(Base):
     __tablename__ = "inventory_lots"
@@ -26,6 +23,7 @@ class InventoryLot(Base):
     )
     lot_code: Mapped[str] = mapped_column(String(100), nullable=False)
     expiry_date: Mapped[date] = mapped_column(Date, nullable=False)
+    manufacturing_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     qty_on_hand: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     qty_reserved: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="new")

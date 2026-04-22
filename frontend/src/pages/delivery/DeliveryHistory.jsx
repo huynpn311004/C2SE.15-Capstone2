@@ -52,12 +52,6 @@ export default function DeliveryHistory() {
   function formatDateTime(dateStr) {
     if (!dateStr) return ''
     const date = new Date(dateStr)
-    const now = new Date()
-    const isToday = date.toDateString() === now.toDateString()
-
-    if (isToday) {
-      return `Hôm nay, ${date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`
-    }
 
     return date.toLocaleString('vi-VN', {
       day: '2-digit',

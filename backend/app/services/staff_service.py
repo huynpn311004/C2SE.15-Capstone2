@@ -4,16 +4,28 @@ import csv
 import os
 import re
 import unicodedata
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from io import BytesIO, StringIO
 from uuid import uuid4
 
 from fastapi import HTTPException, UploadFile, status
 from openpyxl import load_workbook
-from sqlalchemy import func, text
+from sqlalchemy import func, or_, and_
 from sqlalchemy.orm import Session
 
 from app.core.security import get_password_hash, verify_password
+from app.models.user import User
+from app.models.product import Product
+from app.models.order import Order
+from app.models.order_item import OrderItem
+from app.models.category import Category
+from app.models.inventory_lot import InventoryLot
+from app.models.store import Store
+from app.models.donation_offer import DonationOffer
+from app.models.donation_request import DonationRequest
+from app.models.delivery import Delivery
+from app.models.delivery_partner import DeliveryPartner
+from app.models.notification import Notification
 
 
 # ========== Helper Functions ==========
@@ -123,17 +135,9 @@ def _generate_unique_sku(db: Session, supermarket_id: int, product_name: str) ->
     index = 1
 
     while True:
-        exists = db.execute(
-            text(
-                """
-                SELECT id
-                FROM products
-                WHERE supermarket_id = :supermarket_id
-                  AND sku = :sku
-                LIMIT 1
-                """
-            ),
-            {"supermarket_id": supermarket_id, "sku": candidate},
+        exists = db.query(Product.id).filter(
+            Product.supermarket_id == supermarket_id,
+            Product.sku == candidate
         ).first()
 
         if not exists:
@@ -145,17 +149,7 @@ def _generate_unique_sku(db: Session, supermarket_id: int, product_name: str) ->
 
 def _get_staff_scope(db: Session, user_id: int) -> dict[str, int]:
     """Get staff's store_id and supermarket_id, validate role."""
-    user = db.execute(
-        text(
-            """
-            SELECT id, role, store_id, supermarket_id
-            FROM users
-            WHERE id = :id
-            LIMIT 1
-            """
-        ),
-        {"id": user_id},
-    ).first()
+    user = db.query(User).filter(User.id == user_id).first()
 
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -182,26 +176,17 @@ def _resolve_or_create_category(db: Session, category_name: object) -> int | Non
     if not name:
         return None
 
-    existing = db.execute(
-        text(
-            """
-            SELECT id
-            FROM categories
-            WHERE LOWER(name) = LOWER(:name)
-            LIMIT 1
-            """
-        ),
-        {"name": name},
+    existing = db.query(Category.id).filter(
+        func.lower(Category.name) == func.lower(name)
     ).first()
 
     if existing:
         return int(existing.id)
 
-    result = db.execute(
-        text("INSERT INTO categories (name) VALUES (:name)"),
-        {"name": name},
-    )
-    return int(result.lastrowid)
+    new_category = Category(name=name)
+    db.add(new_category)
+    db.flush()
+    return int(new_category.id)
 
 
 def _ensure_unique_sku_for_product(
@@ -211,23 +196,15 @@ def _ensure_unique_sku_for_product(
     current_product_id: int | None = None,
 ) -> None:
     """Check SKU uniqueness within supermarket."""
-    conflict = db.execute(
-        text(
-            """
-            SELECT id
-            FROM products
-            WHERE supermarket_id = :supermarket_id
-              AND sku = :sku
-              AND (:current_product_id IS NULL OR id != :current_product_id)
-            LIMIT 1
-            """
-        ),
-        {
-            "supermarket_id": supermarket_id,
-            "sku": sku,
-            "current_product_id": current_product_id,
-        },
-    ).first()
+    query = db.query(Product.id).filter(
+        Product.supermarket_id == supermarket_id,
+        Product.sku == sku
+    )
+    
+    if current_product_id is not None:
+        query = query.filter(Product.id != current_product_id)
+    
+    conflict = query.first()
 
     if conflict:
         raise ValueError(f"SKU '{sku}' da ton tai")
@@ -236,33 +213,26 @@ def _ensure_unique_sku_for_product(
 def _resolve_or_create_product(db: Session, supermarket_id: int, product_name: str) -> int:
     """Get or create product by name."""
     name = product_name.strip()
-    product = db.execute(
-        text(
-            """
-            SELECT id
-            FROM products
-            WHERE supermarket_id = :supermarket_id
-              AND LOWER(name) = LOWER(:name)
-            LIMIT 1
-            """
-        ),
-        {"supermarket_id": supermarket_id, "name": name},
+    product = db.query(Product.id).filter(
+        Product.supermarket_id == supermarket_id,
+        func.lower(Product.name) == func.lower(name)
     ).first()
 
     if product:
         return int(product.id)
 
     sku = _generate_unique_sku(db, supermarket_id, name)
-    result = db.execute(
-        text(
-            """
-            INSERT INTO products (supermarket_id, category_id, sku, name, base_price, image_url)
-            VALUES (:supermarket_id, NULL, :sku, :name, 0, NULL)
-            """
-        ),
-        {"supermarket_id": supermarket_id, "sku": sku, "name": name},
+    new_product = Product(
+        supermarket_id=supermarket_id,
+        category_id=None,
+        sku=sku,
+        name=name,
+        base_price=0,
+        image_url=None
     )
-    return int(result.lastrowid)
+    db.add(new_product)
+    db.flush()
+    return int(new_product.id)
 
 
 def _upsert_product_from_import(
@@ -288,31 +258,15 @@ def _upsert_product_from_import(
 
     product = None
     if sku:
-        product = db.execute(
-            text(
-                """
-                SELECT id, sku, base_price, category_id
-                FROM products
-                WHERE supermarket_id = :supermarket_id
-                  AND sku = :sku
-                LIMIT 1
-                """
-            ),
-            {"supermarket_id": supermarket_id, "sku": sku},
+        product = db.query(Product.id, Product.sku, Product.base_price, Product.category_id).filter(
+            Product.supermarket_id == supermarket_id,
+            Product.sku == sku
         ).first()
 
     if not product:
-        product = db.execute(
-            text(
-                """
-                SELECT id, sku, base_price, category_id
-                FROM products
-                WHERE supermarket_id = :supermarket_id
-                  AND LOWER(name) = LOWER(:name)
-                LIMIT 1
-                """
-            ),
-            {"supermarket_id": supermarket_id, "name": product_name},
+        product = db.query(Product.id, Product.sku, Product.base_price, Product.category_id).filter(
+            Product.supermarket_id == supermarket_id,
+            func.lower(Product.name) == func.lower(product_name)
         ).first()
 
     if product:
@@ -325,45 +279,31 @@ def _upsert_product_from_import(
         next_base_price = float(base_price) if base_price is not None else float(product.base_price or 0)
         next_category_id = category_id if category_id is not None else product.category_id
 
-        db.execute(
-            text(
-                """
-                UPDATE products
-                SET sku = :sku,
-                    name = :name,
-                    base_price = :base_price,
-                    category_id = :category_id
-                WHERE id = :id
-                """
-            ),
+        db.query(Product).filter(Product.id == current_id).update(
             {
-                "sku": next_sku,
-                "name": product_name,
-                "base_price": next_base_price,
-                "category_id": next_category_id,
-                "id": current_id,
+                Product.sku: next_sku,
+                Product.name: product_name,
+                Product.base_price: next_base_price,
+                Product.category_id: next_category_id,
             },
+            synchronize_session=False
         )
+        db.flush()
         return current_id, "updated"
 
     next_sku = sku or _generate_unique_sku(db, supermarket_id, product_name)
     _ensure_unique_sku_for_product(db, supermarket_id, next_sku)
-    result = db.execute(
-        text(
-            """
-            INSERT INTO products (supermarket_id, category_id, sku, name, base_price, image_url)
-            VALUES (:supermarket_id, :category_id, :sku, :name, :base_price, NULL)
-            """
-        ),
-        {
-            "supermarket_id": supermarket_id,
-            "category_id": category_id,
-            "sku": next_sku,
-            "name": product_name,
-            "base_price": float(base_price) if base_price is not None else 0,
-        },
+    new_product = Product(
+        supermarket_id=supermarket_id,
+        category_id=category_id,
+        sku=next_sku,
+        name=product_name,
+        base_price=float(base_price) if base_price is not None else 0,
+        image_url=None
     )
-    return int(result.lastrowid), "created"
+    db.add(new_product)
+    db.flush()
+    return int(new_product.id), "created"
 
 
 def _upsert_inventory_lot(
@@ -379,17 +319,9 @@ def _upsert_inventory_lot(
     product_id: int | None = None,
 ) -> str:
     """Create or update inventory lot."""
-    lot = db.execute(
-        text(
-            """
-            SELECT id
-            FROM inventory_lots
-            WHERE store_id = :store_id
-              AND lot_code = :lot_code
-            LIMIT 1
-            """
-        ),
-        {"store_id": store_id, "lot_code": lot_code},
+    lot = db.query(InventoryLot.id).filter(
+        InventoryLot.store_id == store_id,
+        InventoryLot.lot_code == lot_code
     ).first()
 
     if product_id is None:
@@ -397,45 +329,29 @@ def _upsert_inventory_lot(
     lot_status = _normalize_status_value(manual_status, expiry_date)
 
     if lot:
-        db.execute(
-            text(
-                """
-                UPDATE inventory_lots
-                SET product_id = :product_id,
-                    expiry_date = :expiry_date,
-                    qty_on_hand = :qty_on_hand,
-                    status = :status
-                WHERE id = :id
-                """
-            ),
+        db.query(InventoryLot).filter(InventoryLot.id == lot.id).update(
             {
-                "product_id": product_id,
-                "expiry_date": expiry_date,
-                "qty_on_hand": quantity,
-                "status": lot_status,
-                "id": int(lot.id),
+                InventoryLot.product_id: product_id,
+                InventoryLot.expiry_date: expiry_date,
+                InventoryLot.qty_on_hand: quantity,
+                InventoryLot.status: lot_status,
             },
+            synchronize_session=False
         )
+        db.flush()
         return "updated"
 
-    db.execute(
-        text(
-            """
-            INSERT INTO inventory_lots
-                (store_id, product_id, lot_code, expiry_date, qty_on_hand, qty_reserved, status)
-            VALUES
-                (:store_id, :product_id, :lot_code, :expiry_date, :qty_on_hand, 0, :status)
-            """
-        ),
-        {
-            "store_id": store_id,
-            "product_id": product_id,
-            "lot_code": lot_code,
-            "expiry_date": expiry_date,
-            "qty_on_hand": quantity,
-            "status": lot_status,
-        },
+    new_lot = InventoryLot(
+        store_id=store_id,
+        product_id=product_id,
+        lot_code=lot_code,
+        expiry_date=expiry_date,
+        qty_on_hand=quantity,
+        qty_reserved=0,
+        status=lot_status
     )
+    db.add(new_lot)
+    db.flush()
     return "created"
 
 
@@ -489,19 +405,21 @@ def _read_import_rows(upload: UploadFile, file_bytes: bytes) -> list[dict[str, o
 # ========== Profile Business Logic ==========
 def get_staff_profile(db: Session, user_id: int) -> dict:
     """Get staff profile by user ID."""
-    user = db.execute(
-        text(
-            """
-            SELECT u.id, u.username, u.email, u.full_name, u.phone, u.role,
-                   u.store_id, u.supermarket_id,
-                   s.name AS store_name, s.location AS store_address
-            FROM users u
-            LEFT JOIN stores s ON s.id = u.store_id
-            WHERE u.id = :user_id
-            LIMIT 1
-            """
-        ),
-        {"user_id": user_id},
+    user = db.query(
+        User.id,
+        User.username,
+        User.email,
+        User.full_name,
+        User.phone,
+        User.role,
+        User.store_id,
+        User.supermarket_id,
+        Store.name.label('store_name'),
+        Store.location.label('store_address')
+    ).outerjoin(
+        Store, Store.id == User.store_id
+    ).filter(
+        User.id == user_id
     ).first()
 
     if not user:
@@ -528,33 +446,25 @@ def update_staff_profile(db: Session, user_id: int, full_name: str, email: str, 
     if not email:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email không được trống")
 
-    existing = db.execute(
-        text(
-            """
-            SELECT id FROM users
-            WHERE email = :email AND id != :user_id
-            LIMIT 1
-            """
-        ),
-        {"email": email, "user_id": user_id},
+    existing = db.query(User.id).filter(
+        User.email == email,
+        User.id != user_id
     ).first()
     if existing:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email đã được sử dụng")
 
-    db.execute(
-        text(
-            """
-            UPDATE users
-            SET full_name = :full_name,
-                email = :email,
-                phone = :phone
-            WHERE id = :user_id
-            """
-        ),
-        {"full_name": full_name, "email": email, "phone": phone, "user_id": user_id},
+    db.query(User).filter(User.id == user_id).update(
+        {
+            User.full_name: full_name,
+            User.email: email,
+            User.phone: phone
+        },
+        synchronize_session=False
     )
     db.commit()
-    return {"success": True}
+    
+    # Return the updated profile
+    return get_staff_profile(db, user_id)
 
 
 def change_staff_password(db: Session, user_id: int, current_password: str, new_password: str) -> dict:
@@ -574,10 +484,7 @@ def change_staff_password(db: Session, user_id: int, current_password: str, new_
             detail="Mật khẩu mới phải có ít nhất 6 ký tự"
         )
 
-    row = db.execute(
-        text("SELECT password_hash FROM users WHERE id = :user_id LIMIT 1"),
-        {"user_id": user_id}
-    ).first()
+    row = db.query(User.password_hash).filter(User.id == user_id).first()
 
     if not row:
         raise HTTPException(
@@ -591,9 +498,9 @@ def change_staff_password(db: Session, user_id: int, current_password: str, new_
             detail="Mật khẩu hiện tại không đúng"
         )
 
-    db.execute(
-        text("UPDATE users SET password_hash = :password_hash WHERE id = :user_id"),
-        {"password_hash": get_password_hash(new_password), "user_id": user_id}
+    db.query(User).filter(User.id == user_id).update(
+        {User.password_hash: get_password_hash(new_password)},
+        synchronize_session=False
     )
     db.commit()
 
@@ -603,20 +510,16 @@ def change_staff_password(db: Session, user_id: int, current_password: str, new_
 # ========== Orders Business Logic ==========
 def list_staff_orders(db: Session, store_id: int) -> dict:
     """List all orders for staff's store."""
-    rows = db.execute(
-        text(
-            """
-            SELECT o.id, o.status, o.total_amount, o.payment_status, o.created_at, o.delivered_at,
-                   u.full_name AS customer_name
-            FROM orders o
-            JOIN users u ON u.id = o.customer_id
-            WHERE o.store_id = :store_id
-            ORDER BY o.created_at DESC
-            LIMIT 100
-            """
-        ),
-        {"store_id": store_id},
-    ).all()
+    rows = db.query(
+        Order.id, Order.status, Order.total_amount, Order.payment_status, Order.created_at, Order.delivered_at,
+        User.full_name.label('customer_name')
+    ).join(
+        User, User.id == Order.customer_id
+    ).filter(
+        Order.store_id == store_id
+    ).order_by(
+        Order.created_at.desc()
+    ).limit(100).all()
 
     items = []
     for row in rows:
@@ -634,62 +537,309 @@ def list_staff_orders(db: Session, store_id: int) -> dict:
     return {"items": items}
 
 
+# ========== Delivery Assignment Functions ==========
+def _find_available_delivery_partner(db: Session, store_id: int):
+    """Find an available delivery partner for order assignment.
+    
+    Strategy: Get delivery partners ordered by least active deliveries.
+    """
+    partner = db.query(
+        DeliveryPartner.id,
+        DeliveryPartner.user_id,
+        func.count(Delivery.id).label("active_count")
+    ).outerjoin(
+        Delivery,
+        and_(
+            Delivery.delivery_partner_id == DeliveryPartner.id,
+            Delivery.status.in_(["assigned", "picking_up", "delivering"])
+        )
+    ).join(
+        User,
+        User.id == DeliveryPartner.user_id
+    ).filter(
+        User.is_active == True
+    ).group_by(
+        DeliveryPartner.id
+    ).order_by(
+        func.count(Delivery.id).asc()
+    ).first()
+    
+    return partner
+
+
+def _generate_delivery_code(db: Session) -> str:
+    """Generate unique delivery code."""
+    timestamp = datetime.now().strftime("%Y%m%d")
+    count = db.query(func.count(Delivery.id)).filter(
+        Delivery.delivery_code.like(f"GH-{timestamp}-%")
+    ).scalar() or 0
+    return f"GH-{timestamp}-{str(count + 1).zfill(4)}"
+
+
+def _create_delivery_for_order(db: Session, order_id: int, store_id: int) -> dict:
+    """Create delivery record when order is ready.
+    
+    Steps:
+    1. Fetch order and customer details
+    2. Find available delivery partner
+    3. Create Delivery record
+    4. Create notification for delivery partner
+    """
+    # Get order and customer
+    order_row = db.query(
+        Order.id,
+        Order.customer_id,
+        Order.shipping_address,
+        User.full_name.label("customer_name"),
+        User.phone.label("customer_phone"),
+        Store.location.label("store_location")
+    ).join(
+        User, User.id == Order.customer_id
+    ).join(
+        Store, Store.id == Order.store_id
+    ).filter(
+        Order.id == order_id,
+        Order.store_id == store_id
+    ).first()
+    
+    if not order_row:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Đơn hàng không tồn tại"
+        )
+    
+    # Check if delivery already exists for this order
+    existing_delivery = db.query(Delivery).filter(
+        Delivery.order_id == order_id
+    ).first()
+    
+    if existing_delivery:
+        return {"delivery_id": existing_delivery.id}
+    
+    # Find available delivery partner
+    partner = _find_available_delivery_partner(db, store_id)
+    
+    if not partner:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Không có nhân viên giao hàng khả dụng"
+        )
+    
+    # Create delivery
+    delivery_code = _generate_delivery_code(db)
+    
+    new_delivery = Delivery(
+        delivery_code=delivery_code,
+        order_id=order_id,
+        store_id=store_id,
+        delivery_partner_id=partner.id,
+        receiver_name=order_row.customer_name,
+        receiver_phone=order_row.customer_phone,
+        receiver_address=order_row.shipping_address or order_row.store_location,
+        status="assigned"
+    )
+    
+    db.add(new_delivery)
+    db.flush()
+    delivery_id = new_delivery.id
+    
+    # Create notification for delivery partner
+    notification_content = f"Có đơn giao hàng mới: {delivery_code} từ khách hàng {order_row.customer_name}"
+    
+    notification = Notification(
+        user_id=partner.user_id,
+        type="delivery_assigned",
+        content=notification_content,
+        is_read=False
+    )
+    
+    db.add(notification)
+    db.commit()
+    
+    return {"delivery_id": delivery_id, "delivery_code": delivery_code}
+
+
+def _create_delivery_for_donation_request(db: Session, donation_request_id: int, store_id: int) -> dict:
+    """Create delivery record when donation request is approved.
+    
+    Steps:
+    1. Fetch donation request, charity organization, offer, and lot details
+    2. Find available delivery partner
+    3. Create Delivery record
+    4. Create notification for delivery partner
+    """
+    # Get donation request with related details
+    request_row = db.query(
+        DonationRequest.id,
+        DonationRequest.charity_id,
+        DonationRequest.request_qty,
+        User.full_name.label("charity_name"),
+        User.phone.label("charity_phone"),
+        DonationOffer.lot_id,
+        InventoryLot.product_id,
+        Product.name.label("product_name"),
+        Store.location.label("store_location")
+    ).join(
+        User, User.id == DonationRequest.charity_id
+    ).join(
+        DonationOffer, DonationOffer.id == DonationRequest.offer_id
+    ).join(
+        InventoryLot, InventoryLot.id == DonationOffer.lot_id
+    ).join(
+        Product, Product.id == InventoryLot.product_id
+    ).join(
+        Store, Store.id == store_id
+    ).filter(
+        DonationRequest.id == donation_request_id,
+        DonationOffer.store_id == store_id
+    ).first()
+    
+    if not request_row:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Donation request không tồn tại"
+        )
+    
+    # Check if delivery already exists for this donation request
+    existing_delivery = db.query(Delivery).filter(
+        Delivery.donation_request_id == donation_request_id
+    ).first()
+    
+    if existing_delivery:
+        return {"delivery_id": existing_delivery.id, "delivery_code": existing_delivery.delivery_code}
+    
+    # Find available delivery partner
+    partner = _find_available_delivery_partner(db, store_id)
+    
+    if not partner:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Không có nhân viên giao hàng khả dụng"
+        )
+    
+    # Create delivery with donation_request_id
+    delivery_code = _generate_delivery_code(db)
+    
+    new_delivery = Delivery(
+        delivery_code=delivery_code,
+        donation_request_id=donation_request_id,
+        store_id=store_id,
+        delivery_partner_id=partner.id,
+        receiver_name=request_row.charity_name,
+        receiver_phone=request_row.charity_phone,
+        receiver_address=request_row.store_location,
+        status="assigned"
+    )
+    
+    db.add(new_delivery)
+    db.flush()
+    delivery_id = new_delivery.id
+    
+    # Create notification for delivery partner
+    notification_content = (
+        f"Có đơn giao hàng donation mới: {delivery_code} "
+        f"cho tổ chức từ thiện {request_row.charity_name}. "
+        f"Sản phẩm: {request_row.product_name}, Số lượng: {request_row.request_qty}"
+    )
+    
+    notification = Notification(
+        user_id=partner.user_id,
+        type="delivery_assigned",
+        content=notification_content,
+        is_read=False
+    )
+    
+    db.add(notification)
+    db.commit()
+    
+    return {"delivery_id": delivery_id, "delivery_code": delivery_code}
+
+
+
 def update_staff_order_status(db: Session, order_id: int, store_id: int, new_status: str) -> dict:
-    """Update order status with delivered_at timestamp if completed."""
+    """Update order status - Staff can only update to 'ready'.
+    
+    Staff workflow:
+    - pending/preparing → ready (chuẩn bị xong, lấy hàng xong)
+    
+    Delivery partner will handle:
+    - ready → picking_up → delivering → completed/cancelled
+    
+    When status -> 'ready': Automatically create Delivery and notify delivery partner.
+    """
     new_status = (new_status or "").strip().lower()
 
-    valid_statuses = ["pending", "preparing", "ready", "completed", "cancelled"]
-    if new_status not in valid_statuses:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Trạng thái không hợp lệ")
-
-    params = {"status": new_status, "order_id": order_id, "store_id": store_id}
-    if new_status == "completed":
-        update_sql = text("UPDATE orders SET status = :status, delivered_at = NOW() WHERE id = :order_id AND store_id = :store_id")
-    else:
-        update_sql = text("UPDATE orders SET status = :status WHERE id = :order_id AND store_id = :store_id")
-
-    result = db.execute(update_sql, params)
+    # Staff chỉ được update thành "ready" - đúng nghiệp vụ
+    if new_status != "ready":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail="Staff chỉ được cập nhật đơn hàng thành 'ready'. Trạng thái khác do Delivery Partner xác nhận."
+        )
+    
+    # Check if order exists in staff's store
+    order = db.query(Order.id, Order.status).filter(
+        Order.id == order_id,
+        Order.store_id == store_id
+    ).first()
+    
+    if not order:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Đơn hàng không tồn tại")
+    
+    # Only allow update from pending or preparing state
+    if order.status not in ["pending", "preparing"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Không thể cập nhật từ trạng thái '{order.status}' thành 'ready'"
+        )
+    
+    result = db.query(Order).filter(
+        Order.id == order_id,
+        Order.store_id == store_id
+    ).update({Order.status: "ready"}, synchronize_session=False)
     db.commit()
 
-    if (result.rowcount or 0) == 0:
+    if result == 0:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Đơn hàng không tồn tại")
 
-    return {"success": True, "status": new_status}
+    response = {"success": True, "status": "ready"}
+    
+    # Auto-create delivery when order is ready
+    try:
+        delivery_info = _create_delivery_for_order(db, order_id, store_id)
+        response["delivery"] = {
+            "delivery_id": delivery_info.get("delivery_id"),
+            "delivery_code": delivery_info.get("delivery_code"),
+            "message": "Đơn giao hàng đã được tạo và gửi cho nhân viên giao hàng"
+        }
+    except HTTPException as e:
+        # If delivery creation fails, log it but don't fail the order status update
+        response["delivery_error"] = e.detail
+    
+    return response
 
 
 def get_staff_order_detail(db: Session, order_id: int, store_id: int) -> dict:
     """Get order detail with items."""
     # Lấy thông tin đơn hàng + khách hàng
-    order_row = db.execute(
-        text(
-            """
-            SELECT o.id, o.status, o.total_amount, o.payment_method, o.payment_status,
-                   o.created_at, o.delivered_at,
-                   u.full_name AS customer_name,
-                   u.phone AS customer_phone
-            FROM orders o
-            JOIN users u ON u.id = o.customer_id
-            WHERE o.id = :order_id AND o.store_id = :store_id
-            """
-        ),
-        {"order_id": order_id, "store_id": store_id},
-    ).fetchone()
+    order_row = db.query(
+        Order.id, Order.status, Order.total_amount, Order.payment_method, Order.payment_status,
+        Order.created_at, Order.delivered_at,
+        User.full_name.label("customer_name"),
+        User.phone.label("customer_phone")
+    ).join(User, User.id == Order.customer_id).filter(
+        Order.id == order_id,
+        Order.store_id == store_id
+    ).first()
 
     if not order_row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Đơn hàng không tồn tại")
 
     # Lấy danh sách sản phẩm trong đơn hàng
-    item_rows = db.execute(
-        text(
-            """
-            SELECT oi.quantity, oi.unit_price,
-                   p.name AS product_name
-            FROM order_items oi
-            JOIN products p ON p.id = oi.product_id
-            WHERE oi.order_id = :order_id
-            """
-        ),
-        {"order_id": order_id},
+    item_rows = db.query(
+        OrderItem.quantity, OrderItem.unit_price,
+        Product.name.label("product_name")
+    ).join(Product, Product.id == OrderItem.product_id).filter(
+        OrderItem.order_id == order_id
     ).all()
 
     items = []
@@ -721,18 +871,10 @@ def get_staff_order_detail(db: Session, order_id: int, store_id: int) -> dict:
 # ========== Notifications Business Logic ==========
 def list_staff_notifications(db: Session, user_id: int) -> dict:
     """List notifications for user."""
-    rows = db.execute(
-        text(
-            """
-            SELECT id, type, content, is_read, created_at
-            FROM notifications
-            WHERE user_id = :user_id
-            ORDER BY created_at DESC
-            LIMIT 50
-            """
-        ),
-        {"user_id": user_id},
-    ).all()
+    from app.models.notification import Notification
+    rows = db.query(
+        Notification.id, Notification.type, Notification.content, Notification.is_read, Notification.created_at
+    ).filter(Notification.user_id == user_id).order_by(Notification.created_at.desc()).all()
 
     items = []
     for row in rows:
@@ -749,15 +891,13 @@ def list_staff_notifications(db: Session, user_id: int) -> dict:
 
 def mark_notification_as_read(db: Session, notification_id: int, user_id: int) -> dict:
     """Mark notification as read."""
-    db.execute(
-        text(
-            """
-            UPDATE notifications
-            SET is_read = 1
-            WHERE id = :notification_id AND user_id = :user_id
-            """
-        ),
-        {"notification_id": notification_id, "user_id": user_id},
+    from app.models.notification import Notification
+    db.query(Notification).filter(
+        Notification.id == notification_id,
+        Notification.user_id == user_id
+    ).update(
+        {Notification.is_read: 1},
+        synchronize_session=False
     )
     db.commit()
 
@@ -767,24 +907,22 @@ def mark_notification_as_read(db: Session, notification_id: int, user_id: int) -
 # ========== Categories Business Logic ==========
 def staff_category_stats(db: Session, store_id: int) -> dict:
     """Get inventory stats by category for near-expiry items."""
-    rows = db.execute(
-        text(
-            """
-            SELECT COALESCE(c.name, 'Khác') AS category_name,
-                   COUNT(il.id) AS lot_count
-            FROM inventory_lots il
-            JOIN products p ON p.id = il.product_id
-            LEFT JOIN categories c ON c.id = p.category_id
-            WHERE il.store_id = :store_id
-              AND il.expiry_date >= CURDATE()
-              AND il.expiry_date <= DATE_ADD(CURDATE(), INTERVAL 7 DAY)
-            GROUP BY c.id, c.name
-            ORDER BY lot_count DESC
-            LIMIT 10
-            """
-        ),
-        {"store_id": store_id},
-    ).all()
+    rows = db.query(
+        func.coalesce(Category.name, 'Khác').label('category_name'),
+        func.count(InventoryLot.id).label('lot_count')
+    ).join(
+        Product, Product.id == InventoryLot.product_id
+    ).outerjoin(
+        Category, Category.id == Product.category_id
+    ).filter(
+        InventoryLot.store_id == store_id,
+        InventoryLot.expiry_date >= date.today(),
+        InventoryLot.expiry_date <= date.today() + timedelta(days=7)
+    ).group_by(
+        Category.id, Category.name
+    ).order_by(
+        func.count(InventoryLot.id).desc()
+    ).limit(10).all()
 
     total = sum(row.lot_count for row in rows) or 1
     items = []
@@ -799,17 +937,16 @@ def staff_category_stats(db: Session, store_id: int) -> dict:
 
 def list_categories(db: Session, supermarket_id: int) -> dict:
     """List all categories."""
-    rows = db.execute(
-        text(
-            """
-            SELECT c.id, c.name, COUNT(p.id) AS product_count
-            FROM categories c
-            LEFT JOIN products p ON p.category_id = c.id AND p.supermarket_id = :supermarket_id
-            GROUP BY c.id, c.name
-            ORDER BY c.name ASC
-            """
-        ),
-        {"supermarket_id": supermarket_id},
+    rows = db.query(
+        Category.id,
+        Category.name,
+        func.count(Product.id).label('product_count')
+    ).outerjoin(
+        Product, and_(Product.category_id == Category.id, Product.supermarket_id == supermarket_id)
+    ).group_by(
+        Category.id, Category.name
+    ).order_by(
+        Category.name.asc()
     ).all()
 
     items = [
@@ -826,17 +963,14 @@ def create_category(db: Session, name: str) -> dict:
     if not name:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tên danh mục không được trống")
 
-    existing = db.execute(
-        text("SELECT id FROM categories WHERE LOWER(name) = LOWER(:name) LIMIT 1"),
-        {"name": name},
+    existing = db.query(Category.id).filter(
+        func.lower(Category.name) == func.lower(name)
     ).first()
     if existing:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Danh mục đã tồn tại")
 
-    db.execute(
-        text("INSERT INTO categories (name) VALUES (:name)"),
-        {"name": name},
-    )
+    new_category = Category(name=name)
+    db.add(new_category)
     db.commit()
 
     return {"message": "Tạo danh mục thành công", "name": name}
@@ -848,16 +982,16 @@ def update_category(db: Session, category_id: int, name: str) -> dict:
     if not name:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tên danh mục không được trống")
 
-    existing = db.execute(
-        text("SELECT id FROM categories WHERE LOWER(name) = LOWER(:name) AND id != :id LIMIT 1"),
-        {"name": name, "id": category_id},
+    existing = db.query(Category.id).filter(
+        func.lower(Category.name) == func.lower(name),
+        Category.id != category_id
     ).first()
     if existing:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Danh mục đã tồn tại")
 
-    db.execute(
-        text("UPDATE categories SET name = :name WHERE id = :id"),
-        {"name": name, "id": category_id},
+    db.query(Category).filter(Category.id == category_id).update(
+        {Category.name: name},
+        synchronize_session=False
     )
     db.commit()
 
@@ -866,9 +1000,8 @@ def update_category(db: Session, category_id: int, name: str) -> dict:
 
 def delete_category(db: Session, category_id: int) -> dict:
     """Delete category if no products use it."""
-    has_products = db.execute(
-        text("SELECT COUNT(*) FROM products WHERE category_id = :category_id"),
-        {"category_id": category_id},
+    has_products = db.query(func.count(Product.id)).filter(
+        Product.category_id == category_id
     ).scalar() or 0
 
     if has_products > 0:
@@ -877,7 +1010,7 @@ def delete_category(db: Session, category_id: int) -> dict:
             detail=f"Không thể xóa: có {has_products} sản phẩm đang sử dụng danh mục này"
         )
 
-    db.execute(text("DELETE FROM categories WHERE id = :id"), {"id": category_id})
+    db.query(Category).filter(Category.id == category_id).delete()
     db.commit()
 
     return {"message": "Xóa danh mục thành công"}
@@ -886,28 +1019,26 @@ def delete_category(db: Session, category_id: int) -> dict:
 # ========== Products Business Logic ==========
 def list_products(db: Session, supermarket_id: int, category_filter: int | None, search: str | None) -> dict:
     """List products with optional category and search filters."""
-    query = """
-        SELECT p.id, p.sku, p.name, p.base_price, p.image_url,
-               c.name AS category_name, c.id AS category_id,
-               COALESCE(SUM(il.qty_on_hand), 0) AS total_stock
-        FROM products p
-        LEFT JOIN categories c ON c.id = p.category_id
-        LEFT JOIN inventory_lots il ON il.product_id = p.id
-        WHERE p.supermarket_id = :supermarket_id
-    """
-    params = {"supermarket_id": supermarket_id}
+    base_query = db.query(
+        Product.id, Product.sku, Product.name, Product.base_price, Product.image_url,
+        Category.name.label("category_name"), Category.id.label("category_id"),
+        func.coalesce(func.sum(InventoryLot.qty_on_hand), 0).label("total_stock")
+    ).outerjoin(Category, Category.id == Product.category_id)\
+     .outerjoin(InventoryLot, InventoryLot.product_id == Product.id)\
+     .filter(Product.supermarket_id == supermarket_id)
 
     if category_filter is not None:
-        query += " AND p.category_id = :category_id"
-        params["category_id"] = category_filter
+        base_query = base_query.filter(Product.category_id == category_filter)
 
     if search:
-        query += " AND (p.name LIKE :search OR p.sku LIKE :search)"
-        params["search"] = f"%{search}%"
+        base_query = base_query.filter(
+            or_(Product.name.ilike(f"%{search}%"), Product.sku.ilike(f"%{search}%"))
+        )
 
-    query += " GROUP BY p.id, p.sku, p.name, p.base_price, p.image_url, c.name, c.id ORDER BY p.name ASC"
-
-    rows = db.execute(text(query), params).all()
+    rows = base_query.group_by(
+        Product.id, Product.sku, Product.name, Product.base_price, Product.image_url, 
+        Category.name, Category.id
+    ).order_by(Product.name.asc()).all()
 
     items = [
         {
@@ -926,8 +1057,9 @@ def list_products(db: Session, supermarket_id: int, category_filter: int | None,
     return {"items": items}
 
 
-def create_product(db: Session, supermarket_id: int, name: str, sku: str, base_price: float,
-                   category_id: int | None, image_url: str | None) -> dict:
+def create_product(db: Session, supermarket_id: int, store_id: int, user_id: int,
+                  name: str, sku: str, base_price: float,
+                  category_id: int | None, image_url: str | None) -> dict:
     """Create new product."""
     name = name.strip()
     sku = sku.strip()
@@ -940,34 +1072,38 @@ def create_product(db: Session, supermarket_id: int, name: str, sku: str, base_p
     if base_price is None or float(base_price) < 0:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Giá không hợp lệ")
 
-    existing = db.execute(
-        text("SELECT id FROM products WHERE supermarket_id = :sm AND sku = :sku LIMIT 1"),
-        {"sm": supermarket_id, "sku": sku},
+    existing = db.query(Product.id).filter(
+        Product.supermarket_id == supermarket_id,
+        Product.sku == sku
     ).first()
     if existing:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="SKU đã tồn tại")
 
-    db.execute(
-        text(
-            "INSERT INTO products (supermarket_id, category_id, sku, name, base_price, image_url) "
-            "VALUES (:sm, :cat, :sku, :name, :price, :img)"
-        ),
-        {
-            "sm": supermarket_id,
-            "cat": category_id if category_id else None,
-            "sku": sku,
-            "name": name,
-            "price": float(base_price),
-            "img": image_url,
-        },
+    new_product = Product(
+        supermarket_id=supermarket_id,
+        category_id=category_id if category_id else None,
+        sku=sku,
+        name=name,
+        base_price=float(base_price),
+        image_url=image_url
     )
+    db.add(new_product)
+    db.flush()
+    product_id = new_product.id
     db.commit()
+
+    from app.services.audit_service import log_action
+    from app.core.audit_actions import CREATE_PRODUCT, ENTITY_PRODUCT
+    log_action(db, user_id=user_id, store_id=store_id,
+               action=CREATE_PRODUCT, entity_type=ENTITY_PRODUCT, entity_id=product_id)
 
     return {"message": "Tạo sản phẩm thành công"}
 
 
-def update_product(db: Session, product_id: int, supermarket_id: int, name: str, base_price: float,
-                   category_id: int | None, image_url: str | None) -> dict:
+def update_product(db: Session, product_id: int, supermarket_id: int,
+                  store_id: int, user_id: int,
+                  name: str, base_price: float,
+                  category_id: int | None, image_url: str | None) -> dict:
     """Update product information."""
     name = name.strip()
     image_url = (image_url or "").strip() or None
@@ -977,43 +1113,48 @@ def update_product(db: Session, product_id: int, supermarket_id: int, name: str,
     if base_price is None or float(base_price) < 0:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Giá không hợp lệ")
 
-    product = db.execute(
-        text("SELECT id FROM products WHERE id = :id AND supermarket_id = :sm LIMIT 1"),
-        {"id": product_id, "sm": supermarket_id},
+    product = db.query(Product).filter(
+        Product.id == product_id,
+        Product.supermarket_id == supermarket_id
     ).first()
     if not product:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sản phẩm không tìm thấy")
 
-    db.execute(
-        text(
-            "UPDATE products SET name = :name, base_price = :price, "
-            "category_id = :cat, image_url = :img WHERE id = :id"
-        ),
-        {
-            "name": name,
-            "price": float(base_price),
-            "cat": category_id if category_id else None,
-            "img": image_url,
-            "id": product_id,
-        },
-    )
+    old_price = float(product.base_price)
+    new_price = float(base_price)
+
+    db.query(Product).filter(Product.id == product_id).update({
+        Product.name: name,
+        Product.base_price: new_price,
+        Product.category_id: category_id if category_id else None,
+        Product.image_url: image_url
+    }, synchronize_session=False)
     db.commit()
+
+    from app.services.audit_service import log_action
+    from app.core.audit_actions import UPDATE_PRODUCT, UPDATE_PRICE, ENTITY_PRODUCT
+    log_action(db, user_id=user_id, store_id=store_id,
+               action=UPDATE_PRODUCT, entity_type=ENTITY_PRODUCT, entity_id=product_id)
+
+    if old_price != new_price:
+        log_action(db, user_id=user_id, store_id=store_id,
+                   action=UPDATE_PRICE, entity_type=ENTITY_PRODUCT, entity_id=product_id)
 
     return {"message": "Cập nhật sản phẩm thành công"}
 
 
-def delete_product(db: Session, product_id: int, supermarket_id: int) -> dict:
+def delete_product(db: Session, product_id: int, supermarket_id: int,
+                  store_id: int, user_id: int) -> dict:
     """Delete product if no inventory lots reference it."""
-    product = db.execute(
-        text("SELECT id FROM products WHERE id = :id AND supermarket_id = :sm LIMIT 1"),
-        {"id": product_id, "sm": supermarket_id},
+    product = db.query(Product).filter(
+        Product.id == product_id,
+        Product.supermarket_id == supermarket_id
     ).first()
     if not product:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sản phẩm không tìm thấy")
 
-    has_lots = db.execute(
-        text("SELECT COUNT(*) FROM inventory_lots WHERE product_id = :product_id"),
-        {"product_id": product_id},
+    has_lots = db.query(func.count(InventoryLot.id)).filter(
+        InventoryLot.product_id == product_id
     ).scalar() or 0
 
     if has_lots > 0:
@@ -1022,27 +1163,24 @@ def delete_product(db: Session, product_id: int, supermarket_id: int) -> dict:
             detail=f"Không thể xóa: có {has_lots} lô hàng liên quan đến sản phẩm này"
         )
 
-    db.execute(text("DELETE FROM products WHERE id = :id"), {"id": product_id})
+    db.query(Product).filter(Product.id == product_id).delete()
     db.commit()
+
+    from app.services.audit_service import log_action
+    from app.core.audit_actions import DELETE_PRODUCT, ENTITY_PRODUCT
+    log_action(db, user_id=user_id, store_id=store_id,
+               action=DELETE_PRODUCT, entity_type=ENTITY_PRODUCT, entity_id=product_id)
 
     return {"message": "Xóa sản phẩm thành công"}
 
 
 def list_product_categories(db: Session, supermarket_id: int) -> dict:
     """List all categories used by products."""
-    rows = db.execute(
-        text(
-            """
-            SELECT DISTINCT c.id, c.name
-            FROM categories c
-            LEFT JOIN products p ON p.category_id = c.id AND p.supermarket_id = :sm
-            WHERE c.id IN (SELECT category_id FROM products WHERE supermarket_id = :sm)
-               OR c.id NOT IN (SELECT DISTINCT category_id FROM products WHERE supermarket_id = :sm AND category_id IS NOT NULL)
-            ORDER BY c.name ASC
-            """
-        ),
-        {"sm": supermarket_id},
-    ).all()
+    rows = db.query(Category.id, Category.name).distinct().join(
+        Product, Product.category_id == Category.id
+    ).filter(
+        Product.supermarket_id == supermarket_id
+    ).order_by(Category.name.asc()).all()
 
     items = [{"id": row.id, "name": row.name} for row in rows]
     return {"items": items}
@@ -1051,78 +1189,500 @@ def list_product_categories(db: Session, supermarket_id: int) -> dict:
 # ========== Dashboard Business Logic ==========
 def staff_dashboard_summary(db: Session, store_id: int) -> dict:
     """Get dashboard summary statistics."""
-    total_lots = db.execute(
-        text("SELECT COUNT(*) FROM inventory_lots WHERE store_id = :store_id"),
-        {"store_id": store_id},
+    total_lots = db.query(func.count(InventoryLot.id)).filter(
+        InventoryLot.store_id == store_id
     ).scalar() or 0
 
-    near_expiry = db.execute(
-        text(
-            """
-            SELECT COUNT(*)
-            FROM inventory_lots
-            WHERE store_id = :store_id
-              AND expiry_date >= CURDATE()
-              AND expiry_date <= DATE_ADD(CURDATE(), INTERVAL 7 DAY)
-              AND qty_on_hand > 0
-            """
-        ),
-        {"store_id": store_id},
+    total_inventory_qty = db.query(func.sum(InventoryLot.qty_on_hand)).filter(
+        InventoryLot.store_id == store_id
     ).scalar() or 0
 
-    orders_today = db.execute(
-        text(
-            """
-            SELECT COUNT(*)
-            FROM orders
-            WHERE store_id = :store_id
-              AND DATE(created_at) = CURDATE()
-            """
-        ),
-        {"store_id": store_id},
+    near_expiry = db.query(func.count(InventoryLot.id)).filter(
+        InventoryLot.store_id == store_id,
+        InventoryLot.expiry_date >= date.today(),
+        InventoryLot.expiry_date <= date.today() + timedelta(days=7),
+        InventoryLot.qty_on_hand > 0
     ).scalar() or 0
 
-    pending_requests = db.execute(
-        text(
-            """
-            SELECT COUNT(*)
-            FROM donation_requests dr
-            JOIN donation_offers dof ON dof.id = dr.offer_id
-            WHERE dof.store_id = :store_id
-              AND LOWER(dr.status) = 'pending'
-            """
-        ),
-        {"store_id": store_id},
+    low_stock = db.query(func.count(InventoryLot.id)).filter(
+        InventoryLot.store_id == store_id,
+        InventoryLot.qty_on_hand > 0,
+        InventoryLot.qty_on_hand <= 5
+    ).scalar() or 0
+
+    orders_today = db.query(func.count(Order.id)).filter(
+        Order.store_id == store_id,
+        func.date(Order.created_at) == date.today()
+    ).scalar() or 0
+
+    orders_pending = db.query(func.count(Order.id)).filter(
+        Order.store_id == store_id,
+        func.lower(Order.status) == 'pending'
+    ).scalar() or 0
+
+    orders_completed = db.query(func.count(Order.id)).filter(
+        Order.store_id == store_id,
+        func.lower(Order.status) == 'completed'
+    ).scalar() or 0
+
+    pending_requests = db.query(func.count(DonationRequest.id)).join(
+        DonationOffer, DonationOffer.id == DonationRequest.offer_id
+    ).filter(
+        DonationOffer.store_id == store_id,
+        func.lower(DonationRequest.status) == 'pending'
     ).scalar() or 0
 
     return {
         "totalLots": int(total_lots),
+        "totalInventoryQty": int(total_inventory_qty),
         "nearExpiryProducts": int(near_expiry),
+        "lowStockProducts": int(low_stock),
         "ordersToday": int(orders_today),
+        "ordersPending": int(orders_pending),
+        "ordersCompleted": int(orders_completed),
         "pendingRequests": int(pending_requests),
     }
 
 
-# ========== Inventory Lots Business Logic ==========
+# ========== Donation Offers Business Logic ==========
+def list_near_expiry_lots(db: Session, store_id: int) -> dict:
+    """List inventory lots that are near expiry (3-7 days left) and have stock."""
+    today = date.today()
+    rows = db.query(
+        InventoryLot.id,
+        InventoryLot.lot_code,
+        InventoryLot.qty_on_hand,
+        InventoryLot.expiry_date,
+        Product.id.label('product_id'),
+        Product.name.label('product_name'),
+        Product.base_price,
+    ).join(
+        Product, Product.id == InventoryLot.product_id
+    ).filter(
+        InventoryLot.store_id == store_id,
+        InventoryLot.qty_on_hand > 0,
+        InventoryLot.expiry_date >= today + timedelta(days=3),
+        InventoryLot.expiry_date <= today + timedelta(days=30)  # Mở rộng lô gần hết hạn
+    ).order_by(
+        InventoryLot.expiry_date.asc()
+    ).limit(200).all()
+
+    items = []
+    for row in rows:
+        days_left = (row.expiry_date - today).days
+        items.append({
+            "id": row.id,
+            "productId": row.product_id,
+            "productName": row.product_name,
+            "lotCode": row.lot_code,
+            "quantity": int(row.qty_on_hand),
+            "expiryDate": row.expiry_date.strftime("%Y-%m-%d"),
+            "daysLeft": days_left,
+            "basePrice": float(row.base_price or 0),
+        })
+
+    return {"items": items}
+
+
+def create_donation_offer(db: Session, user_id: int, lot_id: int, offered_qty: int) -> dict:
+    """Create a new donation offer from an inventory lot."""
+    scope = _get_staff_scope(db, user_id)
+    store_id = scope["store_id"]
+
+    # Validate lot exists and belongs to staff's store
+    lot = db.query(
+        InventoryLot.id,
+        InventoryLot.qty_on_hand,
+        InventoryLot.lot_code,
+        Product.name.label('product_name'),
+        Product.id.label('product_id')
+    ).join(
+        Product, Product.id == InventoryLot.product_id
+    ).filter(
+        InventoryLot.id == lot_id,
+        InventoryLot.store_id == store_id
+    ).first()
+
+    if not lot:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Lô hàng không tồn tại hoặc không thuộc cửa hàng"
+        )
+
+    if lot.qty_on_hand < offered_qty:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Số lượng donate vượt quá tồn kho"
+        )
+
+    if offered_qty <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Số lượng phải lớn hơn 0"
+        )
+
+    # Create donation offer
+    new_offer = DonationOffer(
+        store_id=store_id,
+        lot_id=lot_id,
+        offered_qty=offered_qty,
+        status='open',
+        created_by=user_id
+    )
+    db.add(new_offer)
+    db.commit()
+    db.refresh(new_offer)
+
+    return {
+        "success": True,
+        "message": "Tạo donation offer thành công",
+        "offerId": new_offer.id,
+        "productName": lot.product_name,
+        "lotCode": lot.lot_code,
+        "offeredQty": offered_qty,
+    }
+
+
+def create_bulk_donation_offers(db: Session, user_id: int, items: list[dict]) -> dict:
+    """Create multiple donation offers from inventory lots in bulk."""
+    scope = _get_staff_scope(db, user_id)
+    store_id = scope["store_id"]
+
+    if not items:
+        raise HTTPException(status_code=400, detail="Danh sách sản phẩm không được trống")
+
+    created_offers = []
+    errors = []
+
+    for idx, item in enumerate(items):
+        lot_id = item.get("lot_id")
+        offered_qty = item.get("offered_qty")
+
+        try:
+            if not lot_id or not offered_qty:
+                errors.append({"row": idx + 1, "message": "Thiếu lot_id hoặc offered_qty"})
+                continue
+
+            # Validate lot exists and belongs to staff's store
+            lot = db.query(
+                InventoryLot.id,
+                InventoryLot.qty_on_hand,
+                InventoryLot.lot_code,
+                Product.name.label('product_name')
+            ).join(
+                Product, Product.id == InventoryLot.product_id
+            ).filter(
+                InventoryLot.id == lot_id,
+                InventoryLot.store_id == store_id
+            ).first()
+
+            if not lot:
+                errors.append({"row": idx + 1, "message": f"Lô hàng {lot_id} không tồn tại hoặc không thuộc cửa hàng"})
+                continue
+
+            if lot.qty_on_hand < offered_qty:
+                errors.append({"row": idx + 1, "message": f"Lô {lot.lot_code}: số lượng donate ({offered_qty}) vượt quá tồn kho ({lot.qty_on_hand})"})
+                continue
+
+            if offered_qty <= 0:
+                errors.append({"row": idx + 1, "message": f"Lô {lot.lot_code}: số lượng phải lớn hơn 0"})
+                continue
+
+            # Create donation offer
+            new_offer = DonationOffer(
+                store_id=store_id,
+                lot_id=lot_id,
+                offered_qty=offered_qty,
+                status='open',
+                created_by=user_id
+            )
+            db.add(new_offer)
+            db.flush()  # Get ID without committing yet
+
+            created_offers.append({
+                "offerId": new_offer.id,
+                "productName": lot.product_name,
+                "lotCode": lot.lot_code,
+                "offeredQty": offered_qty,
+            })
+
+        except Exception as e:
+            errors.append({"row": idx + 1, "message": str(e)})
+
+    if errors:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "message": "Có lỗi khi tạo donation offers",
+                "errors": errors
+            }
+        )
+
+    db.commit()
+
+    return {
+        "success": True,
+        "message": f"Đã tạo {len(created_offers)} đề nghị quyên góp thành công",
+        "created": len(created_offers),
+        "offers": created_offers,
+    }
+
+
+def list_staff_donation_offers(db: Session, user_id: int, status_filter: str = "all") -> dict:
+    """List donation offers for staff's store."""
+    scope = _get_staff_scope(db, user_id)
+    store_id = scope["store_id"]
+
+    query = db.query(
+        DonationOffer.id,
+        DonationOffer.lot_id,
+        DonationOffer.offered_qty,
+        DonationOffer.status,
+        DonationOffer.created_at,
+        InventoryLot.lot_code,
+        InventoryLot.expiry_date,
+        Product.name.label('product_name'),
+        func.count(DonationRequest.id).label('request_count')
+    ).join(
+        InventoryLot, InventoryLot.id == DonationOffer.lot_id
+    ).join(
+        Product, Product.id == InventoryLot.product_id
+    ).outerjoin(
+        DonationRequest, DonationRequest.offer_id == DonationOffer.id
+    ).filter(
+        DonationOffer.store_id == store_id
+    )
+
+    if status_filter != "all":
+        query = query.filter(DonationOffer.status == status_filter)
+
+    rows = query.group_by(
+        DonationOffer.id, InventoryLot.lot_code, InventoryLot.expiry_date, Product.name
+    ).order_by(
+        DonationOffer.created_at.desc()
+    ).limit(200).all()
+
+    items = []
+    for row in rows:
+        # Calculate remaining quantity
+        total_requested = db.query(func.sum(DonationRequest.request_qty)).filter(
+            DonationRequest.offer_id == row.id
+        ).scalar() or 0
+        remaining = row.offered_qty - int(total_requested)
+
+        items.append({
+            "id": row.id,
+            "lotId": row.lot_id,
+            "productName": row.product_name,
+            "lotCode": row.lot_code,
+            "offeredQty": row.offered_qty,
+            "remainingQty": max(0, remaining),
+            "expiryDate": row.expiry_date.isoformat() if row.expiry_date else None,
+            "status": row.status,
+            "createdAt": row.created_at.strftime("%d/%m/%Y %H:%M"),
+            "requestCount": row.request_count,
+        })
+
+    return {"items": items}
+
+
+def update_donation_offer_status(db: Session, user_id: int, offer_id: int, new_status: str) -> dict:
+    """Update donation offer status (approve/reject)."""
+    scope = _get_staff_scope(db, user_id)
+    store_id = scope["store_id"]
+
+    valid_statuses = ['open', 'approved', 'rejected', 'closed']
+    if new_status not in valid_statuses:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Trạng thái không hợp lệ"
+        )
+
+    offer = db.query(DonationOffer).filter(
+        DonationOffer.id == offer_id,
+        DonationOffer.store_id == store_id
+    ).first()
+
+    if not offer:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Donation offer không tồn tại"
+        )
+
+    offer.status = new_status
+    db.commit()
+
+    status_text = {
+        'approved': 'duyệt',
+        'rejected': 'từ chối',
+        'closed': 'đóng'
+    }.get(new_status, new_status)
+
+    return {
+        "success": True,
+        "message": f"Đã {status_text} donation offer",
+        "status": new_status
+    }
+
+
+# ========== Donation Requests Business Logic ==========
+def list_staff_donation_requests(db: Session, user_id: int, status_filter: str = "all") -> dict:
+    """List donation requests for staff's store."""
+    scope = _get_staff_scope(db, user_id)
+    store_id = scope["store_id"]
+
+    query = db.query(
+        DonationRequest.id,
+        DonationRequest.offer_id,
+        DonationRequest.charity_id,
+        DonationRequest.request_qty,
+        DonationRequest.status,
+        DonationRequest.received_at,
+        DonationRequest.created_at,
+        User.full_name.label('charity_name'),
+        User.phone.label('charity_phone'),
+        InventoryLot.lot_code,
+        Product.name.label('product_name'),
+        DonationOffer.offered_qty.label('original_offered_qty'),
+    ).join(
+        DonationOffer, DonationOffer.id == DonationRequest.offer_id
+    ).join(
+        InventoryLot, InventoryLot.id == DonationOffer.lot_id
+    ).join(
+        Product, Product.id == InventoryLot.product_id
+    ).join(
+        User, User.id == DonationRequest.charity_id
+    ).filter(
+        DonationOffer.store_id == store_id
+    )
+
+    if status_filter != "all":
+        query = query.filter(DonationRequest.status == status_filter)
+
+    rows = query.order_by(
+        DonationRequest.created_at.desc()
+    ).limit(200).all()
+
+    items = []
+    for row in rows:
+        items.append({
+            "id": row.id,
+            "offerId": row.offer_id,
+            "organization": row.charity_name,
+            "charityName": row.charity_name,
+            "charityPhone": row.charity_phone,
+            "request": f"{row.product_name} - {row.request_qty} sản phẩm",
+            "productName": row.product_name,
+            "lotCode": row.lot_code,
+            "requestedQty": row.request_qty,
+            "originalOfferedQty": row.original_offered_qty,
+            "status": row.status,
+            "receivedAt": row.received_at.strftime("%d/%m/%Y %H:%M") if row.received_at else None,
+            "createdAt": row.created_at.strftime("%d/%m/%Y %H:%M"),
+        })
+
+    return {"items": items}
+
+
+def update_donation_request_status(db: Session, user_id: int, request_id: int, new_status: str) -> dict:
+    """Update donation request status (approve/reject)."""
+    scope = _get_staff_scope(db, user_id)
+    store_id = scope["store_id"]
+
+    valid_statuses = ['pending', 'approved', 'rejected']
+    if new_status not in valid_statuses:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Trạng thái không hợp lệ"
+        )
+
+    # Get request with offer and lot
+    request = db.query(DonationRequest).join(
+        DonationOffer, DonationOffer.id == DonationRequest.offer_id
+    ).filter(
+        DonationRequest.id == request_id,
+        DonationOffer.store_id == store_id
+    ).first()
+
+    if not request:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Donation request không tồn tại"
+        )
+
+    if request.status != 'pending':
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Chỉ có thể xử lý request đang ở trạng thái pending"
+        )
+
+    if new_status == 'approved':
+        # Check if offer has enough remaining quantity
+        offer = db.query(DonationOffer).filter(DonationOffer.id == request.offer_id).first()
+        # Check both pending and approved to prevent overbooking from multiple pending requests
+        total_requested = db.query(func.sum(DonationRequest.request_qty)).filter(
+            DonationRequest.offer_id == request.offer_id,
+            DonationRequest.id != request_id,  # exclude current request
+            DonationRequest.status.in_(['pending', 'approved'])
+        ).scalar() or 0
+
+        available_qty = offer.offered_qty - int(total_requested)
+        if request.request_qty > available_qty:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Không đủ số lượng. Tổng pending + approved đã vượt quá offered quantity. Còn lại: {available_qty}"
+            )
+
+        # Approve the request
+        request.status = 'approved'
+        db.commit()
+        
+        # Create delivery for this donation request
+        delivery_info = _create_delivery_for_donation_request(db, request_id, store_id)
+
+        return {
+            "success": True,
+            "message": "Đã duyệt yêu cầu nhận donation",
+            "status": "approved",
+            "delivery_id": delivery_info.get("delivery_id"),
+            "delivery_code": delivery_info.get("delivery_code")
+        }
+    else:
+        # Reject the request
+        request.status = 'rejected'
+        db.commit()
+
+        return {
+            "success": True,
+            "message": "Đã từ chối yêu cầu nhận donation",
+            "status": "rejected"
+        }
+
+
+# ========== File Upload & Import Business Logic ==========
 def list_inventory_lots(db: Session, store_id: int, status_filter: str = "all") -> dict:
-    """List inventory lots with optional status filter."""
-    rows = db.execute(
-        text(
-            """
-            SELECT
-                il.id,
-                il.lot_code,
-                il.qty_on_hand,
-                il.expiry_date,
-                il.status,
-                p.name AS product_name
-            FROM inventory_lots il
-            JOIN products p ON p.id = il.product_id
-            WHERE il.store_id = :store_id
-            ORDER BY il.expiry_date ASC, il.id DESC
-            """
-        ),
-        {"store_id": store_id},
+    """List inventory lots with optional status filter + pricing from discount policies."""
+    from app.services import discount_policy_service
+    from datetime import date, timedelta
+    
+    rows = db.query(
+        InventoryLot.id,
+        InventoryLot.lot_code,
+        InventoryLot.qty_on_hand,
+        InventoryLot.expiry_date,
+        InventoryLot.manufacturing_date,
+        InventoryLot.status,
+        Product.id.label('product_id'),
+        Product.name.label('product_name'),
+        Product.base_price,
+        Product.supermarket_id
+    ).join(
+        Product, Product.id == InventoryLot.product_id
+    ).filter(
+        InventoryLot.store_id == store_id
+    ).order_by(
+        InventoryLot.expiry_date.asc(), InventoryLot.id.desc()
     ).all()
 
     items = []
@@ -1131,14 +1691,36 @@ def list_inventory_lots(db: Session, store_id: int, status_filter: str = "all") 
         current_status = _normalize_status_value(item.get("status"), item["expiry_date"])
         if status_filter != "all" and status_filter.strip().lower() != current_status.lower():
             continue
+        
+        # Calculate discount and prices from discount policy
+        base_price = float(item["base_price"] or 0)
+        expiry_date = item["expiry_date"]
+        days_left = (expiry_date - date.today()).days
+        
+        # Get discount from policy (3-level priority: product > category > supermarket)
+        discount_result = discount_policy_service.calculate_discount(
+            db,
+            base_price,
+            expiry_date.strftime("%Y-%m-%d"),
+            item["supermarket_id"],
+            item["product_id"]
+        )
+        discount_percent = discount_result.get("discountPercent", 0)
+        sale_price = discount_result.get("finalPrice", base_price)
+        
         items.append(
             {
                 "id": item["id"],
                 "lotCode": item["lot_code"],
                 "productName": item["product_name"],
                 "quantity": int(item["qty_on_hand"] or 0),
-                "expiryDate": item["expiry_date"].strftime("%Y-%m-%d"),
+                "manufacturingDate": item["manufacturing_date"].strftime("%Y-%m-%d") if item["manufacturing_date"] else None,
+                "expiryDate": expiry_date.strftime("%Y-%m-%d"),
                 "status": current_status,
+                "basePrice": base_price,
+                "salePrice": sale_price,
+                "discount": discount_percent,
+                "daysLeft": days_left,
             }
         )
 
@@ -1178,17 +1760,9 @@ def update_inventory_lot(db: Session, lot_id: int, store_id: int, supermarket_id
     if not lot_code or not product_name:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Du lieu khong hop le")
 
-    exists = db.execute(
-        text(
-            """
-            SELECT id
-            FROM inventory_lots
-            WHERE id = :lot_id
-              AND store_id = :store_id
-            LIMIT 1
-            """
-        ),
-        {"lot_id": lot_id, "store_id": store_id},
+    exists = db.query(InventoryLot.id).filter(
+        InventoryLot.id == lot_id,
+        InventoryLot.store_id == store_id
     ).first()
     if not exists:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lo hang khong ton tai")
@@ -1196,28 +1770,18 @@ def update_inventory_lot(db: Session, lot_id: int, store_id: int, supermarket_id
     product_id = _resolve_or_create_product(db, supermarket_id, product_name)
     next_status = _normalize_status_value(manual_status, expiry_date)
 
-    db.execute(
-        text(
-            """
-            UPDATE inventory_lots
-            SET lot_code = :lot_code,
-                product_id = :product_id,
-                qty_on_hand = :qty_on_hand,
-                expiry_date = :expiry_date,
-                status = :status
-            WHERE id = :lot_id
-              AND store_id = :store_id
-            """
-        ),
+    db.query(InventoryLot).filter(
+        InventoryLot.id == lot_id,
+        InventoryLot.store_id == store_id
+    ).update(
         {
-            "lot_code": lot_code,
-            "product_id": product_id,
-            "qty_on_hand": quantity,
-            "expiry_date": expiry_date,
-            "status": next_status,
-            "lot_id": lot_id,
-            "store_id": store_id,
+            InventoryLot.lot_code: lot_code,
+            InventoryLot.product_id: product_id,
+            InventoryLot.qty_on_hand: quantity,
+            InventoryLot.expiry_date: expiry_date,
+            InventoryLot.status: next_status,
         },
+        synchronize_session=False
     )
     db.commit()
 
@@ -1225,21 +1789,27 @@ def update_inventory_lot(db: Session, lot_id: int, store_id: int, supermarket_id
 
 
 def delete_inventory_lot(db: Session, lot_id: int, store_id: int) -> dict:
-    """Delete inventory lot."""
-    result = db.execute(
-        text(
-            """
-            DELETE FROM inventory_lots
-            WHERE id = :lot_id
-              AND store_id = :store_id
-            """
-        ),
-        {"lot_id": lot_id, "store_id": store_id},
-    )
+    """Delete inventory lot - check if any qty is reserved first."""
+    lot = db.query(InventoryLot).filter(
+        InventoryLot.id == lot_id,
+        InventoryLot.store_id == store_id
+    ).first()
+    
+    if not lot:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail="Lô hàng không tồn tại"
+        )
+    
+    # Check if lot has reserved quantity
+    if lot.qty_reserved > 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Không thể xóa lô hàng đang có {lot.qty_reserved} đơn vị được đặt trước. Vui lòng hủy các đơn hàng liên quan trước."
+        )
+    
+    db.delete(lot)
     db.commit()
-
-    if (result.rowcount or 0) == 0:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lo hang khong ton tai")
 
     return {"success": True}
 
@@ -1272,60 +1842,66 @@ async def import_inventory_lots_from_excel(db: Session, store_id: int, supermark
     lots_updated = 0
     errors: list[dict[str, object]] = []
 
-    for idx, row in enumerate(rows, start=2):
-        lot_code_raw = _pick_field(row, "lot_code", "lotcode", "ma_lo", "ma_lo_hang")
-        product_name_raw = _pick_field(row, "product_name", "product", "name", "ten_san_pham", "san_pham")
-        quantity_raw = _pick_field(row, "quantity", "qty", "so_luong")
-        expiry_raw = _pick_field(row, "expiry_date", "expiry", "ngay_het_han", "han_su_dung")
-        status_raw = _pick_field(row, "status", "trang_thai")
-        sku_raw = _pick_field(row, "sku", "ma_sku")
-        base_price_raw = _pick_field(row, "base_price", "price", "don_gia", "gia")
-        category_raw = _pick_field(row, "category", "category_name", "danh_muc")
+    try:
+        for idx, row in enumerate(rows, start=2):
+            lot_code_raw = _pick_field(row, "lot_code", "lotcode", "ma_lo", "ma_lo_hang")
+            product_name_raw = _pick_field(row, "product_name", "product", "name", "ten_san_pham", "san_pham")
+            quantity_raw = _pick_field(row, "quantity", "qty", "so_luong")
+            expiry_raw = _pick_field(row, "expiry_date", "expiry", "ngay_het_han", "han_su_dung")
+            status_raw = _pick_field(row, "status", "trang_thai")
+            sku_raw = _pick_field(row, "sku", "ma_sku")
+            base_price_raw = _pick_field(row, "base_price", "price", "don_gia", "gia")
+            category_raw = _pick_field(row, "category", "category_name", "danh_muc")
 
-        try:
-            lot_code = str(lot_code_raw or "").strip()
-            product_name = str(product_name_raw or "").strip()
-            if not lot_code or not product_name:
-                raise ValueError("Thieu ma lo hoac ten san pham")
+            try:
+                lot_code = str(lot_code_raw or "").strip()
+                product_name = str(product_name_raw or "").strip()
+                if not lot_code or not product_name:
+                    raise ValueError("Thieu ma lo hoac ten san pham")
 
-            quantity = int(quantity_raw)
-            if quantity < 0:
-                raise ValueError("So luong phai >= 0")
+                quantity = int(quantity_raw)
+                if quantity < 0:
+                    raise ValueError("So luong phai >= 0")
 
-            expiry_date = _parse_date_input(expiry_raw)
-            product_id, product_action = _upsert_product_from_import(
-                db,
-                supermarket_id=supermarket_id,
-                product_name_raw=product_name,
-                sku_raw=sku_raw,
-                base_price_raw=base_price_raw,
-                category_name_raw=category_raw,
-            )
-            if product_action == "created":
-                products_created += 1
-            else:
-                products_updated += 1
+                expiry_date = _parse_date_input(expiry_raw)
+                product_id, product_action = _upsert_product_from_import(
+                    db,
+                    supermarket_id=supermarket_id,
+                    product_name_raw=product_name,
+                    sku_raw=sku_raw,
+                    base_price_raw=base_price_raw,
+                    category_name_raw=category_raw,
+                )
+                if product_action == "created":
+                    products_created += 1
+                else:
+                    products_updated += 1
 
-            lot_action = _upsert_inventory_lot(
-                db,
-                store_id=store_id,
-                supermarket_id=supermarket_id,
-                lot_code=lot_code,
-                product_name=product_name,
-                quantity=quantity,
-                expiry_date=expiry_date,
-                manual_status=status_raw,
-                product_id=product_id,
-            )
+                lot_action = _upsert_inventory_lot(
+                    db,
+                    store_id=store_id,
+                    supermarket_id=supermarket_id,
+                    lot_code=lot_code,
+                    product_name=product_name,
+                    quantity=quantity,
+                    expiry_date=expiry_date,
+                    manual_status=status_raw,
+                    product_id=product_id,
+                )
 
-            if lot_action == "created":
-                lots_created += 1
-            else:
-                lots_updated += 1
-        except Exception as exc:  # noqa: BLE001
-            errors.append({"row": idx, "message": str(exc)})
-
-    db.commit()
+                if lot_action == "created":
+                    lots_created += 1
+                else:
+                    lots_updated += 1
+            except Exception as exc:  # noqa: BLE001
+                errors.append({"row": idx, "message": str(exc)})
+        
+        # Commit only if all rows processed (even with some row errors, commit successful ones)
+        db.commit()
+    except Exception as exc:  # noqa: BLE001
+        # Rollback entire transaction on any critical error
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Import failed: {str(exc)}")
 
     return {
         "success": True,
@@ -1365,67 +1941,73 @@ async def import_products_from_excel(db: Session, store_id: int, supermarket_id:
     lots_updated = 0
     errors: list[dict[str, object]] = []
 
-    for idx, row in enumerate(rows, start=2):
-        product_name_raw = _pick_field(row, "product_name", "product", "name", "ten_san_pham", "san_pham")
-        sku_raw = _pick_field(row, "sku", "ma_sku")
-        base_price_raw = _pick_field(row, "base_price", "price", "don_gia", "gia")
-        category_raw = _pick_field(row, "category", "category_name", "danh_muc")
+    try:
+        for idx, row in enumerate(rows, start=2):
+            product_name_raw = _pick_field(row, "product_name", "product", "name", "ten_san_pham", "san_pham")
+            sku_raw = _pick_field(row, "sku", "ma_sku")
+            base_price_raw = _pick_field(row, "base_price", "price", "don_gia", "gia")
+            category_raw = _pick_field(row, "category", "category_name", "danh_muc")
 
-        lot_code_raw = _pick_field(row, "lot_code", "lotcode", "ma_lo", "ma_lo_hang")
-        quantity_raw = _pick_field(row, "quantity", "qty", "so_luong")
-        expiry_raw = _pick_field(row, "expiry_date", "expiry", "ngay_het_han", "han_su_dung")
-        status_raw = _pick_field(row, "status", "trang_thai")
+            lot_code_raw = _pick_field(row, "lot_code", "lotcode", "ma_lo", "ma_lo_hang")
+            quantity_raw = _pick_field(row, "quantity", "qty", "so_luong")
+            expiry_raw = _pick_field(row, "expiry_date", "expiry", "ngay_het_han", "han_su_dung")
+            status_raw = _pick_field(row, "status", "trang_thai")
 
-        try:
-            product_id, product_action = _upsert_product_from_import(
-                db,
-                supermarket_id=supermarket_id,
-                product_name_raw=product_name_raw,
-                sku_raw=sku_raw,
-                base_price_raw=base_price_raw,
-                category_name_raw=category_raw,
-            )
-            product_name = str(product_name_raw or "").strip()
-
-            if product_action == "created":
-                products_created += 1
-            else:
-                products_updated += 1
-
-            has_lot_data = any(
-                value not in (None, "")
-                for value in (lot_code_raw, quantity_raw, expiry_raw)
-            )
-            if has_lot_data:
-                lot_code = str(lot_code_raw or "").strip()
-                if not lot_code:
-                    raise ValueError("Thieu ma lo de tao ton kho")
-
-                quantity = int(quantity_raw)
-                if quantity < 0:
-                    raise ValueError("So luong phai >= 0")
-
-                expiry_date = _parse_date_input(expiry_raw)
-
-                lot_action = _upsert_inventory_lot(
+            try:
+                product_id, product_action = _upsert_product_from_import(
                     db,
-                    store_id=store_id,
                     supermarket_id=supermarket_id,
-                    lot_code=lot_code,
-                    product_name=product_name,
-                    quantity=quantity,
-                    expiry_date=expiry_date,
-                    manual_status=status_raw,
-                    product_id=product_id,
+                    product_name_raw=product_name_raw,
+                    sku_raw=sku_raw,
+                    base_price_raw=base_price_raw,
+                    category_name_raw=category_raw,
                 )
-                if lot_action == "created":
-                    lots_created += 1
-                else:
-                    lots_updated += 1
-        except Exception as exc:  # noqa: BLE001
-            errors.append({"row": idx, "message": str(exc)})
+                product_name = str(product_name_raw or "").strip()
 
-    db.commit()
+                if product_action == "created":
+                    products_created += 1
+                else:
+                    products_updated += 1
+
+                has_lot_data = any(
+                    value not in (None, "")
+                    for value in (lot_code_raw, quantity_raw, expiry_raw)
+                )
+                if has_lot_data:
+                    lot_code = str(lot_code_raw or "").strip()
+                    if not lot_code:
+                        raise ValueError("Thieu ma lo de tao ton kho")
+
+                    quantity = int(quantity_raw)
+                    if quantity < 0:
+                        raise ValueError("So luong phai >= 0")
+
+                    expiry_date = _parse_date_input(expiry_raw)
+
+                    lot_action = _upsert_inventory_lot(
+                        db,
+                        store_id=store_id,
+                        supermarket_id=supermarket_id,
+                        lot_code=lot_code,
+                        product_name=product_name,
+                        quantity=quantity,
+                        expiry_date=expiry_date,
+                        manual_status=status_raw,
+                        product_id=product_id,
+                    )
+                    if lot_action == "created":
+                        lots_created += 1
+                    else:
+                        lots_updated += 1
+            except Exception as exc:  # noqa: BLE001
+                errors.append({"row": idx, "message": str(exc)})
+        
+        # Commit only if all rows processed (even with some row errors, commit successful ones)
+        db.commit()
+    except Exception as exc:  # noqa: BLE001
+        # Rollback entire transaction on any critical error
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Import failed: {str(exc)}")
 
     return {
         "success": True,

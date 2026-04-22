@@ -13,6 +13,8 @@ from app.models.store import Store
 from app.models.user import User
 from app.models.inventory_lot import InventoryLot
 from app.models.supermarket import Supermarket
+from app.models.donation_request import DonationRequest
+from app.models.charity_organization import CharityOrganization
 from app.core.security import get_password_hash, verify_password
 
 
@@ -68,6 +70,33 @@ def get_order_items_detail(db: Session, order_id: int) -> tuple:
     return ", ".join(formatted_items) if formatted_items else "Không có sản phẩm", items_list, total_quantity
 
 
+def get_donation_items_detail(db: Session, donation_request_id: int) -> tuple:
+    """Get donation request items details."""
+    from app.models.donation_offer import DonationOffer
+    
+    items = (
+        db.query(DonationOffer, Product)
+        .join(Product, DonationOffer.product_id == Product.id)
+        .filter(DonationOffer.donation_request_id == donation_request_id)
+        .all()
+    )
+
+    formatted_items = []
+    items_list = []
+    total_quantity = 0
+
+    for item, product in items:
+        item_str = f"{item.quantity} x {product.name}"
+        formatted_items.append(item_str)
+        items_list.append({
+            "product_name": product.name,
+            "quantity": item.quantity,
+        })
+        total_quantity += item.quantity
+
+    return ", ".join(formatted_items) if formatted_items else "Không có sản phẩm", items_list, total_quantity
+
+
 def calculate_reward(total_amount: float) -> float:
     """Calculate delivery reward based on order amount."""
     if not total_amount or total_amount < 50000:
@@ -81,54 +110,118 @@ def calculate_reward(total_amount: float) -> float:
 
 
 def format_delivery_data(delivery: Delivery, db: Session, include_order_detail: bool = True) -> dict:
-    """Format delivery data from database."""
-    order = delivery.order
-    if not order:
+    """Format delivery data from database - handles both orders and donations."""
+    
+    # Determine delivery type and get relevant info
+    delivery_type = None
+    entity_id = None
+    entity_data = {}
+    
+    if delivery.order_id:
+        delivery_type = "order"
+        order = delivery.order
+        if not order:
+            return None
+        
+        customer = db.query(User).filter(User.id == order.customer_id).first()
+        store = db.query(Store).filter(Store.id == order.store_id).first()
+        
+        # Get supermarket name
+        supermarket_name = ""
+        if store and store.supermarket_id:
+            supermarket = db.query(Supermarket).filter(Supermarket.id == store.supermarket_id).first()
+            if supermarket:
+                supermarket_name = supermarket.name
+        
+        # Get items detail
+        items_str, items_list, total_quantity = get_order_items_detail(db, order.id)
+        
+        # Calculate reward
+        order_amount = float(order.total_amount) if order.total_amount else 0
+        reward = calculate_reward(order_amount)
+        
+        entity_id = order.id
+        entity_data = {
+            "id": delivery.id,
+            "delivery_code": delivery.delivery_code,
+            "delivery_type": "order",
+            "order_id": order.id,
+            "customer_id": order.customer_id,
+            "customer_name": customer.full_name if customer else "Không có",
+            "customer_phone": delivery.receiver_phone or (customer.phone if customer else ""),
+            "customer_address": delivery.receiver_address or "Không có địa chỉ",
+            "store_id": store.id if store else 0,
+            "store_name": store.name if store else "Không có",
+            "store_address": store.location if store else "Không có",
+            "store_code": store.code if store else "",
+            "supermarket_name": supermarket_name,
+            "items": items_str,
+            "items_list": items_list,
+            "quantity": total_quantity,
+            "total_amount": order_amount,
+            "payment_method": order.payment_method or "cod",
+            "payment_status": order.payment_status or "pending",
+            "order_status": order.status,
+            "status": delivery.status,
+            "assigned_at": delivery.assigned_at.strftime("%Y-%m-%d %H:%M:%S") if delivery.assigned_at else "",
+            "delivered_at": delivery.delivered_at.strftime("%Y-%m-%d %H:%M:%S") if delivery.delivered_at else None,
+            "completed_at": delivery.delivered_at.strftime("%Y-%m-%d %H:%M:%S") if delivery.delivered_at else None,
+            "created_at": order.created_at.strftime("%Y-%m-%d %H:%M:%S") if order.created_at else "",
+            "reward": reward,
+        }
+    
+    elif delivery.donation_request_id:
+        delivery_type = "donation"
+        donation = delivery.donation_request
+        if not donation:
+            return None
+        
+        # Get charity organization info
+        charity = db.query(CharityOrganization).filter(CharityOrganization.id == donation.charity_id).first()
+        store = db.query(Store).filter(Store.id == delivery.store_id).first()
+        
+        # Get supermarket name
+        supermarket_name = ""
+        if store and store.supermarket_id:
+            supermarket = db.query(Supermarket).filter(Supermarket.id == store.supermarket_id).first()
+            if supermarket:
+                supermarket_name = supermarket.name
+        
+        # Get donation items detail (similar to order items)
+        items_str, items_list, total_quantity = get_donation_items_detail(db, donation.id)
+        
+        entity_id = donation.id
+        entity_data = {
+            "id": delivery.id,
+            "delivery_code": delivery.delivery_code,
+            "delivery_type": "donation",
+            "donation_request_id": donation.id,
+            "charity_id": donation.charity_id,
+            "charity_name": charity.name if charity else "Không có",
+            "charity_phone": delivery.receiver_phone or (charity.phone if charity else ""),
+            "charity_address": delivery.receiver_address or "Không có địa chỉ",
+            "receiver_name": delivery.receiver_name or (charity.name if charity else ""),
+            "store_id": store.id if store else 0,
+            "store_name": store.name if store else "Không có",
+            "store_address": store.location if store else "Không có",
+            "store_code": store.code if store else "",
+            "supermarket_name": supermarket_name,
+            "items": items_str,
+            "items_list": items_list,
+            "quantity": total_quantity,
+            "donation_status": donation.status,
+            "status": delivery.status,
+            "assigned_at": delivery.assigned_at.strftime("%Y-%m-%d %H:%M:%S") if delivery.assigned_at else "",
+            "delivered_at": delivery.delivered_at.strftime("%Y-%m-%d %H:%M:%S") if delivery.delivered_at else None,
+            "completed_at": delivery.delivered_at.strftime("%Y-%m-%d %H:%M:%S") if delivery.delivered_at else None,
+            "created_at": donation.created_at.strftime("%Y-%m-%d %H:%M:%S") if donation.created_at else "",
+            "reward": 0.0,  # No reward for donations
+        }
+    
+    else:
         return None
-
-    customer = db.query(User).filter(User.id == order.customer_id).first()
-    store = db.query(Store).filter(Store.id == order.store_id).first()
-
-    # Get supermarket name
-    supermarket_name = ""
-    if store and store.supermarket_id:
-        supermarket = db.query(Supermarket).filter(Supermarket.id == store.supermarket_id).first()
-        if supermarket:
-            supermarket_name = supermarket.name
-
-    # Get items detail
-    items_str, items_list, total_quantity = get_order_items_detail(db, order.id)
-
-    # Calculate reward
-    order_amount = float(order.total_amount) if order.total_amount else 0
-    reward = calculate_reward(order_amount)
-
-    return {
-        "id": delivery.id,
-        "delivery_code": delivery.delivery_code,
-        "order_id": order.id,
-        "customer_id": order.customer_id,
-        "customer_name": customer.full_name if customer else "Không có",
-        "customer_phone": delivery.receiver_phone or (customer.phone if customer else ""),
-        "customer_address": delivery.receiver_address or "Không có địa chỉ",
-        "store_id": store.id if store else 0,
-        "store_name": store.name if store else "Không có",
-        "store_address": store.location if store else "Không có",
-        "store_code": store.code if store else "",
-        "supermarket_name": supermarket_name,
-        "items": items_str,
-        "items_list": items_list,
-        "quantity": total_quantity,
-        "total_amount": order_amount,
-        "payment_method": order.payment_method or "cod",
-        "payment_status": order.payment_status or "pending",
-        "order_status": order.status,
-        "status": delivery.status,
-        "assigned_at": delivery.assigned_at.strftime("%Y-%m-%d %H:%M:%S") if delivery.assigned_at else "",
-        "delivered_at": delivery.delivered_at.strftime("%Y-%m-%d %H:%M:%S") if delivery.delivered_at else None,
-        "created_at": order.created_at.strftime("%Y-%m-%d %H:%M:%S") if order.created_at else "",
-        "reward": reward,
-    }
+    
+    return entity_data
 
 
 # ========== Delivery Orders ==========
@@ -220,7 +313,7 @@ def get_delivery_history(db: Session, user_id: int, filter: str = "all") -> dict
     return {"items": orders, "total": len(orders)}
 
 
-def update_delivery_status(db: Session, delivery_id: int, status: str, user_id: int) -> dict:
+def update_delivery_status(db: Session, delivery_id: int, new_status: str, user_id: int) -> dict:
     """Update delivery status with validation."""
     dp = get_delivery_partner_user(db, user_id)
 
@@ -237,21 +330,28 @@ def update_delivery_status(db: Session, delivery_id: int, status: str, user_id: 
         )
 
     valid_statuses = ["assigned", "picking_up", "delivering", "completed"]
-    if status not in valid_statuses:
+    if new_status not in valid_statuses:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Trạng thái không hợp lệ. Các trạng thái hợp lệ: {', '.join(valid_statuses)}"
         )
 
-    delivery.status = status
+    delivery.status = new_status
 
-    if status == "completed":
+    if new_status == "completed":
         delivery.delivered_at = datetime.now()
 
+        # Update order status if order delivery
         if delivery.order_id:
             order = db.query(Order).filter(Order.id == delivery.order_id).first()
             if order:
                 order.status = "completed"
+        
+        # Update donation status if donation delivery
+        if delivery.donation_request_id:
+            donation = db.query(DonationRequest).filter(DonationRequest.id == delivery.donation_request_id).first()
+            if donation:
+                donation.status = "completed"
 
     db.commit()
 
@@ -319,6 +419,131 @@ def get_delivery_stats(db: Session, user_id: int) -> dict:
         "total_earnings": total_earnings,
         "average_earning": average_earning,
     }
+
+
+# ========== Donation Deliveries ==========
+def get_donation_deliveries(db: Session, user_id: int) -> dict:
+    """Get all donation deliveries for delivery partner."""
+    dp = get_delivery_partner_user(db, user_id)
+
+    deliveries = (
+        db.query(Delivery)
+        .filter(Delivery.delivery_partner_id == dp.id, Delivery.donation_request_id.isnot(None))
+        .options(
+            joinedload(Delivery.donation_request),
+            joinedload(Delivery.store)
+        )
+        .order_by(Delivery.assigned_at.desc())
+        .all()
+    )
+
+    donations = []
+    for d in deliveries:
+        donation_data = format_delivery_data(d, db)
+        if donation_data:
+            donations.append(donation_data)
+
+    return {"items": donations, "total": len(donations)}
+
+
+def get_active_donation_deliveries(db: Session, user_id: int) -> dict:
+    """Get active donation deliveries (not completed)."""
+    dp = get_delivery_partner_user(db, user_id)
+
+    deliveries = (
+        db.query(Delivery)
+        .filter(
+            Delivery.delivery_partner_id == dp.id,
+            Delivery.donation_request_id.isnot(None),
+            Delivery.status.in_(["assigned", "picking_up", "delivering"])
+        )
+        .options(
+            joinedload(Delivery.donation_request),
+            joinedload(Delivery.store)
+        )
+        .order_by(Delivery.assigned_at.desc())
+        .all()
+    )
+
+    donations = []
+    for d in deliveries:
+        donation_data = format_delivery_data(d, db)
+        if donation_data:
+            donations.append(donation_data)
+
+    return {"items": donations, "total": len(donations)}
+
+
+def get_donation_delivery_history(db: Session, user_id: int, filter: str = "all") -> dict:
+    """Get completed donation delivery history."""
+    dp = get_delivery_partner_user(db, user_id)
+
+    query = (
+        db.query(Delivery)
+        .filter(
+            Delivery.delivery_partner_id == dp.id,
+            Delivery.donation_request_id.isnot(None),
+            Delivery.status == "completed"
+        )
+        .options(
+            joinedload(Delivery.donation_request),
+            joinedload(Delivery.store)
+        )
+    )
+
+    if filter == "today":
+        today = datetime.now().date()
+        query = query.filter(Delivery.delivered_at >= today)
+    elif filter == "week":
+        week_ago = datetime.now() - timedelta(days=7)
+        query = query.filter(Delivery.delivered_at >= week_ago)
+    elif filter == "month":
+        month_ago = datetime.now() - timedelta(days=30)
+        query = query.filter(Delivery.delivered_at >= month_ago)
+
+    deliveries = query.order_by(Delivery.delivered_at.desc()).all()
+
+    donations = []
+    for d in deliveries:
+        donation_data = format_delivery_data(d, db)
+        if donation_data:
+            donations.append(donation_data)
+
+    return {"items": donations, "total": len(donations)}
+
+
+def get_donation_delivery_detail(db: Session, delivery_id: int, user_id: int) -> dict:
+    """Get donation delivery details."""
+    dp = get_delivery_partner_user(db, user_id)
+
+    delivery = (
+        db.query(Delivery)
+        .filter(
+            Delivery.id == delivery_id,
+            Delivery.delivery_partner_id == dp.id,
+            Delivery.donation_request_id.isnot(None)
+        )
+        .options(
+            joinedload(Delivery.donation_request),
+            joinedload(Delivery.store)
+        )
+        .first()
+    )
+
+    if not delivery:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Không tìm thấy đơn giao hàng quyên góp"
+        )
+
+    donation_data = format_delivery_data(delivery, db)
+    if not donation_data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Không tìm thấy yêu cầu quyên góp liên quan"
+        )
+
+    return donation_data
 
 
 # ========== Profile Management ==========

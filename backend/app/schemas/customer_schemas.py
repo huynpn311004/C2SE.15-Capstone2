@@ -19,6 +19,7 @@ class UpdateProfileRequest(BaseModel):
 	fullName: str = Field(min_length=1)
 	email: str = Field(max_length=255)
 	phone: Optional[str] = Field(default=None, max_length=20)
+	address: Optional[str] = Field(default=None, max_length=500)
 
 
 class ChangePasswordRequest(BaseModel):
@@ -74,7 +75,6 @@ class ProductDetailResponse(BaseModel):
 	categoryName: str
 	supermarketId: Optional[int]
 	supermarketName: str
-	supermarketPhone: str
 	totalStock: int
 	stores: List[StoreLocationDetail]
 
@@ -177,12 +177,14 @@ class OrderItemCreateRequest(BaseModel):
 	productId: int
 	quantity: int = Field(ge=1)
 	lotCode: Optional[str] = None
+	storeId: Optional[int] = None  # For multi-store orders
 
 
 class CreateOrderRequest(BaseModel):
 	items: List[OrderItemCreateRequest]
-	storeId: int
+	storeId: Optional[int] = None  # Optional for multi-store orders
 	paymentMethod: str = Field(default="cod")
+	shippingAddress: Optional[str] = None
 
 
 class CreateOrderResponse(BaseModel):
@@ -190,6 +192,37 @@ class CreateOrderResponse(BaseModel):
 	orderId: int
 	orderCode: str
 	message: str
+
+
+# ========== Multi-Store Order Schemas ==========
+
+class OrderGroupItem(BaseModel):
+	"""Single item in an order group (from one store)"""
+	name: str
+	quantity: int
+	unitPrice: float
+	imageUrl: Optional[str] = None
+
+
+class OrderGroup(BaseModel):
+	"""One order belonging to a specific store"""
+	storeId: int
+	storeName: str
+	storeAddress: Optional[str] = None
+	orderId: int
+	orderCode: str
+	items: List[OrderGroupItem]
+	totalAmount: float
+	shippingAddress: Optional[str] = None
+
+
+class CreateMultiStoreOrderResponse(BaseModel):
+	"""Response when creating orders from multiple stores"""
+	success: bool
+	message: str
+	totalOrders: int
+	totalAmount: float
+	orderGroups: List[OrderGroup]
 
 
 class CancelOrderResponse(BaseModel):
@@ -204,3 +237,31 @@ class DashboardSummaryResponse(BaseModel):
 	pendingOrders: int
 	completedOrders: int
 	totalSpent: float
+
+
+# ========== Cart Validation Schemas ==========
+
+class CartItemRequest(BaseModel):
+	productId: int
+	quantity: int = Field(ge=1)
+	storeId: int
+
+
+class ValidateCartRequest(BaseModel):
+	items: List[CartItemRequest]
+
+
+class CartItemAvailability(BaseModel):
+	productId: int
+	storeId: int
+	productName: str
+	requestedQuantity: int
+	availableQuantity: int
+	enoughStock: bool
+	lotCode: Optional[str] = None
+
+
+class ValidateCartResponse(BaseModel):
+	valid: bool
+	items: List[CartItemAvailability]
+	outOfStockItems: List[str]

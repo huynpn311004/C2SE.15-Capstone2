@@ -98,6 +98,14 @@ export default function SupermarketAdminLayout({ children }) {
               </li>
               <li>
                 <NavLink
+                  to="/supermarketadmin/coupons"
+                  className={({ isActive }) => `supermarketadmin-nav-link${isActive ? ' active' : ''}`}
+                >
+                  <span className="supermarketadmin-nav-label">Quản Lý Mã Ưu Đãi</span>
+                </NavLink>
+              </li>
+              <li>
+                <NavLink
                   to="/supermarketadmin/reports"
                   className={({ isActive }) => `supermarketadmin-nav-link${isActive ? ' active' : ''}`}
                 >

@@ -67,7 +67,6 @@ export default function CustomerLayout({ children }) {
             onClick={() => setSidebarOpen(!sidebarOpen)}
             aria-label={sidebarOpen ? 'Đóng sidebar' : 'Mở sidebar'}
           >
-            {sidebarOpen ? '✕' : '☰'}
           </button>
         </div>
 
@@ -153,7 +152,6 @@ export default function CustomerLayout({ children }) {
             onClick={() => setSidebarOpen(!sidebarOpen)}
             aria-label="Toggle sidebar"
           >
-            ☰
           </button>
           <div className="customer-header-title">
             <h1>Xin chào, {displayName}</h1>

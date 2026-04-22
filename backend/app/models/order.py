@@ -1,11 +1,8 @@
 from datetime import datetime
 from decimal import Decimal
-
 from sqlalchemy import BigInteger, DECIMAL, DateTime, Enum, ForeignKey, String, func
-from sqlalchemy.orm import Mapped, mapped_column
-
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
-
 
 class Order(Base):
     __tablename__ = "orders"
@@ -22,7 +19,7 @@ class Order(Base):
         nullable=False,
     )
     status: Mapped[str] = mapped_column(
-        Enum("pending", "preparing", "ready", "completed", "cancelled", name="order_status"),
+        Enum("pending", "preparing", "ready", "completed", "cancelled", "multi_store_pending", name="order_status"),
         nullable=False,
         default="pending",
     )
@@ -41,7 +38,18 @@ class Order(Base):
         nullable=False,
         server_default=func.now(),
     )
+    reserved_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=False),
+        nullable=True,
+    )
+
     delivered_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=False),
         nullable=True,
     )
+    shipping_address: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+
+    # Relationships
+    customer: Mapped["User"] = relationship("User", foreign_keys=[customer_id])
+    store: Mapped["Store"] = relationship("Store", foreign_keys=[store_id])

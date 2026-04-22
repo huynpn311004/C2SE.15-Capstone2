@@ -16,12 +16,14 @@ export default function CharitySettings() {
     orgName: '',
     email: '',
     phone: '',
+    address: '',
   })
   const [originalData, setOriginalData] = useState({
     fullName: '',
     orgName: '',
     email: '',
     phone: '',
+    address: '',
   })
   const [saveMessage, setSaveMessage] = useState('')
   const [saveError, setSaveError] = useState('')
@@ -54,6 +56,7 @@ export default function CharitySettings() {
         orgName: data.orgName || '',
         email: data.email || '',
         phone: data.phone || '',
+        address: data.address || '',
       }
       setFormData(profile)
       setOriginalData(profile)
@@ -194,6 +197,17 @@ export default function CharitySettings() {
                 value={formData.phone}
                 onChange={handleChange}
                 placeholder="0900000000"
+              />
+            </label>
+
+            <label className="chsettings-field">
+              <span>Địa Chỉ</span>
+              <input
+                type="text"
+                name="address"
+                value={formData.address}
+                onChange={handleChange}
+                placeholder="Địa chỉ tổ chức từ thiện"
               />
             </label>
           </div>

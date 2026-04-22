@@ -1,10 +1,7 @@
 from datetime import datetime
-
 from sqlalchemy import BigInteger, DateTime, ForeignKey, String, Text, UniqueConstraint, func
-from sqlalchemy.orm import Mapped, mapped_column
-
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
-
 
 class Delivery(Base):
     __tablename__ = "deliveries"
@@ -43,3 +40,8 @@ class Delivery(Base):
         server_default=func.now(),
     )
     delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=False), nullable=True)
+
+    # Relationships
+    order: Mapped["Order"] = relationship("Order", foreign_keys=[order_id])
+    donation_request: Mapped["DonationRequest"] = relationship("DonationRequest", foreign_keys=[donation_request_id])
+    store: Mapped["Store"] = relationship("Store", foreign_keys=[store_id])

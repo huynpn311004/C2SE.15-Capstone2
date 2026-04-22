@@ -198,7 +198,7 @@ export default function DeliveryManagement() {
       }
 
       await createAdminDeliveryWithAccount(payload)
-      setCreateSuccess(`Đã tạo tài khoản thành công cho ${payload.manager}.`)
+      setCreateSuccess(`Đã tạo tài khoản thành công.`)
       await loadDeliveries()
     } catch (err) {
       setCreateError(err?.response?.data?.detail || 'Không thể tạo tài khoản đối tác giao hàng.')
@@ -413,6 +413,18 @@ export default function DeliveryManagement() {
               </div>
               <form onSubmit={submitEditDelivery}>
                 <div className="delivery-modal-body">
+                  {(editError || editSuccess) && (
+                    <div className={`delivery-alert ${editError ? 'delivery-alert-error' : 'delivery-alert-success'}`}>
+                      <svg className="delivery-alert-icon" viewBox="0 0 24 24" fill="currentColor">
+                        {editError ? (
+                          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                        ) : (
+                          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                        )}
+                      </svg>
+                      <span>{editError || editSuccess}</span>
+                    </div>
+                  )}
                   <div className="delivery-create-grid">
                     <div className="delivery-form-field">
                       <label>Người Phụ Trách</label>
@@ -518,6 +530,7 @@ export default function DeliveryManagement() {
               </div>
               <form onSubmit={submitCreateAccount}>
                 <div className="delivery-modal-body">
+                  <div className="delivery-section-title">Thông Tin Đối Tác</div>
                   <div className="delivery-create-grid">
                     <div className="delivery-form-field">
                       <label>Người Phụ Trách</label>
@@ -585,6 +598,21 @@ export default function DeliveryManagement() {
                     </div>
 
                     <div className="delivery-form-field">
+                      <label>Ngày Đăng Ký</label>
+                      <input
+                        type="date"
+                        name="requestDate"
+                        value={createForm.requestDate}
+                        onChange={handleCreateFormChange}
+                        className="delivery-input"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="delivery-section-title">Thông Tin Tài Khoản</div>
+                  <div className="delivery-create-grid">
+                    <div className="delivery-form-field">
                       <label>Mật Khẩu</label>
                       <input
                         type="password"
@@ -611,19 +639,7 @@ export default function DeliveryManagement() {
                     </div>
 
                     <div className="delivery-form-field">
-                      <label>Ngày Đăng Ký</label>
-                      <input
-                        type="date"
-                        name="requestDate"
-                        value={createForm.requestDate}
-                        onChange={handleCreateFormChange}
-                        className="delivery-input"
-                        required
-                      />
-                    </div>
-
-                    <div className="delivery-form-field">
-                      <label>Trạng Thái Hoạt Động</label>
+                      <label>Trạng Thái Hoạt Đ���ng</label>
                       <select
                         name="activityStatus"
                         value={createForm.activityStatus}
@@ -636,9 +652,6 @@ export default function DeliveryManagement() {
                     </div>
                   </div>
                 </div>
-
-                {createError && <p className="delivery-error">{createError}</p>}
-                {createSuccess && <p className="delivery-success">{createSuccess}</p>}
 
                 <div className="delivery-modal-footer">
                   <button type="submit" className="delivery-btn-create">

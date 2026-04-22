@@ -11,7 +11,6 @@ export const ROLES = {
   STORE_STAFF: 'store_staff',
   CUSTOMER: 'customer',
   CHARITY: 'charity',
-  DELIVERY: 'delivery',
   DELIVERY_PARTNER: 'delivery_partner',
 }
 
@@ -21,7 +20,6 @@ export const ROLE_DISPLAY = {
   store_staff: 'Nhân Viên Cửa Hàng',
   customer: 'Khách Hàng',
   charity: 'Tổ Chức Từ Thiện',
-  delivery: 'Giao Hàng',
   delivery_partner: 'Đối Tác Giao Hàng',
 }
 
@@ -46,9 +44,10 @@ export function AuthProvider({ children }) {
   async function login(payload) {
     const response = await API.post('/auth/login', payload)
     const nextUser = response.data?.user || null
-    setUser(nextUser)
-    if (nextUser) {
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(nextUser))
+    const token = response.data?.token || null
+    if (nextUser && token) {
+      setUser({ ...nextUser, token })
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ ...nextUser, token }))
     }
     return response.data
   }

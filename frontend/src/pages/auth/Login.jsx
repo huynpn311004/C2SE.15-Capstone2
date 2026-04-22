@@ -26,7 +26,6 @@ export default function Login() {
       store_staff: '/staff/dashboard',
       customer: '/customer/home',
       charity: '/charity/dashboard',
-      delivery: '/delivery/dashboard',
       delivery_partner: '/delivery/dashboard',
     }
     return routes[role] || '/'
@@ -86,12 +85,15 @@ export default function Login() {
           <span className="login-brand-badge">SEIMS</span>
           <h1 id="login-brand-title">Smart Expiry Integration Management</h1>
           <p>
-            Nền tảng quản lý hàng cận hạn, giảm giá và donation cho chuỗi siêu
-            thị — đăng nhập theo vai trò được cấp.
+            Nền tảng tích hợp giúp các chuỗi siêu thị theo dõi và quản lý hàng cận hạn,
+            triển khai chiến lược giảm giá linh hoạt và hỗ trợ hoạt động quyên góp.
+            Giải pháp hướng đến việc giảm lãng phí, tối ưu vận hành và nâng cao giá trị bền vững cho doanh nghiệp.
           </p>
           <ul className="login-brand-list">
-            <li>Quản trị hệ thống, siêu thị, cửa hàng</li>
-            <li>Khách hàng, từ thiện, đối tác giao hàng</li>
+            <li>Theo dõi & quản lý hàng cận hạn sử dụng</li>
+            <li>Chiến lược giảm giá linh hoạt theo thời gian thực</li>
+            <li>Hỗ trợ quyên góp từ thiện hiệu quả</li>
+            <li>Giảm lãng phí — tối ưu vận hành — phát triển bền vững</li>
           </ul>
         </aside>
 

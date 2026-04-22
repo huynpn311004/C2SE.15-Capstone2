@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import API from '../../services/api';
 
@@ -18,8 +18,7 @@ export default function ForgotPassword() {
   const token = searchParams.get('token');
   const navigate = useNavigate();
 
-  // Auto-detect reset step if token exists
-  useState(() => {
+  useEffect(() => {
     if (token) {
       setStep('reset');
     }
@@ -87,7 +86,7 @@ export default function ForgotPassword() {
   return (
     <div className="forgot-page">
       <nav className="forgot-top-nav" aria-label="Điều hướng phụ">
-        <Link to="/">← Về trang chủ</Link>
+        <Link to="/">Về trang chủ</Link>
         <Link to="/login">Đăng nhập</Link>
       </nav>
 
@@ -106,7 +105,6 @@ export default function ForgotPassword() {
               <>
                 <header className="forgot-card-header">
                   <h2>Quên mật khẩu?</h2>
-                  <span>Nhập email đã đăng ký</span>
                 </header>
 
                 <form onSubmit={handleRequest} noValidate>
@@ -119,7 +117,7 @@ export default function ForgotPassword() {
                       autoComplete="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="ban@email.com"
+                      placeholder="@gmail.com"
                       disabled={loading}
                     />
                   </div>

@@ -1,11 +1,19 @@
 """Charity service layer with business logic."""
 
 from datetime import datetime
-from sqlalchemy import text
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
 from app.core.security import get_password_hash, verify_password
+from app.models.user import User
+from app.models.charity_organization import CharityOrganization
+from app.models.donation_offer import DonationOffer
+from app.models.donation_request import DonationRequest
+from app.models.inventory_lot import InventoryLot
+from app.models.product import Product
+from app.models.store import Store
+from app.models.supermarket import Supermarket
 
 
 # ========== Helper Functions ==========
@@ -34,17 +42,9 @@ def _format_date(value) -> str:
 
 def _get_charity_user(db: Session, user_id: int):
     """Get and validate charity user."""
-    user = db.execute(
-        text(
-            """
-            SELECT id, role, full_name, email, phone
-            FROM users
-            WHERE id = :user_id
-              AND role = 'charity'
-            LIMIT 1
-            """
-        ),
-        {"user_id": user_id},
+    user = db.query(User.id, User.role, User.full_name, User.email, User.phone).filter(
+        User.id == user_id,
+        User.role == 'charity'
     ).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Khong tim thay tai khoan charity")
@@ -56,17 +56,19 @@ def get_charity_profile(db: Session, user_id: int) -> dict:
     """Get charity organization profile."""
     user = _get_charity_user(db, user_id)
 
-    charity = db.execute(
-        text(
-            """
-            SELECT c.id, c.org_name, c.phone, u.username, u.email, u.full_name, u.created_at
-            FROM charity_organizations c
-            JOIN users u ON u.id = c.user_id
-            WHERE c.user_id = :user_id
-            LIMIT 1
-            """
-        ),
-        {"user_id": user_id},
+    charity = db.query(
+        CharityOrganization.id,
+        CharityOrganization.org_name,
+        CharityOrganization.phone,
+        CharityOrganization.address,
+        User.username,
+        User.email,
+        User.full_name,
+        User.created_at
+    ).join(
+        User, User.id == CharityOrganization.user_id
+    ).filter(
+        CharityOrganization.user_id == user_id
     ).first()
 
     if not charity:
@@ -77,22 +79,23 @@ def get_charity_profile(db: Session, user_id: int) -> dict:
             "username": "",
             "email": user.email,
             "phone": user.phone,
+            "address": "",
             "createdAt": _format_date(user.created_at) if hasattr(user, 'created_at') else "",
         }
 
-    item = _dict_row(charity)
     return {
-        "id": item["id"],
-        "orgName": item["org_name"] or "",
-        "fullName": item["full_name"] or "",
-        "username": item["username"] or "",
-        "email": item["email"] or "",
-        "phone": item["phone"] or "",
-        "createdAt": _format_date(item.get("created_at")),
+        "id": charity.id,
+        "orgName": charity.org_name or "",
+        "fullName": charity.full_name or "",
+        "username": charity.username or "",
+        "email": charity.email or "",
+        "phone": charity.phone or "",
+        "address": charity.address or "",
+        "createdAt": _format_date(charity.created_at),
     }
 
 
-def update_charity_profile(db: Session, user_id: int, full_name: str, email: str, phone: str, org_name: str) -> dict:
+def update_charity_profile(db: Session, user_id: int, full_name: str, email: str, phone: str, org_name: str, address: str = "") -> dict:
     """Update charity profile information."""
     user = _get_charity_user(db, user_id)
 
@@ -100,33 +103,35 @@ def update_charity_profile(db: Session, user_id: int, full_name: str, email: str
     email = (email or "").strip().lower()
     phone = (phone or "").strip()
     org_name = (org_name or "").strip()
+    address = (address or "").strip()
 
     if not full_name:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ho ten khong duoc trong")
     if not email:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email khong duoc trong")
 
-    existing_email = db.execute(
-        text("SELECT id FROM users WHERE email = :email AND id != :user_id LIMIT 1"),
-        {"email": email, "user_id": user_id},
+    existing_email = db.query(User.id).filter(
+        User.email == email,
+        User.id != user_id
     ).first()
     if existing_email:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email da duoc su dung")
 
-    db.execute(
-        text("UPDATE users SET full_name = :full_name, email = :email, phone = :phone WHERE id = :user_id"),
-        {"full_name": full_name, "email": email, "phone": phone or None, "user_id": user_id},
+    db.query(User).filter(User.id == user_id).update(
+        {User.full_name: full_name, User.email: email, User.phone: phone or None},
+        synchronize_session=False
     )
 
     if org_name:
-        db.execute(
-            text(
-                """
-                UPDATE charity_organizations SET org_name = :org_name, phone = :phone
-                WHERE user_id = :user_id
-                """
-            ),
-            {"org_name": org_name, "phone": phone or None, "user_id": user_id},
+        db.query(CharityOrganization).filter(
+            CharityOrganization.user_id == user_id
+        ).update(
+            {
+                CharityOrganization.org_name: org_name,
+                CharityOrganization.phone: phone or None,
+                CharityOrganization.address: address or None,
+            },
+            synchronize_session=False
         )
 
     db.commit()
@@ -146,10 +151,7 @@ def change_charity_password(db: Session, user_id: int, current_password: str, ne
             detail="Mat khau moi phai co it nhat 6 ky tu.",
         )
 
-    row = db.execute(
-        text("SELECT password_hash FROM users WHERE id = :user_id LIMIT 1"),
-        {"user_id": user_id},
-    ).first()
+    row = db.query(User.password_hash).filter(User.id == user_id).first()
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Khong tim thay tai khoan")
 
@@ -159,17 +161,13 @@ def change_charity_password(db: Session, user_id: int, current_password: str, ne
             detail="Mat khau hien tai khong dung.",
         )
 
-    db.execute(
-        text(
-            """
-            UPDATE users
-            SET password_hash = :password_hash,
-                failed_login_attempts = 0,
-                locked_at = NULL
-            WHERE id = :user_id
-            """
-        ),
-        {"password_hash": get_password_hash(new_password), "user_id": user_id},
+    db.query(User).filter(User.id == user_id).update(
+        {
+            User.password_hash: get_password_hash(new_password),
+            User.failed_login_attempts: 0,
+            User.locked_at: None
+        },
+        synchronize_session=False
     )
     db.commit()
     return {"success": True}
@@ -180,58 +178,97 @@ def get_charity_dashboard_summary(db: Session, user_id: int) -> dict:
     """Get charity dashboard statistics."""
     _get_charity_user(db, user_id)
 
-    total_received = db.execute(
-        text(
-            """
-            SELECT COUNT(*) FROM donation_requests
-            WHERE charity_id = :user_id AND LOWER(status) = 'received'
-            """
-        ),
-        {"user_id": user_id},
+    total_received = db.query(func.count(DonationRequest.id)).filter(
+        DonationRequest.charity_id == user_id,
+        func.lower(DonationRequest.status) == 'received'
     ).scalar() or 0
 
-    total_pending = db.execute(
-        text(
-            """
-            SELECT COUNT(*) FROM donation_requests
-            WHERE charity_id = :user_id AND LOWER(status) = 'pending'
-            """
-        ),
-        {"user_id": user_id},
+    total_pending = db.query(func.count(DonationRequest.id)).filter(
+        DonationRequest.charity_id == user_id,
+        func.lower(DonationRequest.status) == 'pending'
     ).scalar() or 0
 
-    total_approved = db.execute(
-        text(
-            """
-            SELECT COUNT(*) FROM donation_requests
-            WHERE charity_id = :user_id AND LOWER(status) = 'approved'
-            """
-        ),
-        {"user_id": user_id},
+    total_approved = db.query(func.count(DonationRequest.id)).filter(
+        DonationRequest.charity_id == user_id,
+        func.lower(DonationRequest.status) == 'approved'
     ).scalar() or 0
 
-    total_products = db.execute(
-        text(
-            """
-            SELECT COALESCE(SUM(dr.request_qty), 0)
-            FROM donation_requests dr
-            WHERE dr.charity_id = :user_id AND LOWER(dr.status) = 'received'
-            """
-        ),
-        {"user_id": user_id},
+    total_products = db.query(func.coalesce(func.sum(DonationRequest.request_qty), 0)).filter(
+        DonationRequest.charity_id == user_id,
+        func.lower(DonationRequest.status) == 'received'
     ).scalar() or 0
 
-    unique_stores = db.execute(
-        text(
-            """
-            SELECT COUNT(DISTINCT dof.store_id)
-            FROM donation_requests dr
-            JOIN donation_offers dof ON dof.id = dr.offer_id
-            WHERE dr.charity_id = :user_id AND LOWER(dr.status) = 'received'
-            """
-        ),
-        {"user_id": user_id},
+    unique_stores = db.query(func.count(Store.id.distinct())).join(
+        DonationOffer, DonationOffer.store_id == Store.id
+    ).join(
+        DonationRequest, DonationRequest.offer_id == DonationOffer.id
+    ).filter(
+        DonationRequest.charity_id == user_id,
+        func.lower(DonationRequest.status) == 'received'
     ).scalar() or 0
+
+    # Received list
+    received_rows = db.query(
+        DonationRequest.id,
+        DonationRequest.request_qty,
+        DonationRequest.status,
+        DonationRequest.received_at,
+        Product.name.label('product_name'),
+        Store.name.label('store_name'),
+        DonationOffer.lot_id,
+    ).join(
+        DonationOffer, DonationOffer.id == DonationRequest.offer_id
+    ).join(
+        Store, Store.id == DonationOffer.store_id
+    ).join(
+        InventoryLot, InventoryLot.id == DonationOffer.lot_id
+    ).join(
+        Product, Product.id == InventoryLot.product_id
+    ).filter(
+        DonationRequest.charity_id == user_id,
+        func.lower(DonationRequest.status) == 'received'
+    ).order_by(DonationRequest.received_at.desc()).limit(20).all()
+
+    received_list = []
+    for row in received_rows:
+        received_list.append({
+            "id": row.id,
+            "product": row.product_name,
+            "qty": row.request_qty,
+            "store": row.store_name,
+            "date": row.received_at.strftime("%d/%m/%Y") if row.received_at else "-",
+        })
+
+    # Pending requests
+    pending_rows = db.query(
+        DonationRequest.id,
+        DonationRequest.request_qty,
+        DonationRequest.status,
+        DonationRequest.created_at,
+        Product.name.label('product_name'),
+        Store.name.label('store_name'),
+    ).join(
+        DonationOffer, DonationOffer.id == DonationRequest.offer_id
+    ).join(
+        Store, Store.id == DonationOffer.store_id
+    ).join(
+        InventoryLot, InventoryLot.id == DonationOffer.lot_id
+    ).join(
+        Product, Product.id == InventoryLot.product_id
+    ).filter(
+        DonationRequest.charity_id == user_id,
+        func.lower(DonationRequest.status) == 'pending'
+    ).order_by(DonationRequest.created_at.desc()).limit(20).all()
+
+    pending_list = []
+    for row in pending_rows:
+        pending_list.append({
+            "id": row.id,
+            "product": row.product_name,
+            "qty": row.request_qty,
+            "store": row.store_name,
+            "date": row.created_at.strftime("%d/%m/%Y"),
+        })
 
     return {
         "totalReceived": int(total_received),
@@ -239,6 +276,8 @@ def get_charity_dashboard_summary(db: Session, user_id: int) -> dict:
         "totalApproved": int(total_approved),
         "totalProducts": int(total_products),
         "uniqueStores": int(unique_stores),
+        "receivedList": received_list,
+        "pendingList": pending_list,
     }
 
 
@@ -247,53 +286,54 @@ def list_charity_donation_offers(db: Session, user_id: int) -> dict:
     """List available donation offers for charity."""
     _get_charity_user(db, user_id)
 
-    rows = db.execute(
-        text(
-            """
-            SELECT
-                dof.id,
-                dof.offered_qty,
-                dof.status,
-                dof.created_at,
-                p.name AS product_name,
-                il.expiry_date,
-                s.name AS store_name,
-                sm.name AS supermarket_name,
-                COALESCE(dr_my.id, 0) AS my_request_id,
-                COALESCE(dr_my.status, '') AS my_request_status
-            FROM donation_offers dof
-            JOIN inventory_lots il ON il.id = dof.lot_id
-            JOIN products p ON p.id = il.product_id
-            JOIN stores s ON s.id = dof.store_id
-            JOIN supermarkets sm ON sm.id = s.supermarket_id
-            LEFT JOIN donation_requests dr_my ON dr_my.offer_id = dof.id AND dr_my.charity_id = :user_id
-            WHERE dof.status = 'open'
-            ORDER BY dof.created_at DESC
-            LIMIT 200
-            """
-        ),
-        {"user_id": user_id},
-    ).all()
+    rows = db.query(
+        DonationOffer.id,
+        DonationOffer.offered_qty,
+        DonationOffer.status,
+        DonationOffer.created_at,
+        Product.name.label('product_name'),
+        InventoryLot.expiry_date,
+        Store.name.label('store_name'),
+        Supermarket.name.label('supermarket_name'),
+        Supermarket.address.label('supermarket_address'),
+        func.coalesce(DonationRequest.id, 0).label('my_request_id'),
+        func.coalesce(DonationRequest.status, '').label('my_request_status')
+    ).join(
+        InventoryLot, InventoryLot.id == DonationOffer.lot_id
+    ).join(
+        Product, Product.id == InventoryLot.product_id
+    ).join(
+        Store, Store.id == DonationOffer.store_id
+    ).join(
+        Supermarket, Supermarket.id == Store.supermarket_id
+    ).outerjoin(
+        DonationRequest,
+        (DonationRequest.offer_id == DonationOffer.id) & (DonationRequest.charity_id == user_id)
+    ).filter(
+        DonationOffer.status == 'open'
+    ).order_by(
+        DonationOffer.created_at.desc()
+    ).limit(200).all()
 
     items = []
     for row in rows:
-        item = _dict_row(row)
         display_status = "available"
-        if item["offered_qty"] <= 0:
+        if row.offered_qty <= 0:
             display_status = "out_of_stock"
-        elif item["my_request_status"] == "pending":
+        elif row.my_request_status == "pending":
             display_status = "pending_full"
 
         items.append({
-            "id": item["id"],
-            "name": item["product_name"],
-            "qty": int(item["offered_qty"] or 0),
-            "exp": _format_date(item["expiry_date"]),
-            "store": item["store_name"] or "",
-            "supermarket": item["supermarket_name"] or "",
+            "id": row.id,
+            "name": row.product_name,
+            "qty": int(row.offered_qty or 0),
+            "exp": _format_date(row.expiry_date),
+            "store": row.store_name or "",
+            "supermarket": row.supermarket_name or "",
+            "supermarketAddress": row.supermarket_address or "",
             "status": display_status,
-            "myRequestId": int(item["my_request_id"]) if item["my_request_id"] else None,
-            "myRequestStatus": item["my_request_status"],
+            "myRequestId": int(row.my_request_id) if row.my_request_id else None,
+            "myRequestStatus": row.my_request_status,
         })
 
     return {"items": items}
@@ -314,22 +354,27 @@ def create_charity_donation_request(db: Session, user_id: int, offer_id: int, re
     except (TypeError, ValueError):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="So luong khong hop le")
 
-    offer = db.execute(
-        text("SELECT id, offered_qty, status FROM donation_offers WHERE id = :offer_id LIMIT 1"),
-        {"offer_id": offer_id},
+    offer = db.query(DonationOffer.id, DonationOffer.offered_qty, DonationOffer.status).filter(
+        DonationOffer.id == offer_id
     ).first()
     if not offer:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Donation offer khong ton tai")
     if offer.status != "open":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Donation offer da dong")
-    if request_qty > int(offer.offered_qty or 0):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="So luong vuot qua so luong co san")
+    
+    # Calculate total already requested (pending + approved) to prevent overbooking
+    total_requested = db.query(func.sum(DonationRequest.request_qty)).filter(
+        DonationRequest.offer_id == offer_id,
+        DonationRequest.status.in_(['pending', 'approved'])
+    ).scalar() or 0
+    
+    available_qty = int(offer.offered_qty or 0) - int(total_requested)
+    if request_qty > available_qty:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"So luong vuot qua so luong co san. Con lai: {available_qty}")
 
-    existing = db.execute(
-        text(
-            "SELECT id FROM donation_requests WHERE offer_id = :offer_id AND charity_id = :user_id LIMIT 1"
-        ),
-        {"offer_id": offer_id, "user_id": user_id},
+    existing = db.query(DonationRequest.id).filter(
+        DonationRequest.offer_id == offer_id,
+        DonationRequest.charity_id == user_id
     ).first()
     if existing:
         raise HTTPException(
@@ -337,15 +382,13 @@ def create_charity_donation_request(db: Session, user_id: int, offer_id: int, re
             detail="Ban da gui yeu cau nhan hang cho offer nay roi",
         )
 
-    db.execute(
-        text(
-            """
-            INSERT INTO donation_requests (offer_id, charity_id, request_qty, status)
-            VALUES (:offer_id, :charity_id, :request_qty, 'pending')
-            """
-        ),
-        {"offer_id": offer_id, "charity_id": user_id, "request_qty": request_qty},
+    new_request = DonationRequest(
+        offer_id=offer_id,
+        charity_id=user_id,
+        request_qty=request_qty,
+        status='pending'
     )
+    db.add(new_request)
     db.commit()
 
     return {"success": True, "message": "Gui yeu cau nhan hang thanh cong"}
@@ -355,49 +398,54 @@ def list_charity_donation_requests(db: Session, user_id: int) -> dict:
     """List charity's donation requests."""
     _get_charity_user(db, user_id)
 
-    rows = db.execute(
-        text(
-            """
-            SELECT
-                dr.id,
-                dr.request_qty,
-                dr.status,
-                dr.proof_image_url,
-                dr.received_at,
-                dr.created_at,
-                dof.id AS offer_id,
-                p.name AS product_name,
-                il.expiry_date,
-                s.name AS store_name,
-                sm.name AS supermarket_name,
-                dof.offered_qty AS original_qty,
-                dof.created_at AS offer_created_at
-            FROM donation_requests dr
-            JOIN donation_offers dof ON dof.id = dr.offer_id
-            JOIN inventory_lots il ON il.id = dof.lot_id
-            JOIN products p ON p.id = il.product_id
-            JOIN stores s ON s.id = dof.store_id
-            JOIN supermarkets sm ON sm.id = s.supermarket_id
-            WHERE dr.charity_id = :user_id
-            ORDER BY dr.created_at DESC
-            LIMIT 200
-            """
-        ),
-        {"user_id": user_id},
-    ).all()
+    rows = db.query(
+        DonationRequest.id,
+        DonationRequest.request_qty,
+        DonationRequest.status,
+        DonationRequest.received_at,
+        DonationRequest.created_at,
+        DonationOffer.id.label('offer_id'),
+        Product.name.label('product_name'),
+        InventoryLot.expiry_date,
+        Store.name.label('store_name'),
+        Supermarket.name.label('supermarket_name'),
+        Supermarket.address.label('supermarket_address'),
+        DonationOffer.offered_qty.label('original_qty'),
+        DonationOffer.created_at.label('offer_created_at')
+    ).join(
+        DonationOffer, DonationOffer.id == DonationRequest.offer_id
+    ).join(
+        InventoryLot, InventoryLot.id == DonationOffer.lot_id
+    ).join(
+        Product, Product.id == InventoryLot.product_id
+    ).join(
+        Store, Store.id == DonationOffer.store_id
+    ).join(
+        Supermarket, Supermarket.id == Store.supermarket_id
+    ).filter(
+        DonationRequest.charity_id == user_id
+    ).order_by(
+        DonationRequest.created_at.desc()
+    ).limit(200).all()
 
     items = []
     for row in rows:
-        item = _dict_row(row)
         items.append({
-            "id": item["id"],
-            "product": item["product_name"],
-            "qty": int(item["request_qty"] or 0),
-            "status": item["status"],
-            "exp": _format_date(item["expiry_date"]),
-            "store": item["store_name"] or "",
-            "supermarket": item["supermarket_name"] or "",
-            "createdAt": _format_date(item["created_at"]),
+            "dbId": row.id,
+            "id": row.id,
+            "item": row.product_name,
+            "product": row.product_name,
+            "reqQty": int(row.request_qty or 0),
+            "qty": int(row.request_qty or 0),
+            "status": row.status.lower() if row.status else "pending",
+            "exp": _format_date(row.expiry_date),
+            "store": row.store_name or "",
+            "supermarket": row.supermarket_name or "",
+            "supermarketAddress": row.supermarket_address or "",
+            "date": _format_date(row.created_at),
+            "createdAt": _format_date(row.created_at),
+            "approvedDate": _format_date(row.created_at) if row.status and row.status.lower() in ['approved', 'received'] else "-",
+            "receivedDate": _format_date(row.received_at) if row.received_at else "-",
         })
 
     return {"items": items}
@@ -407,16 +455,12 @@ def confirm_received_donation(db: Session, user_id: int, request_id: int) -> dic
     """Confirm received donation request."""
     _get_charity_user(db, user_id)
 
-    request = db.execute(
-        text(
-            """
-            SELECT id, charity_id, status
-            FROM donation_requests
-            WHERE id = :request_id
-            LIMIT 1
-            """
-        ),
-        {"request_id": request_id},
+    request = db.query(
+        DonationRequest.id,
+        DonationRequest.charity_id,
+        DonationRequest.status
+    ).filter(
+        DonationRequest.id == request_id
     ).first()
 
     if not request:
@@ -426,15 +470,11 @@ def confirm_received_donation(db: Session, user_id: int, request_id: int) -> dic
     if request.status != "approved":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Chi co the nhan hang khi trang thai la approved")
 
-    db.execute(
-        text(
-            """
-            UPDATE donation_requests
-            SET status = 'received', received_at = NOW()
-            WHERE id = :request_id
-            """
-        ),
-        {"request_id": request_id},
+    db.query(DonationRequest).filter(
+        DonationRequest.id == request_id
+    ).update(
+        {DonationRequest.status: 'received', DonationRequest.received_at: datetime.now()},
+        synchronize_session=False
     )
     db.commit()
 

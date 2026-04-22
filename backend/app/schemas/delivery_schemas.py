@@ -69,6 +69,13 @@ class DeliveryProfileResponse(BaseModel):
         from_attributes = True
 
 
+class UpdateDeliveryStatusRequest(BaseModel):
+    status: str
+
+    class Config:
+        from_attributes = True
+
+
 class StatusUpdateResponse(BaseModel):
     message: str
     success: bool

@@ -10,6 +10,7 @@ class CharityProfileResponse(BaseModel):
     username: str
     email: str
     phone: str
+    address: str
     createdAt: str
 
 
@@ -19,6 +20,7 @@ class DashboardSummaryResponse(BaseModel):
     totalApproved: int
     totalProducts: int
     uniqueStores: int
+    receivedList: list
 
 
 class DonationOfferItem(BaseModel):
@@ -28,6 +30,7 @@ class DonationOfferItem(BaseModel):
     exp: str
     store: str
     supermarket: str
+    supermarketAddress: str
     status: str
     myRequestId: int | None
     myRequestStatus: str
@@ -45,8 +48,15 @@ class DonationRequestItem(BaseModel):
     exp: str
     store: str
     supermarket: str
+    supermarketAddress: str
     createdAt: str
 
 
 class DonationRequestsResponse(BaseModel):
     items: list[DonationRequestItem]
+
+
+class CreateDonationRequestRequest(BaseModel):
+    offerId: int
+    requestQty: int
+    note: str = ""

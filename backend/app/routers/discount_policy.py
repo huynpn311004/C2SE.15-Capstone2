@@ -1,9 +1,11 @@
 """Discount policy router - delegates to service layer."""
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.dependencies import get_current_user, require_supermarket_admin
+from app.models.user import User
 from app.services import discount_policy_service
 
 
@@ -13,11 +15,11 @@ router = APIRouter(prefix="/discount-policy", tags=["discount-policy"])
 # ========== CRUD Operations ==========
 @router.get("")
 def list_discount_policies(
-    user_id: int = Query(default=None),
     supermarket_id: int = Query(default=None),
+    current_user: User = Depends(require_supermarket_admin),
     db: Session = Depends(get_db),
 ):
-    return discount_policy_service.list_discount_policies(db, user_id, supermarket_id)
+    return discount_policy_service.list_discount_policies(db, current_user.id, supermarket_id)
 
 
 @router.get("/{policy_id}")
@@ -35,12 +37,12 @@ def create_discount_policy(
     category_id: int = Query(default=None),
     product_id: int = Query(default=None),
     is_active: bool = Query(default=True),
-    user_id: int = Query(...),
+    current_user: User = Depends(require_supermarket_admin),
     db: Session = Depends(get_db),
 ):
     return discount_policy_service.create_discount_policy(
         db,
-        user_id,
+        current_user.id,
         name,
         min_days,
         max_days,
@@ -62,14 +64,14 @@ def update_discount_policy(
     category_id: int = Query(default=None),
     product_id: int = Query(default=None),
     is_active: bool = Query(default=None),
-    user_id: int = Query(...),
+    current_user: User = Depends(require_supermarket_admin),
     db: Session = Depends(get_db),
 ):
     """Update discount policy."""
     return discount_policy_service.update_discount_policy(
         db,
         policy_id,
-        user_id,
+        current_user.id,
         name,
         min_days,
         max_days,
@@ -83,22 +85,21 @@ def update_discount_policy(
 @router.delete("/{policy_id}")
 def delete_discount_policy(
     policy_id: int,
-    user_id: int = Query(...),
+    current_user: User = Depends(require_supermarket_admin),
     db: Session = Depends(get_db),
 ):
-    return discount_policy_service.delete_discount_policy(db, policy_id, user_id)
+    return discount_policy_service.delete_discount_policy(db, policy_id, current_user.id)
 
 
 @router.patch("/{policy_id}/toggle")
 def toggle_discount_policy(
     policy_id: int,
-    user_id: int = Query(...),
+    current_user: User = Depends(require_supermarket_admin),
     db: Session = Depends(get_db),
 ):
-    return discount_policy_service.toggle_discount_policy(db, policy_id, user_id)
+    return discount_policy_service.toggle_discount_policy(db, policy_id, current_user.id)
 
 
-# ========== Discount Calculation ==========
 @router.get("/calculate")
 def calculate_discount(
     base_price: float = Query(...),
@@ -110,4 +111,6 @@ def calculate_discount(
     return discount_policy_service.calculate_discount(
         db, base_price, expiry_date, supermarket_id, product_id
     )
+
+
 

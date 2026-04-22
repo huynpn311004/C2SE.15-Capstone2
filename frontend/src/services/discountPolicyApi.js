@@ -36,8 +36,8 @@ function requireSupermarketAdmin() {
 
 // List all discount policies (Supermarket Admin chỉ thấy của siêu thị mình)
 export async function fetchDiscountPolicies() {
-  const userId = requireSupermarketAdmin()
-  const response = await API.get('/discount-policy', { params: { user_id: userId } })
+  requireSupermarketAdmin()
+  const response = await API.get('/discount-policy')
   return response.data.items || []
 }
 
@@ -50,9 +50,8 @@ export async function fetchDiscountPolicy(policyId) {
 
 // Create policy (Chi Supermarket Admin)
 export async function createDiscountPolicy(payload) {
-  const userId = requireSupermarketAdmin()
+  requireSupermarketAdmin()
   const params = {
-    user_id: userId,
     name: payload.name,
     min_days: payload.minDaysLeft,
     max_days: payload.maxDaysLeft,
@@ -61,17 +60,14 @@ export async function createDiscountPolicy(payload) {
   if (payload.categoryId) params.category_id = payload.categoryId
   if (payload.productId) params.product_id = payload.productId
 
-  const response = await API.post('/discount-policy', {}, { params })
+  const response = await API.post('/discount-policy', null, { params })
   return response.data
 }
 
 // Update policy (Chi Supermarket Admin)
 export async function updateDiscountPolicy(policyId, payload) {
-  const userId = requireSupermarketAdmin()
-  const params = {
-    user_id: userId,
-    policy_id: policyId,
-  }
+  requireSupermarketAdmin()
+  const params = {}
   if (payload.name) params.name = payload.name
   if (payload.minDaysLeft !== undefined) params.min_days = payload.minDaysLeft
   if (payload.maxDaysLeft !== undefined) params.max_days = payload.maxDaysLeft
@@ -79,25 +75,21 @@ export async function updateDiscountPolicy(policyId, payload) {
   if (payload.categoryId !== undefined) params.category_id = payload.categoryId
   if (payload.productId !== undefined) params.product_id = payload.productId
 
-  const response = await API.put(`/discount-policy/${policyId}`, {}, { params })
+  const response = await API.put(`/discount-policy/${policyId}`, null, { params })
   return response.data
 }
 
 // Delete policy (Chi Supermarket Admin)
 export async function deleteDiscountPolicy(policyId) {
-  const userId = requireSupermarketAdmin()
-  const response = await API.delete(`/discount-policy/${policyId}`, {
-    params: { user_id: userId },
-  })
+  requireSupermarketAdmin()
+  const response = await API.delete(`/discount-policy/${policyId}`)
   return response.data
 }
 
 // Toggle policy active/inactive (Chi Supermarket Admin)
 export async function toggleDiscountPolicy(policyId) {
-  const userId = requireSupermarketAdmin()
-  const response = await API.patch(`/discount-policy/${policyId}/toggle`, {}, {
-    params: { user_id: userId },
-  })
+  requireSupermarketAdmin()
+  const response = await API.patch(`/discount-policy/${policyId}/toggle`)
   return response.data
 }
 
@@ -114,5 +106,3 @@ export async function calculateDiscount(basePrice, expiryDate, supermarketId, pr
   return response.data
 }
 
-// Helpers
-export { getUserId, getUserRole }

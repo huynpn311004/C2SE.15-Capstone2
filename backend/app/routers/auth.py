@@ -26,16 +26,25 @@ def register(data: RegisterRequest, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=LoginResponse)
 def login(data: LoginRequest, db: Session = Depends(get_db)):
-	user = login_user(db, data)
-	return LoginResponse(message="Đăng nhập thành công.", user=UserPublic.model_validate(user))
+	user, token = login_user(db, data)
+	return LoginResponse(
+		message="Đăng nhập thành công.",
+		user=UserPublic.model_validate(user),
+		token=token
+	)
 
 
 @router.post("/forgot-password", response_model=ForgotPasswordResponse)
 def forgot_password_route(data: ForgotPasswordRequest, db: Session = Depends(get_db)):
-	forgot_password(db, data.email)
+	# Get frontend URL from environment or use default
+	import os
+	frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
+	
+	result = forgot_password(db, data.email, frontend_reset_url=frontend_url)
 	return ForgotPasswordResponse(
-		message="Nếu email tồn tại trong hệ thống, chúng tôi đã gửi link đặt lại mật khẩu.",
-		success=True,
+		message=result["message"],
+		success=result["success"],
+		email_sent=result.get("email_sent", False),
 	)
 
 

@@ -1,8 +1,6 @@
 from sqlalchemy import BigInteger, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
-
 from app.core.database import Base
-
 
 class DeliveryPartner(Base):
     __tablename__ = "delivery_partners"

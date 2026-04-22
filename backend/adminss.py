@@ -11,6 +11,7 @@ if str(BASE_DIR) not in sys.path:
 
 from app.core.database import SessionLocal  # noqa: E402
 from app.core.security import get_password_hash  # noqa: E402
+from app.models.user import User  # noqa: E402
 
 
 def upsert_admin(username: str, password: str, email: str, full_name: str) -> str:
@@ -27,53 +28,42 @@ def upsert_admin(username: str, password: str, email: str, full_name: str) -> st
                 + ", ".join(sorted(missing_required))
             )
 
-        existing = db.execute(
-            text(
-                "SELECT id, username, email "
-                "FROM users "
-                "WHERE username = :username OR email = :email "
-                "LIMIT 1"
-            ),
-            {"username": username, "email": email},
-        ).mappings().first()
+        # Use ORM query: no SQL injection risk
+        existing = db.query(User).filter(
+            (User.username == username) | (User.email == email)
+        ).first()
 
         action = "updated" if existing else "created"
 
-        # Keep values aligned with current DB schema.
-        data = {
-            "username": username,
-            "email": email,
-            "full_name": full_name,
-            "role": "system_admin",
-            "is_active": True,
-            "failed_login_attempts": 0,
-            "locked_at": None,
-            "password_hash": get_password_hash(password),
-        }
-        data = {k: v for k, v in data.items() if k in user_columns}
-
         if existing:
-            update_cols = [k for k in data.keys()]
-            set_clause = ", ".join([f"{col} = :{col}" for col in update_cols])
-            params = dict(data)
-            params["id"] = existing["id"]
-            db.execute(
-                text(f"UPDATE users SET {set_clause} WHERE id = :id"),
-                params,
-            )
-            user_id = existing["id"]
+            # Update existing user using ORM
+            existing.username = username
+            existing.email = email
+            existing.full_name = full_name
+            existing.password_hash = get_password_hash(password)
+            existing.role = "system_admin"
+            existing.is_active = True
+            existing.failed_login_attempts = 0
+            existing.locked_at = None
+            db.flush()
+            user_id = existing.id
         else:
-            insert_cols = list(data.keys())
-            cols_sql = ", ".join(insert_cols)
-            vals_sql = ", ".join([f":{col}" for col in insert_cols])
-            db.execute(
-                text(f"INSERT INTO users ({cols_sql}) VALUES ({vals_sql})"),
-                data,
+            # Create new user using ORM
+            new_user = User(
+                username=username,
+                email=email,
+                full_name=full_name,
+                password_hash=get_password_hash(password),
+                role="system_admin",
+                is_active=True,
+                failed_login_attempts=0,
+                locked_at=None,
             )
-            user_id = db.execute(text("SELECT LAST_INSERT_ID() AS id")).scalar_one()
+            db.add(new_user)
+            db.flush()
+            user_id = new_user.id
 
         db.commit()
-
         return f"{action}: id={user_id}, username={username}, role=system_admin"
     finally:
         db.close()

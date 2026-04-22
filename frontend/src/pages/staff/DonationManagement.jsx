@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react'
 import StaffLayout from '../../components/layout/StaffLayout'
 import {
   fetchDonationOffers,
-  createDonationOffer,
+  createBulkDonationOffers,
   updateDonationOfferStatus,
   fetchDonationRequests,
   updateDonationRequestStatus,
+  fetchInventoryLotsForDonation,
 } from '../../services/staffApi'
 import './DonationManagement.css'
 
@@ -32,12 +33,11 @@ export default function DonationManagement() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [createError, setCreateError] = useState('')
   const [createSuccess, setCreateSuccess] = useState('')
-  const [createForm, setCreateForm] = useState({
-    productName: '',
-    quantity: '',
-    expiryDate: '',
-    description: '',
-  })
+  const [inventoryLots, setInventoryLots] = useState([])
+  const [loadingLots, setLoadingLots] = useState(false)
+
+  // selectedItems: array of { lotId, quantity }
+  const [selectedItems, setSelectedItems] = useState([])
 
   useEffect(() => {
     loadData()
@@ -59,32 +59,56 @@ export default function DonationManagement() {
     }
   }
 
-  function resetCreateForm() {
-    setCreateForm({
-      productName: '',
-      quantity: '',
-      expiryDate: '',
-      description: '',
-    })
-    setCreateError('')
-    setCreateSuccess('')
+  async function loadInventoryLots() {
+    setLoadingLots(true)
+    try {
+      const lots = await fetchInventoryLotsForDonation()
+      // Chỉ lấy những lot có số lượng > 0
+      const availableLots = lots.filter(lot => lot.quantity > 0)
+      setInventoryLots(availableLots)
+    } catch (err) {
+      console.error('Failed to load inventory lots:', err)
+    } finally {
+      setLoadingLots(false)
+    }
   }
 
   function openCreateModal() {
-    resetCreateForm()
+    loadInventoryLots()
+    setSelectedItems([])
+    setCreateError('')
+    setCreateSuccess('')
     setShowCreateModal(true)
   }
 
   function closeCreateModal() {
     setShowCreateModal(false)
-    resetCreateForm()
-  }
-
-  function handleCreateFormChange(event) {
-    const { name, value } = event.target
-    setCreateForm((prev) => ({ ...prev, [name]: value }))
+    setSelectedItems([])
     setCreateError('')
     setCreateSuccess('')
+  }
+
+  function handleLotCheckboxChange(lotId, checked) {
+    setSelectedItems(prev => {
+      if (checked) {
+        // Thêm lot mới với số lượng mặc định là 1
+        const lot = inventoryLots.find(l => l.id === lotId)
+        return [...prev, { lotId, quantity: 1, productName: lot?.productName || '', expiryDate: lot?.expiryDate || '' }]
+      } else {
+        // Xóa lot
+        return prev.filter(item => item.lotId !== lotId)
+      }
+    })
+    setCreateError('')
+    setCreateSuccess('')
+  }
+
+  function handleQuantityChange(lotId, newQty) {
+    setSelectedItems(prev =>
+      prev.map(item =>
+        item.lotId === lotId ? { ...item, quantity: newQty } : item
+      )
+    )
   }
 
   async function submitCreateOffer(event) {
@@ -92,35 +116,49 @@ export default function DonationManagement() {
     setCreateError('')
     setCreateSuccess('')
 
-    if (!createForm.productName.trim()) {
-      setCreateError('Tên sản phẩm không được để trống.')
+    if (selectedItems.length === 0) {
+      setCreateError('Vui lòng chọn ít nhất 1 sản phẩm.')
       return
     }
 
-    if (!createForm.quantity.trim() || isNaN(Number(createForm.quantity)) || Number(createForm.quantity) <= 0) {
-      setCreateError('Số lượng phải là số lớn hơn 0.')
-      return
-    }
-
-    if (!createForm.expiryDate) {
-      setCreateError('Ngày hết hạn không được để trống.')
-      return
+    // Validate từng item
+    for (const item of selectedItems) {
+      const lot = inventoryLots.find(l => l.id === item.lotId)
+      if (!lot) {
+        setCreateError(`Sản phẩm không hợp lệ (ID: ${item.lotId}).`)
+        return
+      }
+      const qty = Number(item.quantity)
+      if (!qty || qty <= 0) {
+        setCreateError(`Số lượng cho ${lot.productName} phải > 0.`)
+        return
+      }
+      if (qty > lot.quantity) {
+        setCreateError(`Số lượng cho ${lot.productName} vượt quá tồn kho (còn lại: ${lot.quantity}).`)
+        return
+      }
     }
 
     try {
       setIsSubmitting(true)
-      const newOffer = await createDonationOffer({
-        productName: createForm.productName.trim(),
-        quantity: Number(createForm.quantity),
-        expiryDate: createForm.expiryDate,
-        description: createForm.description.trim(),
-      })
-      setOffers((prev) => [newOffer, ...prev])
-      setCreateSuccess('Đã tạo đề nghị quyên góp thành công!')
-      setTimeout(() => closeCreateModal(), 800)
+      const payload = selectedItems.map(item => ({
+        lot_id: item.lotId,
+        offered_qty: Number(item.quantity),
+      }))
+
+      const result = await createBulkDonationOffers(payload)
+      // Reload offers list
+      await loadData()
+      setCreateSuccess(`Đã tạo ${result.created || selectedItems.length} đề nghị quyên góp thành công!`)
+      setTimeout(() => closeCreateModal(), 1000)
     } catch (err) {
-      console.error('Failed to create offer:', err)
-      setCreateError(err?.response?.data?.detail || 'Tạo đề nghị quyên góp thất bại.')
+      console.error('Failed to create offers:', err)
+      const detail = err?.response?.data?.detail
+      if (Array.isArray(detail)) {
+        setCreateError(detail.map(e => e.message).join('; '))
+      } else {
+        setCreateError(detail || 'Tạo đề nghị quyên góp thất bại.')
+      }
     } finally {
       setIsSubmitting(false)
     }
@@ -188,11 +226,8 @@ export default function DonationManagement() {
                   <div className="donation-item-info">
                     <p className="donation-item-name">{row.productName}</p>
                     <p className="donation-item-detail">
-                      Số lượng: {row.quantity} | HSD: {row.expiryDate ? new Date(row.expiryDate).toLocaleDateString('vi-VN') : '-'}
+                      Số lượng: {row.remainingQty || row.offeredQty} | HSD: {row.expiryDate ? new Date(row.expiryDate).toLocaleDateString('vi-VN') : '-'}
                     </p>
-                    {row.description && (
-                      <p className="donation-item-description">{row.description}</p>
-                    )}
                   </div>
                   <div className="donation-item-actions">
                     <span className={`badge ${getBadgeClass(row.status)}`}>
@@ -280,80 +315,119 @@ export default function DonationManagement() {
         </div>
       </div>
 
-      {/* CREATE OFFER MODAL */}
+      {/* CREATE OFFER MODAL - BULK SELECT */}
       {showCreateModal && (
         <div className="donation-modal-overlay" onClick={closeCreateModal}>
-          <div className="donation-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="donation-modal donation-modal-large" onClick={(e) => e.stopPropagation()}>
             <div className="donation-modal-header">
               <h3>Tạo Đề Nghị Quyên Góp</h3>
               <button className="donation-modal-close" onClick={closeCreateModal}>✕</button>
             </div>
             <form className="donation-modal-body" onSubmit={submitCreateOffer}>
-              <div className="donation-form-grid">
-                <div className="donation-form-column">
-                  <div className="donation-form-field">
-                    <label>Tên Sản Phẩm <span className="required">*</span></label>
-                    <input
-                      type="text"
-                      name="productName"
-                      value={createForm.productName}
-                      onChange={handleCreateFormChange}
-                      className="donation-input"
-                      placeholder="VD: Sữa Tươi Vinamilk 1L"
-                      required
-                    />
-                  </div>
-                  <div className="donation-form-field">
-                    <label>Số Lượng <span className="required">*</span></label>
-                    <input
-                      type="number"
-                      name="quantity"
-                      value={createForm.quantity}
-                      onChange={handleCreateFormChange}
-                      className="donation-input"
-                      placeholder="VD: 20"
-                      min="1"
-                      required
-                    />
-                  </div>
+              {/* Product Selection Table */}
+              <div className="donation-selection-section">
+                <div className="donation-selection-header">
+                  <h4>Chọn Sản Phẩm Từ Kho Hàng</h4>
+                  <span className="donation-selection-hint">
+                    Chọn sản phẩm và nhập số lượng muốn quyên góp
+                  </span>
                 </div>
 
-                <div className="donation-form-column">
-                  <div className="donation-form-field">
-                    <label>Ngày Hết Hạn <span className="required">*</span></label>
-                    <input
-                      type="date"
-                      name="expiryDate"
-                      value={createForm.expiryDate}
-                      onChange={handleCreateFormChange}
-                      className="donation-input"
-                      required
-                    />
+                {loadingLots ? (
+                  <div className="donation-loading">Đang tải danh sách sản phẩm...</div>
+                ) : inventoryLots.length === 0 ? (
+                  <div className="donation-empty-state">Không có sản phẩm nào trong kho</div>
+                ) : (
+                  <div className="donation-product-grid">
+                    {inventoryLots.map((lot) => {
+                      const isSelected = selectedItems.some(item => item.lotId === lot.id)
+                      return (
+                        <div
+                          key={lot.id}
+                          className={`donation-product-card ${isSelected ? 'selected' : ''}`}
+                          onClick={() => handleLotCheckboxChange(lot.id, !isSelected)}
+                        >
+                          <div className="donation-product-checkbox">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={(e) => {
+                                e.stopPropagation()
+                                handleLotCheckboxChange(lot.id, e.target.checked)
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          </div>
+                          <div className="donation-product-info">
+                            <p className="donation-product-name">{lot.productName}</p>
+                            <p className="donation-product-lot">Lô: {lot.lotCode}</p>
+                            <p className="donation-product-expiry">
+                              HSD: {new Date(lot.expiryDate).toLocaleDateString('vi-VN')}
+                            </p>
+                            <p className="donation-product-stock">
+                              Tồn kho: <strong>{lot.quantity}</strong>
+                            </p>
+                          </div>
+                          {isSelected && (
+                            <div className="donation-product-quantity">
+                              <label>Số lượng:</label>
+                              <input
+                                type="number"
+                                min="1"
+                                max={lot.quantity}
+                                value={selectedItems.find(i => i.lotId === lot.id)?.quantity || 1}
+                                onChange={(e) => {
+                                  e.stopPropagation()
+                                  handleQuantityChange(lot.id, e.target.value)
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                className="donation-quantity-input"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
                   </div>
-                </div>
+                )}
               </div>
 
-              <div className="donation-form-field donation-form-field-full">
-                <label>Mô Tả (Không bắt buộc)</label>
-                <textarea
-                  name="description"
-                  value={createForm.description}
-                  onChange={handleCreateFormChange}
-                  className="donation-input donation-textarea"
-                  placeholder="Ghi chú thêm về sản phẩm (VD: Điều kiện bảo quản, lý do quyên góp...)"
-                  rows={3}
-                />
-              </div>
+              {/* Selected Items Summary */}
+              {selectedItems.length > 0 && (
+                <div className="donation-selected-summary">
+                  <h4>Đã chọn {selectedItems.length} sản phẩm:</h4>
+                  <ul>
+                    {selectedItems.map((item) => {
+                      const lot = inventoryLots.find(l => l.id === item.lotId)
+                      return (
+                        <li key={item.lotId}>
+                          <span className="selected-item-name">{lot?.productName}</span>
+                          <span className="selected-item-lot">({lot?.lotCode})</span>
+                          <span className="selected-item-qty">x{item.quantity}</span>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </div>
+              )}
 
               {createError && <p className="donation-error">{createError}</p>}
               {createSuccess && <p className="donation-success">{createSuccess}</p>}
 
               <div className="donation-form-footer">
                 <div className="donation-form-actions">
-                  <button type="submit" className="btn-large donation-btn-create" disabled={isSubmitting}>
-                    {isSubmitting ? 'Đang tạo...' : 'Tạo Đề Nghị'}
+                  <button
+                    type="submit"
+                    className="btn-large donation-btn-create"
+                    disabled={isSubmitting || selectedItems.length === 0}
+                  >
+                    {isSubmitting ? 'Đang tạo...' : `Tạo ${selectedItems.length} Đề Nghị`}
                   </button>
-                  <button type="button" className="btn-large btn-close" onClick={closeCreateModal}>
+                  <button
+                    type="button"
+                    className="btn-large btn-close"
+                    onClick={closeCreateModal}
+                  >
                     Hủy
                   </button>
                 </div>
