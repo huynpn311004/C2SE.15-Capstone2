@@ -7,18 +7,21 @@ const ACTION_OPTIONS = [
   { value: 'create', label: 'Tạo mới' },
   { value: 'update', label: 'Cập nhật' },
   { value: 'delete', label: 'Xóa' },
+  { value: 'approve', label: 'Duyệt' },
+  { value: 'cancel', label: 'Hủy' },
   { value: 'lock', label: 'Khóa' },
   { value: 'unlock', label: 'Mở khóa' },
+  { value: 'price', label: 'Giá' },
+  { value: 'stock', label: 'Tồn kho' },
 ]
 
 const ENTITY_OPTIONS = [
   { value: '', label: 'Tất cả đối tượng' },
-  { value: 'store', label: 'Cửa hàng' },
-  { value: 'user', label: 'Nhân viên' },
   { value: 'product', label: 'Sản phẩm' },
-  { value: 'policy', label: 'Chính sách' },
-  { value: 'coupon', label: 'Mã giảm giá' },
-  { value: 'donation', label: 'Quyên góp' },
+  { value: 'order', label: 'Đơn hàng' },
+  { value: 'store', label: 'Cửa hàng' },
+  { value: 'user', label: 'Người dùng' },
+  { value: 'category', label: 'Danh mục' },
 ]
 
 const TYPE_CONFIG = {

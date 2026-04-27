@@ -15,6 +15,13 @@ from app.models.donation_request import DonationRequest
 from app.models.donation_offer import DonationOffer
 from app.models.inventory_lot import InventoryLot
 from app.models.product import Product
+from app.core.audit_actions import (
+    CREATE_STORE, UPDATE_STORE, DELETE_STORE,
+    CREATE_STAFF, UPDATE_STAFF, DELETE_STAFF,
+    LOCK_STAFF, UNLOCK_STAFF,
+    ENTITY_STORE, ENTITY_USER,
+)
+from app.services.audit_service import log_action
 
 
 # ========== Helper Functions ==========
@@ -186,6 +193,17 @@ def create_store(db: Session, user_id: int, name: str, address: str = "", code: 
     store_id = new_store.id
     db.commit()
 
+    new_value = {
+        "code": code,
+        "name": name,
+        "location": address or None,
+        "phone": phone or None
+    }
+
+    log_action(db, user_id=user_id, store_id=store_id,
+               action=CREATE_STORE, entity_type=ENTITY_STORE, entity_id=store_id,
+               new_value=new_value)
+
     return {"success": True, "id": store_id}
 
 
@@ -198,12 +216,19 @@ def update_store(db: Session, user_id: int, store_id: int, name: str, address: s
     if not name:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tên store không được để trống.")
 
-    existing = db.query(Store.id).filter(
+    # Get old values for audit
+    old_store = db.query(Store).filter(
         Store.id == store_id,
         Store.supermarket_id == supermarket_id
     ).first()
-    if not existing:
+    if not old_store:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Store không tồn tại.")
+
+    old_value = {
+        "name": old_store.name,
+        "location": old_store.location,
+        "phone": old_store.phone
+    }
 
     db.query(Store).filter(
         Store.id == store_id,
@@ -217,6 +242,17 @@ def update_store(db: Session, user_id: int, store_id: int, name: str, address: s
         synchronize_session=False
     )
     db.commit()
+
+    new_value = {
+        "name": name,
+        "location": address or None,
+        "phone": phone or None
+    }
+
+    log_action(db, user_id=user_id, store_id=store_id,
+               action=UPDATE_STORE, entity_type=ENTITY_STORE, entity_id=store_id,
+               old_value=old_value, new_value=new_value)
+
     return {"success": True}
 
 
@@ -236,6 +272,12 @@ def delete_store(db: Session, user_id: int, store_id: int) -> dict:
             detail=f"Không thể xóa store có {staff_count} nhân viên."
         )
 
+    # Get old values for audit
+    old_store = db.query(Store).filter(
+        Store.id == store_id,
+        Store.supermarket_id == supermarket_id
+    ).first()
+
     rowcount = db.query(Store).filter(
         Store.id == store_id,
         Store.supermarket_id == supermarket_id
@@ -244,6 +286,20 @@ def delete_store(db: Session, user_id: int, store_id: int) -> dict:
 
     if (rowcount or 0) == 0:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Store không tồn tại.")
+
+    if old_store:
+        old_value = {
+            "code": old_store.code,
+            "name": old_store.name,
+            "location": old_store.location,
+            "phone": old_store.phone
+        }
+        log_action(db, user_id=user_id, store_id=store_id,
+                   action=DELETE_STORE, entity_type=ENTITY_STORE, entity_id=store_id,
+                   old_value=old_value)
+    else:
+        log_action(db, user_id=user_id, store_id=store_id,
+                   action=DELETE_STORE, entity_type=ENTITY_STORE, entity_id=store_id)
 
     return {"success": True, "message": "Xóa store thành công"}
 
@@ -388,10 +444,10 @@ def list_supermarket_audit_logs(
         q = q.filter(AuditLog.store_id == store_id)
 
     if action:
-        q = q.filter(AuditLog.action == action.strip())
+        q = q.filter(AuditLog.action.ilike(f"%{action.strip()}%"))
 
     if entity_type:
-        q = q.filter(AuditLog.entity_type == entity_type.strip())
+        q = q.filter(AuditLog.entity_type.ilike(f"%{entity_type.strip()}%"))
 
     if from_date:
         q = q.filter(AuditLog.created_at >= from_date)
@@ -426,6 +482,8 @@ def list_supermarket_audit_logs(
             "entityId": audit_log.entity_id,
             "userId": audit_log.user_id,
             "storeId": audit_log.store_id,
+            "oldValue": audit_log.old_value,
+            "newValue": audit_log.new_value,
         })
 
     return {"items": items, "total": total, "limit": limit, "offset": offset}

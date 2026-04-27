@@ -474,7 +474,6 @@ const CustomerCart = () => {
                         style={{ width: '18px', height: '18px', accentColor: 'var(--seims-teal)' }}
                       />
                     </label>
-                    <span className="cart-store-icon">🏪</span>
                     <div className="cart-store-info">
                       <h4 className="cart-store-name">{group.storeName}</h4>
                       {group.storeAddress && (

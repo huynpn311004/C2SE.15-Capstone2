@@ -4,6 +4,8 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.dependencies import get_current_user
+from app.models.user import User
 from app.schemas.product_schemas import (
     ProductsListResponse,
     CreateProductRequest,
@@ -31,18 +33,16 @@ def list_products(
 @router.post("", response_model=SuccessResponse)
 def create_product(
     data: CreateProductRequest,
-    supermarket_id: int = Query(..., ge=1),
-    user_id: int = Query(..., ge=1),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    scope = staff_service._get_staff_scope(db, user_id)
-    # Verify user is from this supermarket
-    if scope["supermarket_id"] != supermarket_id:
-        raise HTTPException(status_code=403, detail="Unauthorized")
+    scope = staff_service._get_staff_scope(db, current_user.id)
     
     return product_service.create_product(
         db,
-        supermarket_id,
+        scope["supermarket_id"],
+        scope["store_id"],
+        current_user.id,
         data.name,
         data.sku,
         data.basePrice,
@@ -55,18 +55,17 @@ def create_product(
 def update_product(
     product_id: int,
     data: UpdateProductRequest,
-    supermarket_id: int = Query(..., ge=1),
-    user_id: int = Query(..., ge=1),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    scope = staff_service._get_staff_scope(db, user_id)
-    if scope["supermarket_id"] != supermarket_id:
-        raise HTTPException(status_code=403, detail="Unauthorized")
+    scope = staff_service._get_staff_scope(db, current_user.id)
     
     return product_service.update_product(
         db,
         product_id,
-        supermarket_id,
+        scope["supermarket_id"],
+        scope["store_id"],
+        current_user.id,
         data.name,
         data.basePrice,
         data.categoryId,
@@ -77,15 +76,14 @@ def update_product(
 @router.delete("/{product_id}", response_model=SuccessResponse)
 def delete_product(
     product_id: int,
-    supermarket_id: int = Query(..., ge=1),
-    user_id: int = Query(..., ge=1),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    scope = staff_service._get_staff_scope(db, user_id)
-    if scope["supermarket_id"] != supermarket_id:
-        raise HTTPException(status_code=403, detail="Unauthorized")
+    scope = staff_service._get_staff_scope(db, current_user.id)
     
-    return product_service.delete_product(db, product_id, supermarket_id)
+    return product_service.delete_product(
+        db, product_id, scope["supermarket_id"], scope["store_id"], current_user.id
+    )
 
 
 # ========== Category Endpoints ==========

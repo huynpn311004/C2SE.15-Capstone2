@@ -9,7 +9,7 @@ from app.schemas.supermarket_admin_schemas import (
     CreateStoreRequest,
     UpdateStoreRequest,
 )
-from app.services import supermarket_admin_service, product_service
+from app.services import supermarket_admin_service, product_service, admin_service
 
 
 router = APIRouter(prefix="/supermarket-admin", tags=["supermarket-admin"])
@@ -23,6 +23,19 @@ def get_supermarket_dashboard_summary(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    return supermarket_admin_service.get_dashboard_summary(db, current_user.id, period)
+
+
+@router.get("/reports")
+def get_supermarket_reports(
+    range: str = Query(default="30d", pattern="^(7d|30d|90d)$"),
+    _=Depends(require_supermarket_admin),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    # Map range to period: 7d=weekly, 30d/monthly=monthly
+    period_map = {"7d": "weekly", "30d": "monthly", "90d": "monthly"}
+    period = period_map.get(range, "monthly")
     return supermarket_admin_service.get_dashboard_summary(db, current_user.id, period)
 
 

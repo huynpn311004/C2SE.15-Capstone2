@@ -15,6 +15,7 @@
   --seims-warning: #f59e0b;
   --seims-error: #b91c1c;
   --seims-error-bg: #fef2f2;
+  --seims-info: #0ea5e9;
 
   display: grid;
   grid-template-columns: auto 1fr;

@@ -756,15 +756,15 @@ def _create_delivery_for_donation_request(db: Session, donation_request_id: int,
 
 
 
-def update_staff_order_status(db: Session, order_id: int, store_id: int, new_status: str) -> dict:
+def update_staff_order_status(db: Session, order_id: int, store_id: int, new_status: str, user_id: int = None) -> dict:
     """Update order status - Staff can only update to 'ready'.
-    
+
     Staff workflow:
     - pending/preparing → ready (chuẩn bị xong, lấy hàng xong)
-    
+
     Delivery partner will handle:
     - ready → picking_up → delivering → completed/cancelled
-    
+
     When status -> 'ready': Automatically create Delivery and notify delivery partner.
     """
     new_status = (new_status or "").strip().lower()
@@ -772,26 +772,26 @@ def update_staff_order_status(db: Session, order_id: int, store_id: int, new_sta
     # Staff chỉ được update thành "ready" - đúng nghiệp vụ
     if new_status != "ready":
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, 
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail="Staff chỉ được cập nhật đơn hàng thành 'ready'. Trạng thái khác do Delivery Partner xác nhận."
         )
-    
+
     # Check if order exists in staff's store
     order = db.query(Order.id, Order.status).filter(
         Order.id == order_id,
         Order.store_id == store_id
     ).first()
-    
+
     if not order:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Đơn hàng không tồn tại")
-    
+
     # Only allow update from pending or preparing state
     if order.status not in ["pending", "preparing"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Không thể cập nhật từ trạng thái '{order.status}' thành 'ready'"
         )
-    
+
     result = db.query(Order).filter(
         Order.id == order_id,
         Order.store_id == store_id
@@ -801,8 +801,16 @@ def update_staff_order_status(db: Session, order_id: int, store_id: int, new_sta
     if result == 0:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Đơn hàng không tồn tại")
 
+    # Audit log for order approval
+    if user_id:
+        from app.services.audit_service import log_action
+        from app.core.audit_actions import APPROVE_ORDER, ENTITY_ORDER
+        log_action(db, user_id=user_id, store_id=store_id,
+                   action=APPROVE_ORDER, entity_type=ENTITY_ORDER, entity_id=order_id,
+                   old_value={"status": order.status}, new_value={"status": "ready"})
+
     response = {"success": True, "status": "ready"}
-    
+
     # Auto-create delivery when order is ready
     try:
         delivery_info = _create_delivery_for_order(db, order_id, store_id)
@@ -814,7 +822,7 @@ def update_staff_order_status(db: Session, order_id: int, store_id: int, new_sta
     except HTTPException as e:
         # If delivery creation fails, log it but don't fail the order status update
         response["delivery_error"] = e.detail
-    
+
     return response
 
 
@@ -957,7 +965,7 @@ def list_categories(db: Session, supermarket_id: int) -> dict:
     return {"items": items}
 
 
-def create_category(db: Session, name: str) -> dict:
+def create_category(db: Session, name: str, user_id: int = None, store_id: int = None) -> dict:
     """Create new category."""
     name = name.strip()
     if not name:
@@ -971,16 +979,29 @@ def create_category(db: Session, name: str) -> dict:
 
     new_category = Category(name=name)
     db.add(new_category)
+    db.flush()
+    category_id = new_category.id
     db.commit()
+
+    if user_id and store_id:
+        from app.services.audit_service import log_action
+        from app.core.audit_actions import CREATE_CATEGORY, ENTITY_CATEGORY
+        log_action(db, user_id=user_id, store_id=store_id,
+                   action=CREATE_CATEGORY, entity_type=ENTITY_CATEGORY, entity_id=category_id,
+                   new_value={"name": name})
 
     return {"message": "Tạo danh mục thành công", "name": name}
 
 
-def update_category(db: Session, category_id: int, name: str) -> dict:
+def update_category(db: Session, category_id: int, name: str, user_id: int = None, store_id: int = None) -> dict:
     """Update category name."""
     name = name.strip()
     if not name:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tên danh mục không được trống")
+
+    # Get old value
+    old_category = db.query(Category).filter(Category.id == category_id).first()
+    old_name = old_category.name if old_category else None
 
     existing = db.query(Category.id).filter(
         func.lower(Category.name) == func.lower(name),
@@ -995,11 +1016,22 @@ def update_category(db: Session, category_id: int, name: str) -> dict:
     )
     db.commit()
 
+    if user_id and store_id:
+        from app.services.audit_service import log_action
+        from app.core.audit_actions import UPDATE_CATEGORY, ENTITY_CATEGORY
+        log_action(db, user_id=user_id, store_id=store_id,
+                   action=UPDATE_CATEGORY, entity_type=ENTITY_CATEGORY, entity_id=category_id,
+                   old_value={"name": old_name}, new_value={"name": name})
+
     return {"message": "Cập nhật danh mục thành công"}
 
 
-def delete_category(db: Session, category_id: int) -> dict:
+def delete_category(db: Session, category_id: int, user_id: int = None, store_id: int = None) -> dict:
     """Delete category if no products use it."""
+    # Get old value before delete
+    old_category = db.query(Category).filter(Category.id == category_id).first()
+    old_name = old_category.name if old_category else None
+
     has_products = db.query(func.count(Product.id)).filter(
         Product.category_id == category_id
     ).scalar() or 0
@@ -1012,6 +1044,13 @@ def delete_category(db: Session, category_id: int) -> dict:
 
     db.query(Category).filter(Category.id == category_id).delete()
     db.commit()
+
+    if user_id and store_id:
+        from app.services.audit_service import log_action
+        from app.core.audit_actions import DELETE_CATEGORY, ENTITY_CATEGORY
+        log_action(db, user_id=user_id, store_id=store_id,
+                   action=DELETE_CATEGORY, entity_type=ENTITY_CATEGORY, entity_id=category_id,
+                   old_value={"name": old_name})
 
     return {"message": "Xóa danh mục thành công"}
 
@@ -1095,7 +1134,13 @@ def create_product(db: Session, supermarket_id: int, store_id: int, user_id: int
     from app.services.audit_service import log_action
     from app.core.audit_actions import CREATE_PRODUCT, ENTITY_PRODUCT
     log_action(db, user_id=user_id, store_id=store_id,
-               action=CREATE_PRODUCT, entity_type=ENTITY_PRODUCT, entity_id=product_id)
+               action=CREATE_PRODUCT, entity_type=ENTITY_PRODUCT, entity_id=product_id,
+               new_value={
+                   "name": name,
+                   "sku": sku,
+                   "base_price": float(base_price),
+                   "category_id": category_id
+               })
 
     return {"message": "Tạo sản phẩm thành công"}
 
@@ -1122,6 +1167,11 @@ def update_product(db: Session, product_id: int, supermarket_id: int,
 
     old_price = float(product.base_price)
     new_price = float(base_price)
+    old_value = {
+        "name": product.name,
+        "base_price": old_price,
+        "category_id": product.category_id
+    }
 
     db.query(Product).filter(Product.id == product_id).update({
         Product.name: name,
@@ -1131,14 +1181,22 @@ def update_product(db: Session, product_id: int, supermarket_id: int,
     }, synchronize_session=False)
     db.commit()
 
+    new_value = {
+        "name": name,
+        "base_price": new_price,
+        "category_id": category_id
+    }
+
     from app.services.audit_service import log_action
     from app.core.audit_actions import UPDATE_PRODUCT, UPDATE_PRICE, ENTITY_PRODUCT
     log_action(db, user_id=user_id, store_id=store_id,
-               action=UPDATE_PRODUCT, entity_type=ENTITY_PRODUCT, entity_id=product_id)
+               action=UPDATE_PRODUCT, entity_type=ENTITY_PRODUCT, entity_id=product_id,
+               old_value=old_value, new_value=new_value)
 
     if old_price != new_price:
         log_action(db, user_id=user_id, store_id=store_id,
-                   action=UPDATE_PRICE, entity_type=ENTITY_PRODUCT, entity_id=product_id)
+                   action=UPDATE_PRICE, entity_type=ENTITY_PRODUCT, entity_id=product_id,
+                   old_value={"base_price": old_price}, new_value={"base_price": new_price})
 
     return {"message": "Cập nhật sản phẩm thành công"}
 
@@ -1152,6 +1210,13 @@ def delete_product(db: Session, product_id: int, supermarket_id: int,
     ).first()
     if not product:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sản phẩm không tìm thấy")
+
+    # Save old value before delete
+    old_value = {
+        "name": product.name,
+        "sku": product.sku,
+        "base_price": float(product.base_price)
+    }
 
     has_lots = db.query(func.count(InventoryLot.id)).filter(
         InventoryLot.product_id == product_id
@@ -1169,7 +1234,8 @@ def delete_product(db: Session, product_id: int, supermarket_id: int,
     from app.services.audit_service import log_action
     from app.core.audit_actions import DELETE_PRODUCT, ENTITY_PRODUCT
     log_action(db, user_id=user_id, store_id=store_id,
-               action=DELETE_PRODUCT, entity_type=ENTITY_PRODUCT, entity_id=product_id)
+               action=DELETE_PRODUCT, entity_type=ENTITY_PRODUCT, entity_id=product_id,
+               old_value=old_value)
 
     return {"message": "Xóa sản phẩm thành công"}
 

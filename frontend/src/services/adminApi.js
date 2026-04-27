@@ -46,12 +46,6 @@ export async function fetchAdminReports(range = '30d') {
   return response.data
 }
 
-export async function fetchAdminAuditLogs(params = {}) {
-  requireAdmin()
-  const response = await API.get('/admin/audit-logs', { params })
-  return response.data.items || []
-}
-
 export async function fetchAdminUsers() {
   requireAdmin()
   const response = await API.get('/admin/users')

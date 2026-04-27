@@ -10,8 +10,6 @@ import SupermarketManagement from './pages/admin/SupermarketManagement.jsx';
 import CharityManagement from './pages/admin/CharityManagement.jsx';
 import DeliveryManagement from './pages/admin/DeliveryManagement.jsx';
 import UserManagement from './pages/admin/UserManagement.jsx';
-import ReportsAnalytics from './pages/admin/ReportsAnalytics.jsx';
-import AdminAuditLog from './pages/admin/AdminAuditLog.jsx';
 import AdminSettings from './pages/admin/AdminSettings.jsx';
 import StaffDashboard from './pages/staff/DashboardStaff.jsx';
 import InventoryLots from './pages/staff/InventoryLots.jsx';
@@ -68,8 +66,6 @@ function App() {
           <Route path="/admin/charities" element={<CharityManagement />} />
           <Route path="/admin/delivery" element={<DeliveryManagement />} />
           <Route path="/admin/users" element={<UserManagement />} />
-          <Route path="/admin/reports" element={<ReportsAnalytics />} />
-          <Route path="/admin/audit-logs" element={<AdminAuditLog />} />
           <Route path="/admin/settings" element={<AdminSettings />} />
 
           {/* Supermarket Admin Routes */}

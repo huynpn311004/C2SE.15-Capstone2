@@ -1,6 +1,5 @@
 import API from './api'
 import {
-  fetchAdminAuditLogs,
   fetchAdminReports,
   fetchAdminSupermarkets,
   fetchAdminUsers,
@@ -52,15 +51,13 @@ function toNumber(value) {
 
 export async function fetchSupermarketDashboardData() {
   const userId = requireSupermarketAdmin()
-  const [stores, reports, users, logs] = await Promise.all([
+  const [stores, reports, users] = await Promise.all([
     fetchSupermarketStores(),
     fetchAdminReports('30d'),
     fetchAdminUsers(),
-    fetchAdminAuditLogs({ limit: 30 }),
   ])
 
   const staff = users.filter((item) => (item.role || '').toLowerCase() === 'store staff')
-  const donationLogs = logs.filter((log) => /donat|quyen|charity/i.test(log.action || ''))
 
   return {
     stats: {
@@ -75,14 +72,7 @@ export async function fetchSupermarketDashboardData() {
       revenue: item.growth || 'N/A',
       status: Number(item.orders || 0) > 0 ? 'active' : 'warning',
     })),
-    recentDonations: donationLogs.slice(0, 5).map((log) => ({
-      id: log.id,
-      store: log.entityType || '-',
-      items: log.action || '-',
-      recipient: log.actor || '-',
-      date: log.time || '-',
-      status: 'completed',
-    })),
+    recentDonations: [],
   }
 }
 
@@ -145,25 +135,11 @@ export async function fetchSupermarketAuditLogs(params = {}) {
 }
 
 export async function fetchSupermarketReports(range = '30d') {
-  const [reports, supermarkets] = await Promise.all([
-    fetchAdminReports(range),
-    fetchAdminSupermarkets(),
-  ])
-
-  const reportTop = Array.isArray(reports?.supermarketTop) ? reports.supermarketTop : []
-
-  if (reportTop.length > 0) {
-    return reports
-  }
-
-  return {
-    ...reports,
-    supermarketTop: supermarkets.map((item) => ({
-      name: item.name || '-',
-      orders: 0,
-      growth: '0',
-    })),
-  }
+  requireSupermarketAdmin()
+  const response = await API.get('/supermarket-admin/reports', {
+    params: { range },
+  })
+  return response.data
 }
 
 export async function fetchDonationMonitoring(statusFilter = 'all') {

@@ -80,22 +80,6 @@ export default function SystemAdminLayout({ children }) {
               </li>
               <li>
                 <NavLink
-                  to="/admin/reports"
-                  className={({ isActive }) => `admin-nav-link${isActive ? ' active' : ''}`}
-                >
-                  <span className="admin-nav-label">Báo Cáo & Phân Tích</span>
-                </NavLink>
-              </li>
-              <li>
-                <NavLink
-                  to="/admin/audit-logs"
-                  className={({ isActive }) => `admin-nav-link${isActive ? ' active' : ''}`}
-                >
-                  <span className="admin-nav-label">Nhật Ký Kiểm Toán</span>
-                </NavLink>
-              </li>
-              <li>
-                <NavLink
                   to="/admin/settings"
                   className={({ isActive }) => `admin-nav-link${isActive ? ' active' : ''}`}
                 >
