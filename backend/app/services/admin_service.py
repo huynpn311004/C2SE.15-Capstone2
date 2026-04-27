@@ -8,7 +8,6 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.core.security import get_password_hash, verify_password
-from app.models.audit_log import AuditLog
 from app.models.user import User
 from app.models.supermarket import Supermarket
 from app.models.charity_organization import CharityOrganization
@@ -87,7 +86,7 @@ def _get_supermarket_admin(db: Session, supermarket_id: int):
 	).order_by(User.id).first()
 
 
-# ========== Dashboard & Reports ==========
+# ========== Dashboard ==========
 
 def get_dashboard_summary(db: Session) -> dict:
 	"""Get dashboard summary statistics"""
@@ -123,7 +122,6 @@ def get_reports(db: Session, days: int = 30) -> dict:
 	current_from = datetime.now() - timedelta(days=days)
 	previous_from = datetime.now() - timedelta(days=days * 2)
 
-	# Current period metrics using ORM with aggregate functions
 	metrics = db.query(
 		func.coalesce(
 			func.sum(case((Order.payment_status == 'paid', Order.total_amount), else_=0)), 0
@@ -139,12 +137,10 @@ def get_reports(db: Session, days: int = 30) -> dict:
 	completed_orders = int(metrics.completed_orders or 0)
 	delivered_rate = (completed_orders * 100.0 / current_orders) if current_orders else 0.0
 
-	# Previous period order count
 	previous_orders = db.query(func.count(Order.id)).filter(
 		and_(Order.created_at >= previous_from, Order.created_at < current_from)
 	).scalar() or 0
 
-	# Previous period revenue
 	revenue_trend = db.query(
 		func.coalesce(
 			func.sum(case((Order.payment_status == 'paid', Order.total_amount), else_=0)), 0
@@ -153,12 +149,10 @@ def get_reports(db: Session, days: int = 30) -> dict:
 		and_(Order.created_at >= previous_from, Order.created_at < current_from)
 	).scalar() or 0
 
-	# Active delivery partners
 	active_partners = db.query(func.count(User.id)).filter(
 		and_(User.role == 'delivery_partner', User.is_active == 1)
 	).scalar() or 0
 
-	# Top supermarkets by orders
 	top_supermarkets_query = db.query(
 		Supermarket.name,
 		func.count(Order.id).label("orders")
@@ -174,7 +168,6 @@ def get_reports(db: Session, days: int = 30) -> dict:
 		for row in top_supermarkets_query.all()
 	]
 
-	# Top delivery partners with metrics
 	top_delivery_query = db.query(
 		func.coalesce(User.full_name, func.concat('Partner #', func.cast(DeliveryPartner.id, str))).label("name"),
 		func.count(Delivery.id).label("total_deliveries"),
@@ -231,81 +224,6 @@ def get_reports(db: Session, days: int = 30) -> dict:
 		"supermarketTop": supermarket_rows,
 		"deliveryTop": top_delivery,
 	}
-
-
-# ========== Audit Logs ==========
-def list_audit_logs(
-	db: Session,
-	action: str = None,
-	entity_type: str = None,
-	user_keyword: str = None,
-	from_date: str = None,
-	to_date: str = None,
-	limit: int = 200,
-	offset: int = 0,
-) -> dict:
-	"""List audit logs with filters (system-admin view)."""
-	from app.models.audit_log import AuditLog
-	from app.models.user import User
-
-	q = (
-		db.query(AuditLog, User)
-		.outerjoin(User, AuditLog.user_id == User.id)
-	)
-
-	if action:
-		q = q.filter(AuditLog.action == action.strip())
-
-	if entity_type:
-		q = q.filter(AuditLog.entity_type == entity_type.strip())
-
-	if user_keyword:
-		keyword = f"%{user_keyword.strip()}%"
-		q = q.filter(
-			or_(
-				User.username.ilike(keyword),
-				User.full_name.ilike(keyword),
-				User.email.ilike(keyword)
-			)
-		)
-
-	if from_date:
-		q = q.filter(AuditLog.created_at >= from_date)
-
-	if to_date:
-		from datetime import datetime as dt
-		to_date_obj = dt.fromisoformat(to_date)
-		to_date_next = to_date_obj.replace(hour=0, minute=0, second=0) + timedelta(days=1)
-		q = q.filter(AuditLog.created_at < to_date_next)
-
-	total = q.count()
-	rows = (
-		q.order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
-		 .limit(limit)
-		 .offset(offset)
-		 .all()
-	)
-
-	items = []
-	for audit_log, user in rows:
-		actor = (
-			(user.full_name if user else None)
-			or (user.username if user else None)
-			or (user.email if user else None)
-			or "System"
-		)
-		items.append({
-			"id": audit_log.id,
-			"userId": audit_log.user_id,
-			"storeId": audit_log.store_id,
-			"actor": actor,
-			"action": audit_log.action,
-			"entityType": audit_log.entity_type,
-			"entityId": audit_log.entity_id,
-			"time": audit_log.created_at.strftime("%Y-%m-%d %H:%M") if audit_log.created_at else "-",
-		})
-
-	return {"items": items, "total": total, "limit": limit, "offset": offset}
 
 
 # ========== User Management ==========

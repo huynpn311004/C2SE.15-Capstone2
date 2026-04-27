@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { getProductImageUrl } from '../../services/staffApi';
 import { fetchCustomerProductDetail, createMultiStoreOrder } from '../../services/customerApi';
+import LocationPickerModal from '../../components/LocationPickerModal';
 import './CustomerCheckout.css';
 
 const CART_KEY = 'seims_customer_cart';
@@ -50,6 +51,7 @@ const CustomerCheckout = () => {
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState({ visible: false, message: '' });
   const [isAddressModified, setIsAddressModified] = useState(false);
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
 
   const getProfile = () => {
     try {
@@ -67,6 +69,8 @@ const CustomerCheckout = () => {
     address: '',
     note: '',
   });
+
+  const [locationCoords, setLocationCoords] = useState(null); // { lat, lng }
 
   const [originalAddress, setOriginalAddress] = useState('');
 
@@ -149,11 +153,25 @@ const CustomerCheckout = () => {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
-    
+
     // Detect address change
     if (name === 'address') {
       setIsAddressModified(value !== originalAddress);
+      // Clear location coords if address is manually edited
+      if (locationCoords) {
+        setLocationCoords(null);
+      }
     }
+  };
+
+  // Handle location selection from map picker
+  const handleLocationSelect = (locationData) => {
+    setFormData(prev => ({
+      ...prev,
+      address: locationData.address
+    }));
+    setLocationCoords({ lat: locationData.lat, lng: locationData.lng });
+    setIsAddressModified(locationData.address !== originalAddress);
   };
 
   const handleSubmit = async (e) => {
@@ -332,7 +350,6 @@ const CustomerCheckout = () => {
                   <div key={group.orderId} className="customer-checkout-store-group">
                     {/* Store Header */}
                     <div className="customer-checkout-store-header">
-                      <span className="customer-checkout-store-icon">🏪</span>
                       <div className="customer-checkout-store-info">
                         <span className="customer-checkout-store-name">{group.storeName}</span>
                         <span className="customer-checkout-store-order">{group.orderCode}</span>
@@ -382,7 +399,6 @@ const CustomerCheckout = () => {
                         <div key={group.storeId} className="customer-checkout-store-group">
                           {/* Store Header */}
                           <div className="customer-checkout-store-header">
-                            <span className="customer-checkout-store-icon">🏪</span>
                             <div className="customer-checkout-store-info">
                               <span className="customer-checkout-store-name">{group.storeName}</span>
                             </div>
@@ -532,15 +548,31 @@ const CustomerCheckout = () => {
               <label className="customer-checkout-field">
                 Địa chỉ giao hàng <span className="customer-checkout-required">*</span>
               </label>
-              <textarea
-                name="address"
-                required
-                value={formData.address}
-                onChange={handleChange}
-                className="customer-checkout-textarea"
-                rows="3"
-                placeholder="Số nhà, tên đường, phường/xã, quận/huyện, tỉnh/thành phố"
-              />
+              <div className="customer-checkout-address-row">
+                <textarea
+                  name="address"
+                  required
+                  value={formData.address}
+                  onChange={handleChange}
+                  className="customer-checkout-textarea"
+                  rows="3"
+                  placeholder="Số nhà, tên đường, phường/xã, quận/huyện, tỉnh/thành phố"
+                />
+                <button
+                  type="button"
+                  className="customer-checkout-map-btn"
+                  onClick={() => setShowLocationPicker(true)}
+                  title="Chọn vị trí trên bản đồ"
+                >
+                  <span className="customer-checkout-map-icon">📍</span>
+                  <span>Chọn trên bản đồ</span>
+                </button>
+              </div>
+              {locationCoords && (
+                <p className="customer-checkout-coords-hint">
+                  <span>📍</span> Đã chọn vị trí: {locationCoords.lat.toFixed(6)}, {locationCoords.lng.toFixed(6)}
+                </p>
+              )}
               <div className="customer-checkout-address-actions">
                 <button
                   type="button"
@@ -610,6 +642,13 @@ const CustomerCheckout = () => {
       </div>
 
       <Toast visible={toast.visible} message={toast.message} />
+
+      <LocationPickerModal
+        isOpen={showLocationPicker}
+        onClose={() => setShowLocationPicker(false)}
+        onSelectLocation={handleLocationSelect}
+        initialAddress={formData.address}
+      />
     </div>
   );
 };

@@ -37,41 +37,6 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
 	return admin_service.get_dashboard_summary(db)
 
 
-@router.get("/reports")
-def get_reports(
-	range: str = Query(default="30d", pattern="^(7d|30d|90d)$"),
-	_=Depends(require_admin),
-	db: Session = Depends(get_db),
-):
-	days_map = {"7d": 7, "30d": 30, "90d": 90}
-	return admin_service.get_reports(db, days_map[range])
-
-
-# ========== Audit Logs ==========
-@router.get("/audit-logs")
-def list_audit_logs(
-	_=Depends(require_admin),
-	action: str | None = Query(default=None),
-	entity_type: str | None = Query(default=None),
-	user_keyword: str | None = Query(default=None),
-	from_date: str | None = Query(default=None),
-	to_date: str | None = Query(default=None),
-	limit: int = Query(default=200, ge=1, le=1000),
-	offset: int = Query(default=0, ge=0),
-	db: Session = Depends(get_db),
-):
-	return admin_service.list_audit_logs(
-		db,
-		action=action,
-		entity_type=entity_type,
-		user_keyword=user_keyword,
-		from_date=from_date,
-		to_date=to_date,
-		limit=limit,
-		offset=offset,
-	)
-
-
 # ========== User Management ==========
 
 @router.get("/users")

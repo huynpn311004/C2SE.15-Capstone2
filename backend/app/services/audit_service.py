@@ -6,10 +6,19 @@ Usage:
     # Inside any business logic, AFTER the action succeeds:
     log_action(db, user_id=5, store_id=3, action="CREATE_PRODUCT", entity_type="product", entity_id=42)
 
+    # With old/new values for update actions:
+    log_action(
+        db, user_id=5, store_id=3,
+        action="UPDATE_PRICE", entity_type="product", entity_id=42,
+        old_value={"base_price": 100},
+        new_value={"base_price": 150}
+    )
+
     # Query logs for a store:
     logs = query_audit_logs(db, store_id=3, limit=50, offset=0)
 """
 
+import json
 from sqlalchemy.orm import Session
 
 from app.models.audit_log import AuditLog
@@ -23,6 +32,8 @@ def log_action(
     action: str,
     entity_type: str,
     entity_id: int,
+    old_value: dict | None = None,
+    new_value: dict | None = None,
 ) -> AuditLog:
     """Create an audit log entry.
 
@@ -39,6 +50,8 @@ def log_action(
                 (e.g. CREATE_PRODUCT, UPDATE_PRICE, CANCEL_ORDER).
         entity_type: Type of entity affected (e.g. "product", "order").
         entity_id: Primary key of the affected entity.
+        old_value: Dict of old values (for UPDATE actions). Will be JSON serialized.
+        new_value: Dict of new values (for CREATE/UPDATE actions). Will be JSON serialized.
 
     Returns:
         The created AuditLog record.
@@ -49,6 +62,8 @@ def log_action(
         action=action,
         entity_type=entity_type,
         entity_id=entity_id,
+        old_value=json.dumps(old_value) if old_value else None,
+        new_value=json.dumps(new_value) if new_value else None,
     )
     db.add(entry)
     db.commit()
@@ -81,7 +96,7 @@ def query_audit_logs(
 
     Returns:
         List of dicts with: id, user_id, store_id, action, entity_type,
-        entity_id, created_at (as ISO string).
+        entity_id, old_value, new_value, created_at (as ISO string).
     """
     q = db.query(AuditLog)
 
@@ -111,6 +126,8 @@ def query_audit_logs(
             "action": r.action,
             "entity_type": r.entity_type,
             "entity_id": r.entity_id,
+            "old_value": json.loads(r.old_value) if r.old_value else None,
+            "new_value": json.loads(r.new_value) if r.new_value else None,
             "created_at": r.created_at.isoformat() if r.created_at else None,
         }
         for r in rows

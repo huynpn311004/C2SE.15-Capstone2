@@ -93,7 +93,10 @@ def update_staff_order_status(
     db: Session = Depends(get_db),
 ):
     scope = staff_service._get_staff_scope(db, current_user.id)
-    return staff_service.update_staff_order_status(db, order_id, scope["store_id"], data.status)
+    return staff_service.update_staff_order_status(
+        db, order_id, scope["store_id"], data.status,
+        user_id=current_user.id
+    )
 
 
 @router.get("/orders/{order_id}", response_model=OrderDetailResponse)
@@ -149,8 +152,13 @@ def create_category(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    staff_service._get_staff_scope(db, current_user.id)
-    return staff_service.create_category(db, data.name)
+    scope = staff_service._get_staff_scope(db, current_user.id)
+    return staff_service.create_category(
+        db,
+        data.name,
+        user_id=current_user.id,
+        store_id=scope["store_id"]
+    )
 
 
 @router.put("/categories/{category_id}")
@@ -160,8 +168,12 @@ def update_category(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    staff_service._get_staff_scope(db, current_user.id)
-    return staff_service.update_category(db, category_id, data.name)
+    scope = staff_service._get_staff_scope(db, current_user.id)
+    return staff_service.update_category(
+        db, category_id, data.name,
+        user_id=current_user.id,
+        store_id=scope["store_id"]
+    )
 
 
 @router.delete("/categories/{category_id}")
@@ -170,8 +182,12 @@ def delete_category(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    staff_service._get_staff_scope(db, current_user.id)
-    return staff_service.delete_category(db, category_id)
+    scope = staff_service._get_staff_scope(db, current_user.id)
+    return staff_service.delete_category(
+        db, category_id,
+        user_id=current_user.id,
+        store_id=scope["store_id"]
+    )
 
 
 # ========== Products (delegated to product_service) ==========
