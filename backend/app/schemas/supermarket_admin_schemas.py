@@ -11,6 +11,8 @@ class StoreItem(BaseModel):
     status: str
     staffCount: int
     code: str
+    latitude: float | None = None
+    longitude: float | None = None
 
 
 class StoresListResponse(BaseModel):
@@ -24,9 +26,13 @@ class CreateStoreRequest(BaseModel):
     code: str = Field(default="", min_length=0)
     phone: str = Field(default="")
     status: str = Field(default="active")
+    latitude: float | None = None
+    longitude: float | None = None
 
 
 class UpdateStoreRequest(BaseModel):
     name: str = Field(..., min_length=1)
     address: str = Field(..., min_length=1)
     phone: str = Field(default="")
+    latitude: float | None = None
+    longitude: float | None = None

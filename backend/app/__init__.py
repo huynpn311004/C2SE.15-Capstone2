@@ -20,6 +20,7 @@ from app.routers.customer import router as customer_router
 from app.routers.coupon import router as coupon_router
 from app.routers.discount_policy import router as discount_policy_router
 from app.routers.product import router as product_router
+from app.routers.location import router as location_router
 from app.services.customer_service import restore_expired_reserved_stock
 
 logger = logging.getLogger(__name__)
@@ -102,4 +103,5 @@ def create_app():
     app.include_router(coupon_router, prefix="/api")
     app.include_router(discount_policy_router, prefix="/api")
     app.include_router(product_router, prefix="/api")
+    app.include_router(location_router, prefix="/api")
     return app

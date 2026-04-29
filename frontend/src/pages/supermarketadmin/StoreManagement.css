@@ -71,7 +71,7 @@
 .sastore-table th:nth-child(1),
 .sastore-table td:nth-child(1) { width: 18%; }
 .sastore-table th:nth-child(2),
-.sastore-table td:nth-child(2) { width: 28%; }
+.sastore-table td:nth-child(2) { width: 28%; word-wrap: break-word; word-break: break-word; }
 .sastore-table th:nth-child(3),
 .sastore-table td:nth-child(3) { width: 15%; }
 .sastore-table th:nth-child(4),
@@ -356,6 +356,42 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 1rem 1.5rem;
+}
+
+/* Location Button */
+.sastore-address-wrapper {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.sastore-address-wrapper .sastore-input {
+  flex: 1;
+}
+
+.sastore-location-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  border: 1px solid #0f766e;
+  background: #f8fffe;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #0f766e;
+  transition: all 0.2s ease;
+  padding: 0;
+}
+
+.sastore-location-btn:hover {
+  background: #0f766e;
+  color: #ffffff;
+}
+
+.sastore-location-btn svg {
+  width: 18px;
+  height: 18px;
 }
 
 @media (max-width: 768px) {

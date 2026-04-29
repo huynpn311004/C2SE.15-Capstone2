@@ -93,6 +93,8 @@ def update_supermarket(supermarket_id: int, data: UpdateSupermarketRequest, db: 
 		data.email.strip().lower(),
 		data.phone.strip() if data.phone else "",
 		data.address.strip() if data.address else "",
+		data.latitude,
+		data.longitude,
 	)
 
 
@@ -121,6 +123,8 @@ def create_supermarket_with_account(data: CreateSupermarketAccountRequest, db: S
 		data.address.strip() if data.address else "",
 		data.password,
 		data.activityStatus.strip().lower(),
+		data.latitude,
+		data.longitude,
 	)
 
 
@@ -151,6 +155,8 @@ def update_charity(charity_id: int, data: UpdateCharityRequest, db: Session = De
 		data.email.strip().lower(),
 		data.phone.strip() if data.phone else "",
 		data.address.strip() if data.address else "",
+		data.latitude,
+		data.longitude,
 	)
 
 
@@ -180,6 +186,8 @@ def create_charity_with_account(data: CreateCharityAccountRequest, db: Session =
 		data.address.strip() if data.address else "",
 		data.password,
 		data.passwordStatus.strip().lower(),
+		data.latitude,
+		data.longitude,
 	)
 
 

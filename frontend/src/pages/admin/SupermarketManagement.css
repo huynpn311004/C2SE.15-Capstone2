@@ -517,6 +517,42 @@
   gap: 1rem 1.5rem;
 }
 
+/* Location Button */
+.supermarkets-address-wrapper {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.supermarkets-address-wrapper .supermarkets-input {
+  flex: 1;
+}
+
+.supermarkets-location-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  border: 1px solid #0f766e;
+  background: #f8fffe;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #0f766e;
+  transition: all 0.2s ease;
+  padding: 0;
+}
+
+.supermarkets-location-btn:hover {
+  background: #0f766e;
+  color: #ffffff;
+}
+
+.supermarkets-location-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
 /* BUTTONS */
 
 /* RESPONSIVE */

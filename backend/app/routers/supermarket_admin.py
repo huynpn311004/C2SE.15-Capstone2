@@ -84,6 +84,8 @@ def create_store(
         data.address,
         data.code,
         data.phone,
+        data.latitude,
+        data.longitude,
     )
 
 
@@ -102,6 +104,8 @@ def update_store(
         data.name,
         data.address,
         data.phone,
+        data.latitude,
+        data.longitude,
     )
 
 

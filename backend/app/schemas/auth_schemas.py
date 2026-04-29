@@ -24,6 +24,7 @@ class UserPublic(BaseModel):
 	email: str
 	full_name: str
 	phone: str | None
+	address: str | None
 	role: str
 	is_active: bool
 

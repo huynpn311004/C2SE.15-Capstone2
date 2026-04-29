@@ -530,7 +530,6 @@ export default function DeliveryManagement() {
               </div>
               <form onSubmit={submitCreateAccount}>
                 <div className="delivery-modal-body">
-                  <div className="delivery-section-title">Thông Tin Đối Tác</div>
                   <div className="delivery-create-grid">
                     <div className="delivery-form-field">
                       <label>Người Phụ Trách</label>
@@ -610,7 +609,6 @@ export default function DeliveryManagement() {
                     </div>
                   </div>
 
-                  <div className="delivery-section-title">Thông Tin Tài Khoản</div>
                   <div className="delivery-create-grid">
                     <div className="delivery-form-field">
                       <label>Mật Khẩu</label>
