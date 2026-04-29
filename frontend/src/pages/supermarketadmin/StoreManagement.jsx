@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../../services/AuthContext'
+import LocationModal from '../../components/map/LocationModal'
 import {
   createSupermarketStore,
   fetchSupermarketStores,
@@ -20,7 +21,9 @@ export default function StoreManagement() {
   const [editError, setEditError] = useState('')
   const [editSuccess, setEditSuccess] = useState('')
   const [loading, setLoading] = useState(true)
-  const [editForm, setEditForm] = useState({ name: '', address: '', phone: '', status: 'active' })
+  const [editForm, setEditForm] = useState({ name: '', address: '', phone: '', status: 'active', latitude: null, longitude: null })
+
+  const [showLocationModal, setShowLocationModal] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -65,6 +68,8 @@ export default function StoreManagement() {
       address: store.address,
       phone: store.phone,
       status: store.status,
+      latitude: store.latitude ?? null,
+      longitude: store.longitude ?? null,
     })
     setEditError('')
     setEditSuccess('')
@@ -74,7 +79,7 @@ export default function StoreManagement() {
   function openCreateModal() {
     setMode('create')
     setSelectedStore(null)
-    setEditForm({ name: '', address: '', phone: '', status: 'active' })
+    setEditForm({ name: '', address: '', phone: '', status: 'active', latitude: null, longitude: null })
     setEditError('')
     setEditSuccess('')
     setShowModal(true)
@@ -94,6 +99,15 @@ export default function StoreManagement() {
     setEditSuccess('')
   }
 
+  const handleLocationSelect = (location) => {
+    setEditForm(prev => ({
+      ...prev,
+      address: location.address,
+      latitude: location.lat,
+      longitude: location.lng,
+    }))
+  }
+
   async function submitEdit(e) {
     e.preventDefault()
     setEditError('')
@@ -108,6 +122,8 @@ export default function StoreManagement() {
           address: editForm.address,
           phone: editForm.phone,
           status: editForm.status,
+          latitude: editForm.latitude,
+          longitude: editForm.longitude,
         }, user?.id)
         const items = await fetchSupermarketStores(user.id)
         setStores(items)
@@ -117,6 +133,8 @@ export default function StoreManagement() {
           name: editForm.name,
           phone: editForm.phone,
           address: editForm.address,
+          latitude: editForm.latitude,
+          longitude: editForm.longitude,
         }, user?.id)
 
         setStores(prev => prev.map(s => s.id === selectedStore.id ? {
@@ -124,6 +142,8 @@ export default function StoreManagement() {
           name: editForm.name,
           phone: editForm.phone,
           address: editForm.address,
+          latitude: editForm.latitude,
+          longitude: editForm.longitude,
         } : s))
         setEditSuccess('Đã cập nhật thông tin store.')
       }
@@ -224,7 +244,20 @@ export default function StoreManagement() {
                   </div>
                   <div className="sastore-form-field">
                     <label>Địa Chỉ</label>
-                    <input name="address" value={editForm.address} onChange={handleEditChange} className="sastore-input" placeholder="Nhập địa chỉ" required />
+                    <div className="sastore-address-wrapper">
+                      <input name="address" value={editForm.address} onChange={handleEditChange} className="sastore-input" placeholder="Nhập địa chỉ" required />
+                      <button
+                        type="button"
+                        className="sastore-location-btn"
+                        onClick={() => setShowLocationModal(true)}
+                        title="Chọn vị trí trên bản đồ"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                          <circle cx="12" cy="10" r="3" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                   <div className="sastore-form-field">
                     <label>Trạng Thái</label>
@@ -245,6 +278,13 @@ export default function StoreManagement() {
           </div>
         </div>
       )}
+
+      <LocationModal
+        isOpen={showLocationModal}
+        onClose={() => setShowLocationModal(false)}
+        onSelectLocation={handleLocationSelect}
+        initialAddress={editForm.address}
+      />
     </div>
   )
 }

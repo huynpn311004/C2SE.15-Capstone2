@@ -430,6 +430,8 @@ def list_supermarkets(db: Session) -> dict:
 				"id": s.id,
 				"name": s.name,
 				"address": s.address or "",
+				"latitude": float(s.latitude) if s.latitude else None,
+				"longitude": float(s.longitude) if s.longitude else None,
 				"email": admin.email or "" if admin else "",
 				"phone": admin.phone or "" if admin else "",
 				"requestDate": _format_date(s.created_at),
@@ -446,14 +448,17 @@ def list_supermarkets(db: Session) -> dict:
 
 
 def update_supermarket(db: Session, supermarket_id: int, name: str, director: str,
-					   email: str, phone: str, address: str) -> dict:
+					   email: str, phone: str, address: str, latitude: float = None, 
+					   longitude: float = None) -> dict:
 	"""Update supermarket information"""
 	if not name or not email or not director:
 		raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid data")
 
 	db.query(Supermarket).filter(Supermarket.id == supermarket_id).update({
 		Supermarket.name: name,
-		Supermarket.address: address or None
+		Supermarket.address: address or None,
+		Supermarket.latitude: latitude,
+		Supermarket.longitude: longitude
 	}, synchronize_session=False)
 
 	admin = _get_supermarket_admin(db, supermarket_id)
@@ -520,14 +525,15 @@ def create_supermarket_account(db: Session, supermarket_id: int, name: str, dire
 
 
 def create_supermarket_with_account(db: Session, name: str, director: str, email: str, 
-						 phone: str, address: str, password: str, activity_status: str) -> dict:
+						 phone: str, address: str, password: str, activity_status: str,
+						 latitude: float = None, longitude: float = None) -> dict:
 	"""Create new supermarket with account"""
 	if not name or not director or not email or len(password) < 6:
 		raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid data")
 
 	try:
 		# Create supermarket using ORM
-		new_supermarket = Supermarket(name=name, address=address or None)
+		new_supermarket = Supermarket(name=name, address=address or None, latitude=latitude, longitude=longitude)
 		db.add(new_supermarket)
 		db.flush()  # Flush to get the ID
 		supermarket_id = new_supermarket.id
@@ -626,6 +632,8 @@ def list_charities(db: Session) -> dict:
 		CharityOrganization.org_name,
 		CharityOrganization.phone,
 		CharityOrganization.address,
+		CharityOrganization.latitude,
+		CharityOrganization.longitude,
 		CharityOrganization.user_id,
 		User.username,
 		User.full_name,
@@ -648,6 +656,8 @@ def list_charities(db: Session) -> dict:
 				"email": row.email or "",
 				"phone": row.phone or row.user_phone or "",
 				"address": row.address or "",
+				"latitude": float(row.latitude) if row.latitude else None,
+				"longitude": float(row.longitude) if row.longitude else None,
 				"requestDate": _format_date(row.created_at),
 				"director": row.full_name or "",
 				"isLocked": bool(is_locked),
@@ -661,7 +671,8 @@ def list_charities(db: Session) -> dict:
 	return {"items": data}
 
 
-def update_charity(db: Session, charity_id: int, name: str, director: str, email: str, phone: str, address: str) -> dict:
+def update_charity(db: Session, charity_id: int, name: str, director: str, email: str, 
+				   phone: str, address: str, latitude: float = None, longitude: float = None) -> dict:
 	"""Update charity information"""
 	if not name or not director or not email:
 		raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid data")
@@ -675,7 +686,9 @@ def update_charity(db: Session, charity_id: int, name: str, director: str, email
 	db.query(CharityOrganization).filter(CharityOrganization.id == charity_id).update({
 		CharityOrganization.org_name: name,
 		CharityOrganization.phone: phone or None,
-		CharityOrganization.address: address or None
+		CharityOrganization.address: address or None,
+		CharityOrganization.latitude: latitude,
+		CharityOrganization.longitude: longitude
 	}, synchronize_session=False)
 
 	if charity.user_id:
@@ -751,7 +764,8 @@ def create_charity_account(db: Session, charity_id: int, name: str, director: st
 
 
 def create_charity_with_account(db: Session, name: str, director: str, email: str, 
-								phone: str, address: str, password: str, password_status: str) -> dict:
+								phone: str, address: str, password: str, password_status: str,
+								latitude: float = None, longitude: float = None) -> dict:
 	"""Create new charity with account"""
 	if not name or not director or not email or len(password) < 6:
 		raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid data")
@@ -779,7 +793,9 @@ def create_charity_with_account(db: Session, name: str, director: str, email: st
 			user_id=user_id,
 			org_name=name,
 			phone=phone or None,
-			address=address or None
+			address=address or None,
+			latitude=latitude,
+			longitude=longitude
 		)
 		db.add(new_charity)
 		db.flush()

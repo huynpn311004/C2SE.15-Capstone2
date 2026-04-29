@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import SystemAdminLayout from '../../components/layout/SystemAdminLayout'
+import LocationModal from '../../components/map/LocationModal'
 import {
   createAdminSupermarketAccount,
   createAdminSupermarketWithAccount,
@@ -37,6 +38,8 @@ export default function SupermarketManagement() {
     email: '',
     phone: '',
     address: '',
+    latitude: null,
+    longitude: null,
     requestDate: '',
   })
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -48,11 +51,16 @@ export default function SupermarketManagement() {
     email: '',
     phone: '',
     address: '',
+    latitude: null,
+    longitude: null,
     password: '',
     confirmPassword: '',
     requestDate: getTodayDate(),
     activityStatus: 'active',
   })
+
+  const [showLocationModal, setShowLocationModal] = useState(false)
+  const [locationModalTarget, setLocationModalTarget] = useState('create')
 
   async function loadSupermarkets() {
     try {
@@ -110,6 +118,8 @@ export default function SupermarketManagement() {
       email: '',
       phone: '',
       address: '',
+      latitude: null,
+      longitude: null,
       password: '',
       confirmPassword: '',
       requestDate: getTodayDate(),
@@ -139,6 +149,29 @@ export default function SupermarketManagement() {
 
     setCreateError('')
     setCreateSuccess('')
+  }
+
+  const handleLocationSelect = (location) => {
+    if (locationModalTarget === 'create') {
+      setCreateForm((prev) => ({
+        ...prev,
+        address: location.address,
+        latitude: location.lat,
+        longitude: location.lng,
+      }))
+    } else {
+      setEditForm((prev) => ({
+        ...prev,
+        address: location.address,
+        latitude: location.lat,
+        longitude: location.lng,
+      }))
+    }
+  }
+
+  const openLocationModal = (target) => {
+    setLocationModalTarget(target)
+    setShowLocationModal(true)
   }
 
   async function submitCreateAccount(event) {
@@ -188,6 +221,8 @@ export default function SupermarketManagement() {
         email: createForm.email.trim(),
         phone: createForm.phone.trim(),
         address: createForm.address.trim(),
+        latitude: createForm.latitude,
+        longitude: createForm.longitude,
         password: createForm.password,
         activityStatus: createForm.activityStatus,
       }
@@ -213,6 +248,8 @@ export default function SupermarketManagement() {
       email: supermarket.email,
       phone: supermarket.phone,
       address: supermarket.address,
+      latitude: supermarket.latitude || null,
+      longitude: supermarket.longitude || null,
       requestDate: supermarket.requestDate,
     })
     setEditError('')
@@ -282,6 +319,8 @@ export default function SupermarketManagement() {
       email: editForm.email.trim(),
       phone: editForm.phone.trim(),
       address: editForm.address.trim(),
+      latitude: editForm.latitude,
+      longitude: editForm.longitude,
       requestDate: editForm.requestDate,
     }
 
@@ -461,15 +500,28 @@ export default function SupermarketManagement() {
 
                     <div className="supermarkets-form-field">
                       <label>Địa Chỉ</label>
-                      <input
-                        type="text"
-                        name="address"
-                        value={editForm.address}
-                        onChange={handleEditFormChange}
-                        className="supermarkets-input"
-                        placeholder="Nhập địa chỉ"
-                        required
-                      />
+                      <div className="supermarkets-address-wrapper">
+                        <input
+                          type="text"
+                          name="address"
+                          value={editForm.address}
+                          onChange={handleEditFormChange}
+                          className="supermarkets-input"
+                          placeholder="Nhập địa chỉ"
+                          required
+                        />
+                        <button
+                          type="button"
+                          className="supermarkets-location-btn"
+                          onClick={() => openLocationModal('edit')}
+                          title="Chọn vị trí trên bản đồ"
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                            <circle cx="12" cy="10" r="3" />
+                          </svg>
+                        </button>
+                      </div>
                     </div>
 
                     <div className="supermarkets-form-field">
@@ -566,15 +618,28 @@ export default function SupermarketManagement() {
 
                     <div className="supermarkets-form-field">
                       <label>Địa Chỉ</label>
-                      <input
-                        type="text"
-                        name="address"
-                        value={createForm.address}
-                        onChange={handleCreateFormChange}
-                        className="supermarkets-input"
-                        placeholder="Nhập địa chỉ siêu thị"
-                        required
-                      />
+                      <div className="supermarkets-address-wrapper">
+                        <input
+                          type="text"
+                          name="address"
+                          value={createForm.address}
+                          onChange={handleCreateFormChange}
+                          className="supermarkets-input"
+                          placeholder="Nhập địa chỉ siêu thị"
+                          required
+                        />
+                        <button
+                          type="button"
+                          className="supermarkets-location-btn"
+                          onClick={() => openLocationModal('create')}
+                          title="Chọn vị trí trên bản đồ"
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                            <circle cx="12" cy="10" r="3" />
+                          </svg>
+                        </button>
+                      </div>
                     </div>
 
                     <div className="supermarkets-form-field">
@@ -646,6 +711,13 @@ export default function SupermarketManagement() {
           </div>
         )}
       </div>
+
+      <LocationModal
+        isOpen={showLocationModal}
+        onClose={() => setShowLocationModal(false)}
+        onSelectLocation={handleLocationSelect}
+        initialAddress={locationModalTarget === 'create' ? createForm.address : editForm.address}
+      />
     </SystemAdminLayout>
   )
 }

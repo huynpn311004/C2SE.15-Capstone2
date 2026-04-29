@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fetchCustomerSetting, updateCustomerSetting, changeCustomerPassword } from '../../services/customerApi'
+import { geocodeAddress, updateUserLocation } from '../../services/locationApi'
+import LocationModal from '../../components/map/LocationModal'
 import './CustomerSetting.css'
 
 const AUTH_STORAGE_KEY = 'seims_auth_user'
@@ -27,6 +29,7 @@ export default function CustomerSetting() {
   const [passwordMessage, setPasswordMessage] = useState('')
   const [passwordError, setPasswordError] = useState('')
   const [isChangingPassword, setIsChangingPassword] = useState(false)
+  const [showLocationModal, setShowLocationModal] = useState(false)
 
   useEffect(() => {
     async function loadSetting() {
@@ -39,10 +42,10 @@ export default function CustomerSetting() {
 
         const nextSetting = {
           username: authUser?.username || data.username || '',
-          fullName: data.fullName || '',
-          email: data.email || '',
-          phone: data.phone || '',
-          address: authUser?.address || '',
+          fullName: data.fullName || data.full_name || authUser?.full_name || '',
+          email: data.email || authUser?.email || '',
+          phone: data.phone || authUser?.phone || '',
+          address: data.address || data.location || authUser?.address || '',
         }
 
         setFormData(nextSetting)
@@ -67,21 +70,44 @@ export default function CustomerSetting() {
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
+  const handleLocationSelect = (location) => {
+    setFormData((prev) => ({ ...prev, address: location.address }))
+  }
+
   const handleSave = async (e) => {
     e.preventDefault()
 
-    setSaveMessage('')
-    setSaveError('')
+      setSaveMessage('')
+      setSaveError('')
 
-    try {
-      setIsSaving(true)
+      try {
+        setIsSaving(true)
 
-      const payload = {
-        fullName: formData.fullName.trim(),
-        email: formData.email.trim().toLowerCase(),
-        phone: formData.phone.trim(),
-        address: formData.address.trim(),
-      }
+        const payload = {
+          fullName: formData.fullName.trim(),
+          email: formData.email.trim().toLowerCase(),
+          phone: formData.phone.trim(),
+          address: formData.address.trim(),
+        }
+        let geocodeWarning = ''
+
+        // Chuyển đổi địa chỉ thành toạ độ và lưu lại vị trí
+        if (payload.address && payload.address !== initialFormData.address) {
+          try {
+            const geocodeRes = await geocodeAddress(payload.address)
+            console.log('Geocode result:', geocodeRes)
+            if (geocodeRes && geocodeRes.latitude && geocodeRes.longitude) {
+              await updateUserLocation(geocodeRes.latitude, geocodeRes.longitude, geocodeRes.display_name)
+            } else {
+              // Should not happen if API is consistent, but as a fallback:
+              throw new Error('Invalid geocode response from server.')
+            }
+          } catch (err) {
+            console.error('Lỗi geocoding:', err)
+            // Bỏ lệnh chặn lưu, chỉ lưu lại cảnh báo
+            geocodeWarning = ' (Lưu ý: Chưa thể định vị chính xác địa chỉ này trên bản đồ)'
+          }
+        }
 
       await updateCustomerSetting(payload)
 
@@ -104,7 +130,7 @@ export default function CustomerSetting() {
       setFormData((prev) => ({ ...prev, ...payload }))
       setInitialFormData((prev) => ({ ...prev, ...payload }))
       window.dispatchEvent(new Event('seims-customer-setting-updated'))
-      setSaveMessage('Đã lưu thay đổi thành công.')
+      setSaveMessage('Đã lưu thay đổi thành công.' + geocodeWarning)
       setTimeout(() => setSaveMessage(''), 3000)
     } catch (err) {
       console.error('Lỗi khi lưu:', err)
@@ -227,13 +253,26 @@ export default function CustomerSetting() {
 
           <label className="customer-setting-field customer-setting-field-full">
             <span>Địa Chỉ Mặc Định</span>
-            <textarea
-              name="address"
-              value={formData.address}
-              onChange={handleChange}
-              rows="3"
-              placeholder="Số nhà, tên đường, phường/xã, quận/huyện, tỉnh/thành phố"
-            />
+            <div className="customer-setting-address-wrapper">
+              <textarea
+                name="address"
+                value={formData.address}
+                onChange={handleChange}
+                rows="3"
+                placeholder="Số nhà, tên đường, phường/xã, quận/huyện, tỉnh/thành phố"
+              />
+              <button
+                type="button"
+                className="customer-setting-location-btn"
+                onClick={() => setShowLocationModal(true)}
+                title="Chọn vị trí trên bản đồ"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                  <circle cx="12" cy="10" r="3" />
+                </svg>
+              </button>
+            </div>
           </label>
         </div>
 
@@ -305,6 +344,13 @@ export default function CustomerSetting() {
         {passwordError ? <p className="customer-setting-msg-error">{passwordError}</p> : null}
         {passwordMessage ? <p className="customer-setting-msg-success">{passwordMessage}</p> : null}
       </form>
+
+      <LocationModal
+        isOpen={showLocationModal}
+        onClose={() => setShowLocationModal(false)}
+        onSelectLocation={handleLocationSelect}
+        initialAddress={formData.address}
+      />
     </div>
   )
 }

@@ -70,6 +70,42 @@
   min-height: 88px;
 }
 
+.customer-setting-address-wrapper {
+  position: relative;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.customer-setting-address-wrapper textarea {
+  flex: 1;
+}
+
+.customer-setting-location-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  border: 1px solid var(--seims-teal);
+  background: var(--seims-bg);
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--seims-teal);
+  transition: all 0.2s ease;
+  padding: 0;
+}
+
+.customer-setting-location-btn:hover {
+  background: var(--seims-teal);
+  color: #ffffff;
+}
+
+.customer-setting-location-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
 .customer-setting-field input:focus,
 .customer-setting-field textarea:focus {
   border-color: var(--seims-teal);

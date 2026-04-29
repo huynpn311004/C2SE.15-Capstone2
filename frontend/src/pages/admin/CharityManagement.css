@@ -448,6 +448,10 @@
   gap: 1rem 1.5rem;
 }
 
+.charities-create-modal .charities-create-grid + .charities-create-grid {
+  margin-top: 1.25rem;
+}
+
 .charities-section-title {
   font-size: 0.9rem;
   font-weight: 700;
@@ -459,6 +463,42 @@
 
 .charities-form-field-full {
   grid-column: 1 / -1;
+}
+
+/* Location Button */
+.charities-address-wrapper {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.charities-address-wrapper .charities-input {
+  flex: 1;
+}
+
+.charities-location-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  border: 1px solid #0f766e;
+  background: #f8fffe;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #0f766e;
+  transition: all 0.2s ease;
+  padding: 0;
+}
+
+.charities-location-btn:hover {
+  background: #0f766e;
+  color: #ffffff;
+}
+
+.charities-location-btn svg {
+  width: 18px;
+  height: 18px;
 }
 
 @media (max-width: 768px) {

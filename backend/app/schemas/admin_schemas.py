@@ -88,6 +88,8 @@ class SupermarketItem(BaseModel):
 	email: str
 	phone: str
 	address: str
+	latitude: Optional[float] = None
+	longitude: Optional[float] = None
 	requestDate: str
 	status: str
 	director: str
@@ -107,6 +109,8 @@ class UpdateSupermarketRequest(BaseModel):
 	email: str = Field(max_length=255)
 	phone: Optional[str] = Field(default=None, max_length=20)
 	address: Optional[str] = Field(default=None)
+	latitude: Optional[float] = Field(default=None)
+	longitude: Optional[float] = Field(default=None)
 
 
 class CreateSupermarketAccountRequest(BaseModel):
@@ -115,6 +119,8 @@ class CreateSupermarketAccountRequest(BaseModel):
 	email: str = Field(max_length=255)
 	phone: Optional[str] = Field(default=None, max_length=20)
 	address: Optional[str] = Field(default=None)
+	latitude: Optional[float] = Field(default=None)
+	longitude: Optional[float] = Field(default=None)
 	password: str = Field(min_length=6, max_length=128)
 	activityStatus: str = Field(default="active")
 
@@ -132,6 +138,8 @@ class CharityItem(BaseModel):
 	email: str
 	phone: str
 	address: str
+	latitude: Optional[float] = None
+	longitude: Optional[float] = None
 	requestDate: str
 	director: str
 	isLocked: bool
@@ -151,6 +159,8 @@ class UpdateCharityRequest(BaseModel):
 	email: str = Field(max_length=255)
 	phone: Optional[str] = Field(default=None, max_length=20)
 	address: Optional[str] = Field(default=None)
+	latitude: Optional[float] = Field(default=None)
+	longitude: Optional[float] = Field(default=None)
 
 
 class CreateCharityAccountRequest(BaseModel):
@@ -159,6 +169,8 @@ class CreateCharityAccountRequest(BaseModel):
 	email: str = Field(max_length=255)
 	phone: Optional[str] = Field(default=None, max_length=20)
 	address: Optional[str] = Field(default=None)
+	latitude: Optional[float] = Field(default=None)
+	longitude: Optional[float] = Field(default=None)
 	password: str = Field(min_length=6, max_length=128)
 	passwordStatus: str = Field(default="active")
 

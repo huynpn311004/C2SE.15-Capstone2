@@ -403,7 +403,7 @@ def _calculate_discount(base_price: float, expiry_date: date, supermarket_id: in
 def get_customer_profile(db: Session, user_id: int) -> dict:
 	"""Get customer profile by user_id"""
 	user = db.query(
-		User.id, User.username, User.email, User.full_name, User.phone, User.role, User.created_at
+		User.id, User.username, User.email, User.full_name, User.phone, User.role, User.created_at, User.address
 	).filter(User.id == user_id, User.role == 'customer').first()
 
 	if not user:
@@ -416,6 +416,7 @@ def get_customer_profile(db: Session, user_id: int) -> dict:
 		"fullName": user.full_name,
 		"phone": user.phone or "",
 		"role": user.role,
+		"address": user.address or "",
 		"createdAt": user.created_at.strftime("%d/%m/%Y") if user.created_at else "",
 	}
 

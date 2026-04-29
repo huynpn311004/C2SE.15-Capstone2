@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import SystemAdminLayout from '../../components/layout/SystemAdminLayout'
+import LocationModal from '../../components/map/LocationModal'
 import {
   createAdminCharityAccount,
   createAdminCharityWithAccount,
@@ -37,6 +38,8 @@ export default function CharityManagement() {
     email: '',
     phone: '',
     address: '',
+    latitude: null,
+    longitude: null,
     requestDate: '',
   })
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -48,11 +51,16 @@ export default function CharityManagement() {
     email: '',
     phone: '',
     address: '',
+    latitude: null,
+    longitude: null,
     password: '',
     confirmPassword: '',
     requestDate: getTodayDate(),
     activityStatus: 'active',
   })
+
+  const [showLocationModal, setShowLocationModal] = useState(false)
+  const [locationModalTarget, setLocationModalTarget] = useState('create')
 
   async function loadCharities() {
     try {
@@ -78,6 +86,8 @@ export default function CharityManagement() {
       email: charity.email,
       phone: charity.phone,
       address: charity.address,
+      latitude: charity.latitude || null,
+      longitude: charity.longitude || null,
       requestDate: charity.requestDate,
     })
     setEditError('')
@@ -147,6 +157,8 @@ export default function CharityManagement() {
       email: editForm.email.trim(),
       phone: editForm.phone.trim(),
       address: editForm.address.trim(),
+      latitude: editForm.latitude,
+      longitude: editForm.longitude,
       requestDate: editForm.requestDate,
     }
 
@@ -197,6 +209,8 @@ export default function CharityManagement() {
       email: '',
       phone: '',
       address: '',
+      latitude: null,
+      longitude: null,
       password: '',
       confirmPassword: '',
       requestDate: getTodayDate(),
@@ -226,6 +240,29 @@ export default function CharityManagement() {
 
     setCreateError('')
     setCreateSuccess('')
+  }
+
+  const handleLocationSelect = (location) => {
+    if (locationModalTarget === 'create') {
+      setCreateForm((prev) => ({
+        ...prev,
+        address: location.address,
+        latitude: location.lat,
+        longitude: location.lng,
+      }))
+    } else {
+      setEditForm((prev) => ({
+        ...prev,
+        address: location.address,
+        latitude: location.lat,
+        longitude: location.lng,
+      }))
+    }
+  }
+
+  const openLocationModal = (target) => {
+    setLocationModalTarget(target)
+    setShowLocationModal(true)
   }
 
   async function submitCreateAccount(event) {
@@ -280,6 +317,8 @@ export default function CharityManagement() {
         email: createForm.email.trim(),
         phone: createForm.phone.trim(),
         address: createForm.address.trim(),
+        latitude: createForm.latitude,
+        longitude: createForm.longitude,
         password: createForm.password,
         activityStatus: createForm.activityStatus,
       }
@@ -467,15 +506,28 @@ export default function CharityManagement() {
 
                     <div className="charities-form-field">
                       <label>Địa Chỉ</label>
-                      <input
-                        type="text"
-                        name="address"
-                        value={editForm.address}
-                        onChange={handleEditFormChange}
-                        className="charities-input"
-                        placeholder="Nhập địa chỉ"
-                        required
-                      />
+                      <div className="charities-address-wrapper">
+                        <input
+                          type="text"
+                          name="address"
+                          value={editForm.address}
+                          onChange={handleEditFormChange}
+                          className="charities-input"
+                          placeholder="Nhập địa chỉ"
+                          required
+                        />
+                        <button
+                          type="button"
+                          className="charities-location-btn"
+                          onClick={() => openLocationModal('edit')}
+                          title="Chọn vị trí trên bản đồ"
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                            <circle cx="12" cy="10" r="3" />
+                          </svg>
+                        </button>
+                      </div>
                     </div>
 
                     <div className="charities-form-field">
@@ -517,7 +569,6 @@ export default function CharityManagement() {
               </div>
               <form onSubmit={submitCreateAccount}>
                 <div className="charities-modal-body">
-                  <div className="charities-section-title">Thông Tin Tổ Chức</div>
                   <div className="charities-create-grid">
                     <div className="charities-form-field">
                       <label>Tên Tổ Chức</label>
@@ -571,17 +622,30 @@ export default function CharityManagement() {
                       />
                     </div>
 
-                    <div className="charities-form-field charities-form-field-full">
+                    <div className="charities-form-field">
                       <label>Địa Chỉ</label>
-                      <input
-                        type="text"
-                        name="address"
-                        value={createForm.address}
-                        onChange={handleCreateFormChange}
-                        className="charities-input"
-                        placeholder="Nhập địa chỉ"
-                        required
-                      />
+                      <div className="charities-address-wrapper">
+                        <input
+                          type="text"
+                          name="address"
+                          value={createForm.address}
+                          onChange={handleCreateFormChange}
+                          className="charities-input"
+                          placeholder="Nhập địa chỉ"
+                          required
+                        />
+                        <button
+                          type="button"
+                          className="charities-location-btn"
+                          onClick={() => openLocationModal('create')}
+                          title="Chọn vị trí trên bản đồ"
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                            <circle cx="12" cy="10" r="3" />
+                          </svg>
+                        </button>
+                      </div>
                     </div>
 
                     <div className="charities-form-field">
@@ -597,7 +661,6 @@ export default function CharityManagement() {
                     </div>
                   </div>
 
-                  <div className="charities-section-title">Thông Tin Tài Khoản</div>
                   <div className="charities-create-grid">
                     <div className="charities-form-field">
                       <label>Mật Khẩu</label>
@@ -656,6 +719,13 @@ export default function CharityManagement() {
           </div>
         )}
       </div>
+
+      <LocationModal
+        isOpen={showLocationModal}
+        onClose={() => setShowLocationModal(false)}
+        onSelectLocation={handleLocationSelect}
+        initialAddress={locationModalTarget === 'create' ? createForm.address : editForm.address}
+      />
     </SystemAdminLayout>
   )
 }

@@ -11,7 +11,6 @@ from app.models.inventory_lot import InventoryLot
 from app.models.notification import Notification
 from app.models.order import Order
 from app.models.order_item import OrderItem
-from app.models.price_history import PriceHistory
 from app.models.product import Product
 from app.models.store import Store
 from app.models.supermarket import Supermarket
@@ -24,7 +23,6 @@ __all__ = [
 	"Coupon",
 	"DiscountPolicy",
 	"InventoryLot",
-	"PriceHistory",
 	"Order",
 	"OrderItem",
 	"DonationOffer",

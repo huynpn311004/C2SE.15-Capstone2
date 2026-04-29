@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { getProductImageUrl } from '../../services/staffApi';
 import { fetchCustomerProductDetail, createMultiStoreOrder } from '../../services/customerApi';
-import LocationPickerModal from '../../components/LocationPickerModal';
+import { LocationModal } from '../../components/map';
 import './CustomerCheckout.css';
 
 const CART_KEY = 'seims_customer_cart';
@@ -50,8 +50,7 @@ const CustomerCheckout = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState({ visible: false, message: '' });
-  const [isAddressModified, setIsAddressModified] = useState(false);
-  const [showLocationPicker, setShowLocationPicker] = useState(false);
+  const [showLocationModal, setShowLocationModal] = useState(false);
 
   const getProfile = () => {
     try {
@@ -69,10 +68,6 @@ const CustomerCheckout = () => {
     address: '',
     note: '',
   });
-
-  const [locationCoords, setLocationCoords] = useState(null); // { lat, lng }
-
-  const [originalAddress, setOriginalAddress] = useState('');
 
   useEffect(() => {
     async function loadCartWithFreshPrices() {
@@ -132,7 +127,6 @@ const CustomerCheckout = () => {
         address: initialAddress
       }));
 
-      setOriginalAddress(initialAddress);
       setLoading(false);
     }
 
@@ -153,25 +147,13 @@ const CustomerCheckout = () => {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
-
-    // Detect address change
-    if (name === 'address') {
-      setIsAddressModified(value !== originalAddress);
-      // Clear location coords if address is manually edited
-      if (locationCoords) {
-        setLocationCoords(null);
-      }
-    }
   };
 
-  // Handle location selection from map picker
   const handleLocationSelect = (locationData) => {
     setFormData(prev => ({
       ...prev,
       address: locationData.address
     }));
-    setLocationCoords({ lat: locationData.lat, lng: locationData.lng });
-    setIsAddressModified(locationData.address !== originalAddress);
   };
 
   const handleSubmit = async (e) => {
@@ -226,14 +208,11 @@ const CustomerCheckout = () => {
 
       // OLD FLOW: Multi-Store Orders already created (pre-created orders)
       if (isMultiStore && orderGroups.length > 0) {
-        // Update address if modified
-        if (isAddressModified) {
-          const authRaw = localStorage.getItem('seims_auth_user');
-          const authUser = authRaw ? JSON.parse(authRaw) : null;
-          if (authUser) {
-            authUser.address = formData.address;
-            localStorage.setItem('seims_auth_user', JSON.stringify(authUser));
-          }
+        const authRaw = localStorage.getItem('seims_auth_user');
+        const authUser = authRaw ? JSON.parse(authRaw) : null;
+        if (authUser) {
+          authUser.address = formData.address;
+          localStorage.setItem('seims_auth_user', JSON.stringify(authUser));
         }
 
         // Format order codes
@@ -252,13 +231,11 @@ const CustomerCheckout = () => {
 
       // Legacy single order support
       if (isReserved && reservedOrderId) {
-        if (isAddressModified) {
-          const authRaw = localStorage.getItem('seims_auth_user');
-          const authUser = authRaw ? JSON.parse(authRaw) : null;
-          if (authUser) {
-            authUser.address = formData.address;
-            localStorage.setItem('seims_auth_user', JSON.stringify(authUser));
-          }
+        const authRaw = localStorage.getItem('seims_auth_user');
+        const authUser = authRaw ? JSON.parse(authRaw) : null;
+        if (authUser) {
+          authUser.address = formData.address;
+          localStorage.setItem('seims_auth_user', JSON.stringify(authUser));
         }
 
         clearCart();
@@ -561,26 +538,18 @@ const CustomerCheckout = () => {
                 <button
                   type="button"
                   className="customer-checkout-map-btn"
-                  onClick={() => setShowLocationPicker(true)}
+                  onClick={() => setShowLocationModal(true)}
                   title="Chọn vị trí trên bản đồ"
                 >
                   <span className="customer-checkout-map-icon">📍</span>
-                  <span>Chọn trên bản đồ</span>
+                  <span>Chọn vị trí</span>
                 </button>
               </div>
-              {locationCoords && (
-                <p className="customer-checkout-coords-hint">
-                  <span>📍</span> Đã chọn vị trí: {locationCoords.lat.toFixed(6)}, {locationCoords.lng.toFixed(6)}
-                </p>
-              )}
               <div className="customer-checkout-address-actions">
                 <button
                   type="button"
                   className="customer-checkout-address-save-btn"
-                  disabled={!isAddressModified}
                   onClick={() => {
-                    setOriginalAddress(formData.address);
-                    setIsAddressModified(false);
                     const authRaw = localStorage.getItem('seims_auth_user');
                     const authUser = authRaw ? JSON.parse(authRaw) : null;
                     if (authUser) {
@@ -589,7 +558,7 @@ const CustomerCheckout = () => {
                     }
                   }}
                 >
-                  Lưu thay đổi
+                  Lưu địa chỉ
                 </button>
               </div>
             </div>
@@ -643,9 +612,9 @@ const CustomerCheckout = () => {
 
       <Toast visible={toast.visible} message={toast.message} />
 
-      <LocationPickerModal
-        isOpen={showLocationPicker}
-        onClose={() => setShowLocationPicker(false)}
+      <LocationModal
+        isOpen={showLocationModal}
+        onClose={() => setShowLocationModal(false)}
         onSelectLocation={handleLocationSelect}
         initialAddress={formData.address}
       />

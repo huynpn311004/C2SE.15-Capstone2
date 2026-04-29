@@ -123,6 +123,8 @@ def list_stores(db: Session, user_id: int) -> dict:
         Store.name,
         Store.location,
         Store.phone,
+        Store.latitude,
+        Store.longitude,
         func.count(u_alias.id).label("staff_count")
     ).outerjoin(
         u_alias,
@@ -133,7 +135,7 @@ def list_stores(db: Session, user_id: int) -> dict:
     ).filter(
         Store.supermarket_id == supermarket_id
     ).group_by(
-        Store.id, Store.code, Store.name, Store.location, Store.phone
+        Store.id, Store.code, Store.name, Store.location, Store.phone, Store.latitude, Store.longitude
     ).order_by(
         Store.id.desc()
     ).all()
@@ -149,13 +151,15 @@ def list_stores(db: Session, user_id: int) -> dict:
                 "status": "active",
                 "staffCount": int(row[5] or 0),
                 "code": row[1],
+                "latitude": float(row[6]) if row[6] is not None else None,
+                "longitude": float(row[7]) if row[7] is not None else None,
             }
         )
 
     return {"items": items}
 
 
-def create_store(db: Session, user_id: int, name: str, address: str = "", code: str = "", phone: str = "") -> dict:
+def create_store(db: Session, user_id: int, name: str, address: str = "", code: str = "", phone: str = "", latitude: float | None = None, longitude: float | None = None) -> dict:
     supermarket_id = _get_supermarket_scope(db, user_id)
     name = (name or "").strip()
     address = (address or "").strip()
@@ -186,7 +190,9 @@ def create_store(db: Session, user_id: int, name: str, address: str = "", code: 
         code=code,
         name=name,
         location=address or None,
-        phone=phone or None
+        phone=phone or None,
+        latitude=latitude,
+        longitude=longitude,
     )
     db.add(new_store)
     db.flush()
@@ -197,7 +203,9 @@ def create_store(db: Session, user_id: int, name: str, address: str = "", code: 
         "code": code,
         "name": name,
         "location": address or None,
-        "phone": phone or None
+        "phone": phone or None,
+        "latitude": latitude,
+        "longitude": longitude,
     }
 
     log_action(db, user_id=user_id, store_id=store_id,
@@ -207,7 +215,7 @@ def create_store(db: Session, user_id: int, name: str, address: str = "", code: 
     return {"success": True, "id": store_id}
 
 
-def update_store(db: Session, user_id: int, store_id: int, name: str, address: str = "", phone: str = "") -> dict:
+def update_store(db: Session, user_id: int, store_id: int, name: str, address: str = "", phone: str = "", latitude: float | None = None, longitude: float | None = None) -> dict:
     supermarket_id = _get_supermarket_scope(db, user_id)
     name = (name or "").strip()
     address = (address or "").strip()
@@ -227,8 +235,13 @@ def update_store(db: Session, user_id: int, store_id: int, name: str, address: s
     old_value = {
         "name": old_store.name,
         "location": old_store.location,
-        "phone": old_store.phone
+        "phone": old_store.phone,
+        "latitude": old_store.latitude,
+        "longitude": old_store.longitude,
     }
+
+    final_latitude = latitude if latitude is not None else old_store.latitude
+    final_longitude = longitude if longitude is not None else old_store.longitude
 
     db.query(Store).filter(
         Store.id == store_id,
@@ -237,7 +250,9 @@ def update_store(db: Session, user_id: int, store_id: int, name: str, address: s
         {
             Store.name: name,
             Store.location: address or None,
-            Store.phone: phone or None
+            Store.phone: phone or None,
+            Store.latitude: final_latitude,
+            Store.longitude: final_longitude,
         },
         synchronize_session=False
     )
@@ -246,7 +261,9 @@ def update_store(db: Session, user_id: int, store_id: int, name: str, address: s
     new_value = {
         "name": name,
         "location": address or None,
-        "phone": phone or None
+        "phone": phone or None,
+        "latitude": final_latitude,
+        "longitude": final_longitude,
     }
 
     log_action(db, user_id=user_id, store_id=store_id,
