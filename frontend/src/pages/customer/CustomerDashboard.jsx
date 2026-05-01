@@ -143,20 +143,6 @@ const CustomerDashboard = () => {
                   </button>
                 ))}
               </div>
-              <button
-                onClick={() => navigate('/customer/orders')}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'var(--seims-teal)',
-                  fontSize: '0.82rem',
-                  cursor: 'pointer',
-                  fontWeight: 500,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                Xem tất cả →
-              </button>
             </div>
           </div>
 

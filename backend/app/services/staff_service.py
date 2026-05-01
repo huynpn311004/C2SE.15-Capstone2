@@ -23,9 +23,11 @@ from app.models.inventory_lot import InventoryLot
 from app.models.store import Store
 from app.models.donation_offer import DonationOffer
 from app.models.donation_request import DonationRequest
+from app.models.donation_request_item import DonationRequestItem
 from app.models.delivery import Delivery
 from app.models.delivery_partner import DeliveryPartner
 from app.models.notification import Notification
+from app.models.charity_organization import CharityOrganization
 
 
 # ========== Helper Functions ==========
@@ -663,32 +665,26 @@ def _create_delivery_for_donation_request(db: Session, donation_request_id: int,
     """Create delivery record when donation request is approved.
     
     Steps:
-    1. Fetch donation request, charity organization, offer, and lot details
+    1. Fetch donation request items, charity organization, offer, and lot details
     2. Find available delivery partner
     3. Create Delivery record
     4. Create notification for delivery partner
     """
-    # Get donation request with related details
+    # Get donation request with related details (via DonationRequestItem)
     request_row = db.query(
         DonationRequest.id,
         DonationRequest.charity_id,
-        DonationRequest.request_qty,
         User.full_name.label("charity_name"),
         User.phone.label("charity_phone"),
-        DonationOffer.lot_id,
-        InventoryLot.product_id,
-        Product.name.label("product_name"),
         Store.location.label("store_location")
     ).join(
         User, User.id == DonationRequest.charity_id
     ).join(
-        DonationOffer, DonationOffer.id == DonationRequest.offer_id
+        DonationRequestItem, DonationRequestItem.request_id == DonationRequest.id
     ).join(
-        InventoryLot, InventoryLot.id == DonationOffer.lot_id
+        DonationOffer, DonationOffer.id == DonationRequestItem.offer_id
     ).join(
-        Product, Product.id == InventoryLot.product_id
-    ).join(
-        Store, Store.id == store_id
+        Store, Store.id == DonationOffer.store_id
     ).filter(
         DonationRequest.id == donation_request_id,
         DonationOffer.store_id == store_id
@@ -735,11 +731,27 @@ def _create_delivery_for_donation_request(db: Session, donation_request_id: int,
     db.flush()
     delivery_id = new_delivery.id
     
+    # Get first item info for notification
+    first_item = db.query(
+        DonationRequestItem.quantity,
+        Product.name.label("product_name")
+    ).join(
+        DonationOffer, DonationOffer.id == DonationRequestItem.offer_id
+    ).join(
+        InventoryLot, InventoryLot.id == DonationOffer.lot_id
+    ).join(
+        Product, Product.id == InventoryLot.product_id
+    ).filter(
+        DonationRequestItem.request_id == donation_request_id
+    ).first()
+    
+    product_info = f"Sản phẩm: {first_item.product_name}, Số lượng: {first_item.quantity}" if first_item else "Nhiều sản phẩm"
+    
     # Create notification for delivery partner
     notification_content = (
         f"Có đơn giao hàng donation mới: {delivery_code} "
         f"cho tổ chức từ thiện {request_row.charity_name}. "
-        f"Sản phẩm: {request_row.product_name}, Số lượng: {request_row.request_qty}"
+        f"{product_info}"
     )
     
     notification = Notification(
@@ -1292,7 +1304,9 @@ def staff_dashboard_summary(db: Session, store_id: int) -> dict:
     ).scalar() or 0
 
     pending_requests = db.query(func.count(DonationRequest.id)).join(
-        DonationOffer, DonationOffer.id == DonationRequest.offer_id
+        DonationRequestItem, DonationRequestItem.request_id == DonationRequest.id
+    ).join(
+        DonationOffer, DonationOffer.id == DonationRequestItem.offer_id
     ).filter(
         DonationOffer.store_id == store_id,
         func.lower(DonationRequest.status) == 'pending'
@@ -1421,8 +1435,8 @@ def create_bulk_donation_offers(db: Session, user_id: int, items: list[dict]) ->
     errors = []
 
     for idx, item in enumerate(items):
-        lot_id = item.get("lot_id")
-        offered_qty = item.get("offered_qty")
+        lot_id = item.lot_id if not isinstance(item, dict) else item.get("lot_id")
+        offered_qty = item.offered_qty if not isinstance(item, dict) else item.get("offered_qty")
 
         try:
             if not lot_id or not offered_qty:
@@ -1509,13 +1523,15 @@ def list_staff_donation_offers(db: Session, user_id: int, status_filter: str = "
         InventoryLot.lot_code,
         InventoryLot.expiry_date,
         Product.name.label('product_name'),
-        func.count(DonationRequest.id).label('request_count')
+        func.count(DonationRequestItem.id).label('request_count')
     ).join(
         InventoryLot, InventoryLot.id == DonationOffer.lot_id
     ).join(
         Product, Product.id == InventoryLot.product_id
     ).outerjoin(
-        DonationRequest, DonationRequest.offer_id == DonationOffer.id
+        DonationRequestItem, DonationRequestItem.offer_id == DonationOffer.id
+    ).outerjoin(
+        DonationRequest, DonationRequest.id == DonationRequestItem.request_id
     ).filter(
         DonationOffer.store_id == store_id
     )
@@ -1524,16 +1540,20 @@ def list_staff_donation_offers(db: Session, user_id: int, status_filter: str = "
         query = query.filter(DonationOffer.status == status_filter)
 
     rows = query.group_by(
-        DonationOffer.id, InventoryLot.lot_code, InventoryLot.expiry_date, Product.name
+        DonationOffer.id, DonationOffer.lot_id, DonationOffer.offered_qty, DonationOffer.status, DonationOffer.created_at,
+        InventoryLot.lot_code, InventoryLot.expiry_date, Product.name
     ).order_by(
         DonationOffer.created_at.desc()
     ).limit(200).all()
 
     items = []
     for row in rows:
-        # Calculate remaining quantity
-        total_requested = db.query(func.sum(DonationRequest.request_qty)).filter(
-            DonationRequest.offer_id == row.id
+        # Calculate remaining quantity from DonationRequestItem (join with DonationRequest)
+        total_requested = db.query(func.coalesce(func.sum(DonationRequestItem.quantity), 0)).join(
+            DonationRequest, DonationRequest.id == DonationRequestItem.request_id
+        ).filter(
+            DonationRequestItem.offer_id == row.id,
+            DonationRequest.status.in_(['PENDING', 'APPROVED'])
         ).scalar() or 0
         remaining = row.offered_qty - int(total_requested)
 
@@ -1592,80 +1612,154 @@ def update_donation_offer_status(db: Session, user_id: int, offer_id: int, new_s
     }
 
 
-# ========== Donation Requests Business Logic ==========
-def list_staff_donation_requests(db: Session, user_id: int, status_filter: str = "all") -> dict:
-    """List donation requests for staff's store."""
+def update_donation_offer(db: Session, user_id: int, offer_id: int, offered_qty: int) -> dict:
+    """Update donation offer quantity."""
     scope = _get_staff_scope(db, user_id)
     store_id = scope["store_id"]
 
-    query = db.query(
-        DonationRequest.id,
-        DonationRequest.offer_id,
-        DonationRequest.charity_id,
-        DonationRequest.request_qty,
-        DonationRequest.status,
-        DonationRequest.received_at,
-        DonationRequest.created_at,
-        User.full_name.label('charity_name'),
-        User.phone.label('charity_phone'),
-        InventoryLot.lot_code,
-        Product.name.label('product_name'),
-        DonationOffer.offered_qty.label('original_offered_qty'),
+    offer = db.query(DonationOffer).filter(
+        DonationOffer.id == offer_id,
+        DonationOffer.store_id == store_id
+    ).first()
+
+    if not offer:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Donation offer không tồn tại"
+        )
+
+    if offer.status not in ['open']:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Chỉ có thể chỉnh sửa đề nghị đang ở trạng thái Open"
+        )
+
+    if offered_qty <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Số lượng phải lớn hơn 0"
+        )
+
+    lot = db.query(InventoryLot).filter(InventoryLot.id == offer.lot_id).first()
+    if not lot:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Lô hàng không tồn tại"
+        )
+
+    if offered_qty > lot.qty_on_hand:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Số lượng vượt quá tồn kho (còn lại: {lot.qty_on_hand})"
+        )
+
+    offer.offered_qty = offered_qty
+    db.commit()
+
+    return {
+        "success": True,
+        "message": "Đã cập nhật số lượng đề nghị quyên góp",
+        "offered_qty": offered_qty
+    }
+
+
+def delete_donation_offer(db: Session, user_id: int, offer_id: int) -> dict:
+    """Delete a donation offer and restore stock to inventory."""
+    scope = _get_staff_scope(db, user_id)
+    store_id = scope["store_id"]
+
+    offer = db.query(DonationOffer).filter(
+        DonationOffer.id == offer_id,
+        DonationOffer.store_id == store_id
+    ).first()
+
+    if not offer:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Donation offer không tồn tại"
+        )
+
+    if offer.status not in ['open']:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Chỉ có thể xóa đề nghị đang ở trạng thái Open"
+        )
+
+    lot = db.query(InventoryLot).filter(InventoryLot.id == offer.lot_id).first()
+    if lot:
+        lot.qty_on_hand += offer.offered_qty
+
+    db.delete(offer)
+    db.commit()
+
+    return {
+        "success": True,
+        "message": "Đã xóa đề nghị quyên góp và hoàn trả số lượng vào kho"
+    }
+
+
+# ========== Donation Requests Business Logic (New Architecture) ==========
+def list_staff_donation_requests(db: Session, user_id: int, status_filter: str = "all") -> dict:
+    """List donation requests for staff's store (grouped by request, not by item)."""
+    scope = _get_staff_scope(db, user_id)
+    store_id = scope["store_id"]
+
+    # Query donation requests that have items from offers in this store
+    query = db.query(DonationRequest).join(
+        DonationRequestItem, DonationRequestItem.request_id == DonationRequest.id
     ).join(
-        DonationOffer, DonationOffer.id == DonationRequest.offer_id
-    ).join(
-        InventoryLot, InventoryLot.id == DonationOffer.lot_id
-    ).join(
-        Product, Product.id == InventoryLot.product_id
-    ).join(
-        User, User.id == DonationRequest.charity_id
+        DonationOffer, DonationOffer.id == DonationRequestItem.offer_id
     ).filter(
         DonationOffer.store_id == store_id
-    )
+    ).distinct()
 
     if status_filter != "all":
-        query = query.filter(DonationRequest.status == status_filter)
+        query = query.filter(DonationRequest.status == status_filter.upper())
 
-    rows = query.order_by(
-        DonationRequest.created_at.desc()
-    ).limit(200).all()
+    rows = query.order_by(DonationRequest.created_at.desc()).limit(200).all()
 
     items = []
-    for row in rows:
+    for req in rows:
+        # Get charity info
+        user = db.query(User).filter(User.id == req.charity_id).first()
+        charity_org = db.query(CharityOrganization).filter(
+            CharityOrganization.user_id == req.charity_id
+        ).first()
+
+        # Count items for this request
+        item_count = db.query(func.count(DonationRequestItem.id)).filter(
+            DonationRequestItem.request_id == req.id
+        ).scalar() or 0
+
+        org_display_name = charity_org.org_name if charity_org and charity_org.org_name else (user.full_name if user else None)
+
         items.append({
-            "id": row.id,
-            "offerId": row.offer_id,
-            "organization": row.charity_name,
-            "charityName": row.charity_name,
-            "charityPhone": row.charity_phone,
-            "request": f"{row.product_name} - {row.request_qty} sản phẩm",
-            "productName": row.product_name,
-            "lotCode": row.lot_code,
-            "requestedQty": row.request_qty,
-            "originalOfferedQty": row.original_offered_qty,
-            "status": row.status,
-            "receivedAt": row.received_at.strftime("%d/%m/%Y %H:%M") if row.received_at else None,
-            "createdAt": row.created_at.strftime("%d/%m/%Y %H:%M"),
+            "id": req.id,
+            "charity_id": req.charity_id,
+            "organization": org_display_name,
+            "charityName": user.full_name if user else None,
+            "charityOrgName": charity_org.org_name if charity_org else None,
+            "charityPhone": user.phone if user else None,
+            "charityAddress": charity_org.address if charity_org else None,
+            "status": req.status,
+            "total_items": item_count,
+            "receivedAt": req.received_at.strftime("%d/%m/%Y %H:%M") if req.received_at else None,
+            "createdAt": req.created_at.strftime("%d/%m/%Y %H:%M"),
         })
 
     return {"items": items}
 
 
-def update_donation_request_status(db: Session, user_id: int, request_id: int, new_status: str) -> dict:
-    """Update donation request status (approve/reject)."""
+def get_staff_donation_request_detail(db: Session, user_id: int, request_id: int) -> dict:
+    """Get detailed donation request with items."""
     scope = _get_staff_scope(db, user_id)
     store_id = scope["store_id"]
 
-    valid_statuses = ['pending', 'approved', 'rejected']
-    if new_status not in valid_statuses:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Trạng thái không hợp lệ"
-        )
-
-    # Get request with offer and lot
+    # Get request and verify it belongs to this store
     request = db.query(DonationRequest).join(
-        DonationOffer, DonationOffer.id == DonationRequest.offer_id
+        DonationRequestItem, DonationRequestItem.request_id == DonationRequest.id
+    ).join(
+        DonationOffer, DonationOffer.id == DonationRequestItem.offer_id
     ).filter(
         DonationRequest.id == request_id,
         DonationOffer.store_id == store_id
@@ -1677,52 +1771,163 @@ def update_donation_request_status(db: Session, user_id: int, request_id: int, n
             detail="Donation request không tồn tại"
         )
 
-    if request.status != 'pending':
+    # Get charity info
+    user = db.query(User).filter(User.id == request.charity_id).first()
+    charity_org = db.query(CharityOrganization).filter(
+        CharityOrganization.user_id == request.charity_id
+    ).first()
+
+    # Get items with product details
+    items_query = db.query(DonationRequestItem).filter(
+        DonationRequestItem.request_id == request_id
+    ).all()
+
+    items = []
+    for item in items_query:
+        offer = db.query(DonationOffer).filter(DonationOffer.id == item.offer_id).first()
+        product_name = None
+        lot_code = None
+        expiry_date = None
+        store_name = None
+
+        if offer:
+            lot = db.query(InventoryLot).filter(InventoryLot.id == offer.lot_id).first()
+            if lot:
+                product = db.query(Product).filter(Product.id == lot.product_id).first()
+                product_name = product.name if product else None
+                lot_code = lot.lot_code
+                expiry_date = lot.expiry_date.strftime("%d/%m/%Y") if lot.expiry_date else None
+            store = db.query(Store).filter(Store.id == offer.store_id).first()
+            store_name = store.name if store else None
+
+        items.append({
+            "id": item.id,
+            "offer_id": item.offer_id,
+            "product_name": product_name,
+            "lot_code": lot_code,
+            "quantity": item.quantity,
+            "status": item.status,
+            "expiry_date": expiry_date,
+            "store_name": store_name,
+        })
+
+    org_display_name = charity_org.org_name if charity_org and charity_org.org_name else (user.full_name if user else None)
+
+    return {
+        "id": request.id,
+        "charity_id": request.charity_id,
+        "charity_name": user.full_name if user else None,
+        "charity_org_name": charity_org.org_name if charity_org else None,
+        "charity_phone": user.phone if user else None,
+        "charity_address": charity_org.address if charity_org else None,
+        "status": request.status,
+        "total_items": len(items),
+        "created_at": request.created_at.strftime("%d/%m/%Y %H:%M"),
+        "received_at": request.received_at.strftime("%d/%m/%Y %H:%M") if request.received_at else None,
+        "items": items,
+    }
+
+
+def update_donation_request_status(db: Session, user_id: int, request_id: int, new_status: str) -> dict:
+    """Update donation request status (approve/reject all items)."""
+    scope = _get_staff_scope(db, user_id)
+    store_id = scope["store_id"]
+
+    valid_statuses = ['APPROVED', 'REJECTED']
+    if new_status not in valid_statuses:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Chỉ có thể xử lý request đang ở trạng thái pending"
+            detail="Trạng thái không hợp lệ. Chỉ chấp nhận APPROVED hoặc REJECTED"
         )
 
-    if new_status == 'approved':
-        # Check if offer has enough remaining quantity
-        offer = db.query(DonationOffer).filter(DonationOffer.id == request.offer_id).first()
-        # Check both pending and approved to prevent overbooking from multiple pending requests
-        total_requested = db.query(func.sum(DonationRequest.request_qty)).filter(
-            DonationRequest.offer_id == request.offer_id,
-            DonationRequest.id != request_id,  # exclude current request
-            DonationRequest.status.in_(['pending', 'approved'])
-        ).scalar() or 0
+    # Get request and verify it belongs to this store
+    request = db.query(DonationRequest).join(
+        DonationRequestItem, DonationRequestItem.request_id == DonationRequest.id
+    ).join(
+        DonationOffer, DonationOffer.id == DonationRequestItem.offer_id
+    ).filter(
+        DonationRequest.id == request_id,
+        DonationOffer.store_id == store_id
+    ).first()
 
-        available_qty = offer.offered_qty - int(total_requested)
-        if request.request_qty > available_qty:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Không đủ số lượng. Tổng pending + approved đã vượt quá offered quantity. Còn lại: {available_qty}"
-            )
+    if not request:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Donation request không tồn tại"
+        )
 
-        # Approve the request
-        request.status = 'approved'
+    if request.status != 'PENDING':
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Chỉ có thể xử lý request đang ở trạng thái PENDING"
+        )
+
+    if new_status == 'APPROVED':
+        # Check stock availability for all items
+        items = db.query(DonationRequestItem).filter(
+            DonationRequestItem.request_id == request_id
+        ).all()
+
+        for item in items:
+            offer = db.query(DonationOffer).filter(DonationOffer.id == item.offer_id).first()
+            if not offer:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Không tìm thấy offer cho item {item.id}"
+                )
+
+            # Calculate total requested (pending + approved) for this offer
+            total_requested = db.query(func.sum(DonationRequestItem.quantity)).join(
+                DonationRequest, DonationRequest.id == DonationRequestItem.request_id
+            ).filter(
+                DonationRequestItem.offer_id == item.offer_id,
+                DonationRequestItem.id != item.id,
+                DonationRequest.status.in_(['PENDING', 'APPROVED'])
+            ).scalar() or 0
+
+            available_qty = int(offer.offered_qty or 0) - int(total_requested)
+            if item.quantity > available_qty:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Sản phẩm {item.id}: Không đủ số lượng. Còn lại: {available_qty}"
+                )
+
+        # Approve request and all items
+        db.query(DonationRequest).filter(DonationRequest.id == request_id).update(
+            {DonationRequest.status: 'APPROVED'},
+            synchronize_session=False
+        )
+        db.query(DonationRequestItem).filter(
+            DonationRequestItem.request_id == request_id
+        ).update(
+            {DonationRequestItem.status: 'APPROVED'},
+            synchronize_session=False
+        )
         db.commit()
-        
-        # Create delivery for this donation request
-        delivery_info = _create_delivery_for_donation_request(db, request_id, store_id)
 
         return {
             "success": True,
-            "message": "Đã duyệt yêu cầu nhận donation",
-            "status": "approved",
-            "delivery_id": delivery_info.get("delivery_id"),
-            "delivery_code": delivery_info.get("delivery_code")
+            "message": "Đã duyệt yêu cầu quyên góp",
+            "status": "APPROVED"
         }
     else:
-        # Reject the request
-        request.status = 'rejected'
+        # Reject request and all items
+        db.query(DonationRequest).filter(DonationRequest.id == request_id).update(
+            {DonationRequest.status: 'REJECTED'},
+            synchronize_session=False
+        )
+        db.query(DonationRequestItem).filter(
+            DonationRequestItem.request_id == request_id
+        ).update(
+            {DonationRequestItem.status: 'REJECTED'},
+            synchronize_session=False
+        )
         db.commit()
 
         return {
             "success": True,
-            "message": "Đã từ chối yêu cầu nhận donation",
-            "status": "rejected"
+            "message": "Đã từ chối yêu cầu quyên góp",
+            "status": "REJECTED"
         }
 
 

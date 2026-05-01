@@ -200,14 +200,16 @@ export default function CharitySettings() {
               />
             </label>
 
-            <label className="chsettings-field">
+            <label className="chsettings-field chsettings-field-disabled">
               <span>Địa Chỉ</span>
               <input
                 type="text"
                 name="address"
                 value={formData.address}
-                onChange={handleChange}
-                placeholder="Địa chỉ tổ chức từ thiện"
+                readOnly
+                disabled
+                placeholder="Không thể chỉnh sửa"
+                title="Địa chỉ không thể chỉnh sửa"
               />
             </label>
           </div>

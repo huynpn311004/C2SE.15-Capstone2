@@ -47,19 +47,35 @@
 .cart-section-header {
   padding: 1rem;
   border-bottom: 1px solid var(--seims-border);
+  background: linear-gradient(135deg, rgba(15, 118, 110, 0.02) 0%, rgba(20, 184, 166, 0.02) 100%);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  flex-wrap: wrap;
   gap: 0.5rem;
   flex-shrink: 0;
+  min-height: 70px;
+  box-sizing: border-box;
+}
+
+.cart-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.cart-header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
 }
 
 .cart-section-title {
   margin: 0;
-  font-size: 1rem;
+  font-size: 1.15rem;
   font-weight: 700;
   color: var(--seims-ink);
+  letter-spacing: -0.01em;
 }
 
 .cart-section-subtitle {

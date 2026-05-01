@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { getProductImageUrl } from '../../services/staffApi';
-import { fetchCustomerProductDetail, createMultiStoreOrder } from '../../services/customerApi';
+import { fetchCustomerProductDetail, createMultiStoreOrder, fetchAvailableCoupons, confirmCustomerOrder } from '../../services/customerApi';
 import { LocationModal } from '../../components/map';
 import './CustomerCheckout.css';
 
@@ -29,6 +29,72 @@ function Toast({ message, visible }) {
   );
 }
 
+// Coupon Modal Component
+function CouponModal({ isOpen, onClose, coupons, selectedCoupon, onSelectCoupon, orderTotal }) {
+  if (!isOpen) return null;
+
+  const isCouponApplicable = (coupon) => {
+    if (!orderTotal) return false;
+    const minAmount = coupon.minAmount || 0;
+    return orderTotal >= minAmount;
+  };
+
+  return (
+    <div className="customer-checkout-coupon-modal-overlay" onClick={onClose}>
+      <div className="customer-checkout-coupon-modal" onClick={e => e.stopPropagation()}>
+        <div className="customer-checkout-coupon-modal-header">
+          <h3>Chọn mã ưu đãi</h3>
+          <button className="customer-checkout-coupon-modal-close" onClick={onClose}>×</button>
+        </div>
+        <div className="customer-checkout-coupon-modal-body">
+          {coupons.length === 0 ? (
+            <p className="customer-checkout-coupon-empty">Không có mã ưu đãi nào khả dụng</p>
+          ) : (
+            coupons.map(coupon => {
+              const applicable = isCouponApplicable(coupon);
+              const isSelected = selectedCoupon?.id === coupon.id;
+              return (
+                <div
+                  key={coupon.id}
+                  className={`customer-checkout-coupon-item ${applicable ? 'applicable' : 'not-applicable'} ${isSelected ? 'selected' : ''}`}
+                  onClick={() => applicable && onSelectCoupon(isSelected ? null : coupon)}
+                >
+                  <div className="customer-checkout-coupon-radio">
+                    <input
+                      type="radio"
+                      checked={isSelected}
+                      onChange={() => {}}
+                      disabled={!applicable}
+                    />
+                  </div>
+                  <div className="customer-checkout-coupon-content">
+                    <div className="customer-checkout-coupon-code">{coupon.code}</div>
+                    <div className="customer-checkout-coupon-desc">{coupon.description || `Giảm ${coupon.discountPercent}% cho đơn hàng`}</div>
+                    <div className="customer-checkout-coupon-info">
+                      {coupon.minAmount && (
+                        <span>Đơn tối thiểu: {coupon.minAmount.toLocaleString()}đ</span>
+                      )}
+                      <span>HSD: {coupon.validTo}</span>
+                    </div>
+                  </div>
+                  <div className="customer-checkout-coupon-discount">
+                    -{coupon.discountPercent}%
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+        <div className="customer-checkout-coupon-modal-footer">
+          <button className="customer-checkout-coupon-btn" onClick={onClose}>
+            Xác nhận
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const CustomerCheckout = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -51,6 +117,9 @@ const CustomerCheckout = () => {
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState({ visible: false, message: '' });
   const [showLocationModal, setShowLocationModal] = useState(false);
+  const [showCouponModal, setShowCouponModal] = useState(false);
+  const [availableCoupons, setAvailableCoupons] = useState([]);
+  const [selectedCoupon, setSelectedCoupon] = useState(null);
 
   const getProfile = () => {
     try {
@@ -133,6 +202,32 @@ const CustomerCheckout = () => {
     loadCartWithFreshPrices();
   }, []);
 
+  // Load available coupons
+  useEffect(() => {
+    async function loadCoupons() {
+      try {
+        const coupons = await fetchAvailableCoupons();
+        setAvailableCoupons(coupons);
+      } catch (err) {
+        console.warn('Failed to load coupons:', err);
+      }
+    }
+    loadCoupons();
+  }, []);
+
+  const handleSelectCoupon = (coupon) => {
+    setSelectedCoupon(coupon);
+    setShowCouponModal(false);
+  };
+
+  // Calculate coupon discount
+  const couponDiscount = selectedCoupon
+    ? Math.round((isMultiStore ? totalAmount : subtotal) * selectedCoupon.discountPercent / 100)
+    : 0;
+
+  // Final total after discount
+  const finalTotal = (isMultiStore ? totalAmount : subtotal) - couponDiscount;
+
   const subtotal = cart.reduce((sum, item) => {
     const price = item.salePrice || item.bestPrice || 0;
     return sum + price * item.quantity;
@@ -172,7 +267,7 @@ const CustomerCheckout = () => {
       if (isMultiStore && itemsForOrder.length > 0) {
         // Validate address is provided
         if (!formData.address || formData.address.trim() === '') {
-          setToast({ visible: true, message: '⚠️ Vui lòng nhập địa chỉ giao hàng!' });
+          setToast({ visible: true, message: ' Vui lòng nhập địa chỉ giao hàng!' });
           setSubmitting(false);
           return;
         }
@@ -194,10 +289,9 @@ const CustomerCheckout = () => {
 
         // Format order codes
         const orderCodes = result.orderGroups.map(g => g.orderCode).join(', ');
-        clearCart();
         setToast({
           visible: true,
-          message: `✅ Đặt hàng thành công!\n${result.totalOrders} đơn: ${orderCodes}`
+          message: ` Đặt hàng thành công!\n${result.totalOrders} đơn: ${orderCodes}`
         });
         setTimeout(() => {
           setToast(prev => ({ ...prev, visible: false }));
@@ -215,12 +309,16 @@ const CustomerCheckout = () => {
           localStorage.setItem('seims_auth_user', JSON.stringify(authUser));
         }
 
+        // Confirm payment for all orders
+        for (const group of orderGroups) {
+          await confirmCustomerOrder(group.orderId);
+        }
+
         // Format order codes
         const orderCodes = orderGroups.map(g => g.orderCode).join(', ');
-        clearCart();
         setToast({
           visible: true,
-          message: `✅ Đặt hàng thành công!\n${totalOrders} đơn: ${orderCodes}`
+          message: `✅ Thanh toán thành công!\n${totalOrders} đơn: ${orderCodes}`
         });
         setTimeout(() => {
           setToast(prev => ({ ...prev, visible: false }));
@@ -238,6 +336,7 @@ const CustomerCheckout = () => {
           localStorage.setItem('seims_auth_user', JSON.stringify(authUser));
         }
 
+        clearCart();
         clearCart();
         setToast({ visible: true, message: `✅ Đặt hàng thành công!\nMã đơn: ${reservedOrderCode}` });
         setTimeout(() => {
@@ -284,26 +383,18 @@ const CustomerCheckout = () => {
               {isMultiStore && (orderGroups.length > 0 || cartItems.length > 0) ? (
                 <>
                   <p className="customer-section-subtitle">{(orderGroups.length > 0 ? cart.length : cartItems.length)} sản phẩm</p>
-                  <p style={{ fontSize: '0.875rem', color: 'var(--seims-info)', marginTop: '0.25rem' }}>
-                    Từ {orderGroups.length > 0 ? orderGroups.length : Math.max(1, cartItems.length > 0 ? [...new Set(cartItems.map(i => i.storeId || i.store_id))].length : 1)} cửa hàng khác nhau
-                  </p>
                 </>
               ) : (
                 <p className="customer-section-subtitle">{cart.length} sản phẩm</p>
               )}
               {isMultiStore && orderGroups.length > 0 && (
                 <p style={{ fontSize: '0.75rem', color: 'var(--seims-success)', marginTop: '0.25rem' }}>
-                  ✅ Đã giữ chỗ: {orderGroups.map(g => g.orderCode).join(', ')}
-                </p>
-              )}
-              {isMultiStore && cartItems.length > 0 && orderGroups.length === 0 && (
-                <p style={{ fontSize: '0.75rem', color: 'var(--seims-warning)', marginTop: '0.25rem' }}>
-                  ⏳ Chưa giữ chỗ - Vui lòng điền đầy đủ thông tin để xác nhận đơn hàng
+                  Đã giữ chỗ: {orderGroups.map(g => g.orderCode).join(', ')}
                 </p>
               )}
               {!isMultiStore && isReserved && reservedOrderCode && (
                 <p style={{ fontSize: '0.75rem', color: 'var(--seims-success)', marginTop: '0.25rem' }}>
-                  ✅ Đã giữ chỗ: {reservedOrderCode}
+                  Đã giữ chỗ: {reservedOrderCode}
                 </p>
               )}
             </div>
@@ -422,6 +513,19 @@ const CustomerCheckout = () => {
                   </div>
                 ))}
 
+                {/* Coupon Selection */}
+                <button
+                  className="customer-checkout-coupon-btn-row"
+                  onClick={() => setShowCouponModal(true)}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: '18px', height: '18px' }}>
+                    <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+                    <line x1="7" y1="7" x2="7.01" y2="7"/>
+                  </svg>
+                  <span>{selectedCoupon ? `Mã: ${selectedCoupon.code}` : 'Seims ưu đãi'}</span>
+                  <span className="customer-checkout-coupon-arrow">›</span>
+                </button>
+
                 <div className="customer-checkout-totals">
                   <div className="customer-checkout-totals-row">
                     <span className="customer-checkout-totals-label">Tạm tính</span>
@@ -429,26 +533,28 @@ const CustomerCheckout = () => {
                       {(isMultiStore ? totalAmount : subtotal).toLocaleString()}đ
                     </span>
                   </div>
+                  {couponDiscount > 0 && (
+                    <div className="customer-checkout-totals-row" style={{ color: 'var(--seims-success)' }}>
+                      <span className="customer-checkout-totals-label">Mã ưu đãi ({selectedCoupon?.code})</span>
+                      <span className="customer-checkout-totals-value">-{couponDiscount.toLocaleString()}đ</span>
+                    </div>
+                  )}
                   <div className="customer-checkout-totals-row">
                     <span className="customer-checkout-totals-label">Phí vận chuyển</span>
                     <span className="customer-checkout-totals-value" style={{ color: 'var(--seims-success)' }}>Miễn phí</span>
-                  </div>
-                  <div className="customer-checkout-savings">
-                    <span className="customer-checkout-totals-label">Tiết kiệm</span>
-                    <span className="customer-checkout-totals-value" style={{ color: 'var(--seims-warning)' }}>-{totalSavings.toLocaleString()}đ</span>
                   </div>
                 </div>
 
                 <div className="customer-checkout-grand-total">
                   <span className="customer-checkout-grand-total-label">Tổng thanh toán</span>
                   <span className="customer-checkout-grand-total-value">
-                    {(isMultiStore ? totalAmount : subtotal).toLocaleString()}đ
+                    {finalTotal.toLocaleString()}đ
                   </span>
                 </div>
 
                 {isMultiStore && orderGroups.length > 1 && (
                   <div className="customer-checkout-multi-order-note">
-                    <p>⚠️ Bạn có <strong>{orderGroups.length} đơn hàng</strong> từ các cửa hàng khác nhau.</p>
+                    <p> Bạn có <strong>{orderGroups.length} đơn hàng</strong> từ các cửa hàng khác nhau.</p>
                     <p>Mỗi cửa hàng sẽ giao hàng riêng biệt.</p>
                   </div>
                 )}
@@ -456,7 +562,7 @@ const CustomerCheckout = () => {
                   const storeCount = [...new Set(cartItems.map(i => i.storeId || i.store_id))].length;
                   return storeCount > 1 && (
                     <div className="customer-checkout-multi-order-note">
-                      <p>ℹ️ Bạn sẽ có <strong>{storeCount} đơn hàng</strong> từ các cửa hàng khác nhau.</p>
+                      <p> Bạn sẽ có <strong>{storeCount} đơn hàng</strong> từ các cửa hàng khác nhau.</p>
                       <p>Mỗi cửa hàng sẽ giao hàng riêng biệt.</p>
                     </div>
                   );
@@ -474,17 +580,12 @@ const CustomerCheckout = () => {
               <p className="customer-section-subtitle">Vui lòng điền đầy đủ thông tin</p>
               {isMultiStore && orderGroups.length > 0 && (
                 <p style={{ fontSize: '0.875rem', color: 'var(--seims-success)', marginTop: '0.5rem', fontWeight: '600' }}>
-                  ✅ Đã giữ chỗ <strong>{totalOrders} đơn hàng</strong>
-                </p>
-              )}
-              {isMultiStore && cartItems.length > 0 && orderGroups.length === 0 && (
-                <p style={{ fontSize: '0.875rem', color: 'var(--seims-info)', marginTop: '0.5rem', fontWeight: '600' }}>
-                  ℹ️ Đơn hàng sẽ được tạo khi bạn xác nhận
+                  Đã giữ chỗ <strong>{totalOrders} đơn hàng</strong>
                 </p>
               )}
               {!isMultiStore && isReserved && reservedOrderCode && (
                 <p style={{ fontSize: '0.875rem', color: 'var(--seims-success)', marginTop: '0.5rem', fontWeight: '600' }}>
-                  ✅ Hàng đã được giữ chỗ: <strong>{reservedOrderCode}</strong>
+                  Hàng đã được giữ chỗ: <strong>{reservedOrderCode}</strong>
                 </p>
               )}
             </div>
@@ -541,8 +642,10 @@ const CustomerCheckout = () => {
                   onClick={() => setShowLocationModal(true)}
                   title="Chọn vị trí trên bản đồ"
                 >
-                  <span className="customer-checkout-map-icon">📍</span>
-                  <span>Chọn vị trí</span>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                    <circle cx="12" cy="10" r="3" />
+                  </svg>
                 </button>
               </div>
               <div className="customer-checkout-address-actions">
@@ -581,6 +684,11 @@ const CustomerCheckout = () => {
               <p className="customer-checkout-note-title">Lưu ý quan trọng</p>
               <ul className="customer-checkout-note-list">
                 <li>Vui lòng kiểm tra kỹ thông tin trước khi đặt hàng</li>
+                {orderGroups.length > 0 && (
+                  <li style={{ color: 'var(--seims-success)' }}>
+                    Đơn hàng đã được giữ chỗ. Nhấn xác nhận để thanh toán.
+                  </li>
+                )}
                 {isMultiStore && orderGroups.length > 1 && (
                   <li style={{ color: 'var(--seims-warning)' }}>
                     Bạn sẽ nhận {orderGroups.length} gói hàng từ các cửa hàng khác nhau
@@ -604,7 +712,7 @@ const CustomerCheckout = () => {
               className="customer-checkout-submit"
               disabled={(cart.length === 0 && orderGroups.length === 0 && itemsForOrder.length === 0) || submitting}
             >
-              {submitting ? 'Đang xử lý...' : 'Xác nhận đặt hàng'}
+              {submitting ? 'Đang xử lý...' : (orderGroups.length > 0 ? 'Xác nhận thanh toán' : 'Xác nhận đặt hàng')}
             </button>
           </form>
         </div>
@@ -617,6 +725,15 @@ const CustomerCheckout = () => {
         onClose={() => setShowLocationModal(false)}
         onSelectLocation={handleLocationSelect}
         initialAddress={formData.address}
+      />
+
+      <CouponModal
+        isOpen={showCouponModal}
+        onClose={() => setShowCouponModal(false)}
+        coupons={availableCoupons}
+        selectedCoupon={selectedCoupon}
+        onSelectCoupon={handleSelectCoupon}
+        orderTotal={isMultiStore ? totalAmount : subtotal}
       />
     </div>
   );

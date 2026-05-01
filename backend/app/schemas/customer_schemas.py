@@ -265,3 +265,22 @@ class ValidateCartResponse(BaseModel):
 	valid: bool
 	items: List[CartItemAvailability]
 	outOfStockItems: List[str]
+
+
+# ========== Coupon Schemas ==========
+
+class CouponItemResponse(BaseModel):
+	id: int
+	code: str
+	description: Optional[str]
+	discountPercent: float
+	minAmount: Optional[float]
+	maxUses: Optional[int]
+	currentUses: int
+	validFrom: str
+	validTo: str
+	isActive: bool
+
+
+class CouponListResponse(BaseModel):
+	items: List[CouponItemResponse]

@@ -91,6 +91,12 @@ export async function fetchCharityDonationRequests() {
   return response.data.items || []
 }
 
+export async function fetchCharityDonationRequestDetail(requestId) {
+  requireCharity()
+  const response = await API.get(`/charity/donation-requests/${requestId}`)
+  return response.data
+}
+
 export async function confirmDonationReceived(requestId, payload = {}) {
   requireCharity()
   const response = await API.put(`/charity/donation-requests/${requestId}/confirm-received`, payload)

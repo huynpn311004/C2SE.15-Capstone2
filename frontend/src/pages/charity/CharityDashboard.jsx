@@ -86,6 +86,30 @@ export default function CharityDashboard() {
   const receivedList = summaryData?.receivedList || []
   const pendingList = summaryData?.pendingList || []
 
+  function getRecentRequestQty(req) {
+    if (req.reqQty || req.total_items || req.totalItems || req.qty) {
+      return req.reqQty || req.total_items || req.totalItems || req.qty
+    }
+
+    if (!req.items?.length) {
+      return 0
+    }
+
+    return req.items.reduce((sum, item) => {
+      const qty = item.quantity ?? item.qty ?? 0
+      const parsed = typeof qty === 'number' ? qty : parseInt(qty, 10)
+      return sum + (Number.isFinite(parsed) ? parsed : 0)
+    }, 0)
+  }
+
+  function getRecentRequestDate(req) {
+    return req.date || req.createdAt || req.created_at || req.received_at || ''
+  }
+
+  function getRecentRequestStatus(req) {
+    return (req.status || '').toLowerCase()
+  }
+
   return (
     <CharityLayout>
       <div className="chdash-page">
@@ -111,7 +135,6 @@ export default function CharityDashboard() {
                 <div key={idx} className={`chdash-stat-card ${stat.tone === 'warning' ? 'chdash-stat-warning' : ''}`}>
                   <div className="chdash-stat-value">{stat.value}</div>
                   <div className="chdash-stat-label">{stat.label}</div>
-                  <div className="chdash-stat-sub">{stat.sub}</div>
                 </div>
               ))}
             </div>
@@ -151,9 +174,7 @@ export default function CharityDashboard() {
                       {receivedList.map((item) => (
                         <div key={item.id} className="chdash-request-item">
                           <div className="chdash-request-info">
-                            <span className="chdash-request-id">#{item.id}</span>
-                            <span className="chdash-request-name">{item.product}</span>
-                            <span className="chdash-request-store">{item.store}</span>
+                            <span className="chdash-request-id">YC-{item.id}</span>
                           </div>
                           <div className="chdash-request-meta">
                             <span className="badge badge-success">{statusLabel.received}</span>
@@ -178,9 +199,7 @@ export default function CharityDashboard() {
                       {pendingList.map((item) => (
                         <div key={item.id} className="chdash-request-item">
                           <div className="chdash-request-info">
-                            <span className="chdash-request-id">#{item.id}</span>
-                            <span className="chdash-request-name">{item.product}</span>
-                            <span className="chdash-request-store">{item.store}</span>
+                            <span className="chdash-request-id">YC-{item.id}</span>
                           </div>
                           <div className="chdash-request-meta">
                             <span className="badge badge-warning">{statusLabel.pending}</span>
@@ -239,21 +258,23 @@ export default function CharityDashboard() {
                       <div className="chdash-empty">Chưa có yêu cầu nào.</div>
                     ) : (
                       <div className="chdash-request-list">
-                        {recentRequests.slice(0, 15).map((req) => (
-                          <div key={req.id} className="chdash-request-item">
-                            <div className="chdash-request-info">
-                              <span className="chdash-request-id">{req.id}</span>
-                              <span className="chdash-request-name">{req.item}</span>
-                              <span className="chdash-request-store">{req.store} - {req.reqQty} sản phẩm</span>
+                        {recentRequests.slice(0, 15).map((req) => {
+                          const status = getRecentRequestStatus(req)
+                          return (
+                            <div key={req.id} className="chdash-request-item">
+                              <div className="chdash-request-info">
+                                <span className="chdash-request-id">YC-{req.id}</span>
+                              </div>
+                              <div className="chdash-request-meta">
+                                <span className={`badge ${statusBadge[status] || 'badge-warning'}`}>
+                                  {statusLabel[status] || req.status || 'Chưa rõ'}
+                                </span>
+                                <span className="chdash-request-date">{getRecentRequestQty(req)} sản phẩm</span>
+                                <span className="chdash-request-date">{getRecentRequestDate(req)}</span>
+                              </div>
                             </div>
-                            <div className="chdash-request-meta">
-                              <span className={`badge ${statusBadge[req.status]}`}>
-                                {statusLabel[req.status]}
-                              </span>
-                              <span className="chdash-request-date">{req.date}</span>
-                            </div>
-                          </div>
-                        ))}
+                          )
+                        })}
                       </div>
                     )}
                   </div>

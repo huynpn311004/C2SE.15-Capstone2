@@ -185,7 +185,7 @@ export async function createDonationOffer(payload) {
 
 export async function createBulkDonationOffers(items) {
   requireStaff()
-  const response = await API.post('/staff/donation-offers/bulk', items)
+  const response = await API.post('/staff/donation-offers/bulk', { items })
   return response.data
 }
 
@@ -195,6 +195,22 @@ export async function updateDonationOfferStatus(offerId, newStatus) {
     `/staff/donation-offers/${offerId}/status`,
     { status: newStatus }
   )
+  return response.data
+}
+
+export async function updateDonationOffer(offerId, offeredQty) {
+  requireStaff()
+  const response = await API.put(
+    `/staff/donation-offers/${offerId}`,
+    null,
+    { params: { offered_qty: offeredQty } }
+  )
+  return response.data
+}
+
+export async function deleteDonationOffer(offerId) {
+  requireStaff()
+  const response = await API.delete(`/staff/donation-offers/${offerId}`)
   return response.data
 }
 
@@ -279,10 +295,19 @@ export async function importProducts(file) {
   return response.data
 }
 
-export async function fetchDonationRequests() {
+export async function fetchDonationRequests(statusFilter = 'all') {
   requireStaff()
-  const response = await API.get('/staff/donation-requests')
+  const params = {}
+  if (statusFilter !== 'all') params.status_filter = statusFilter
+
+  const response = await API.get('/staff/donation-requests', { params })
   return response.data.items || []
+}
+
+export async function fetchDonationRequestDetail(requestId) {
+  requireStaff()
+  const response = await API.get(`/staff/donation-requests/${requestId}`)
+  return response.data
 }
 
 export async function updateDonationRequestStatus(requestId, newStatus) {

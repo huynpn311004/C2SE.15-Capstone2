@@ -12,6 +12,7 @@ from app.models.supermarket import Supermarket
 from app.models.order import Order
 from app.models.audit_log import AuditLog
 from app.models.donation_request import DonationRequest
+from app.models.donation_request_item import DonationRequestItem
 from app.models.donation_offer import DonationOffer
 from app.models.inventory_lot import InventoryLot
 from app.models.product import Product
@@ -328,22 +329,19 @@ def list_donation_monitoring(db: Session, user_id: int, status_filter: str = "al
 
     query = db.query(
         DonationRequest.id,
-        DonationRequest.request_qty,
         DonationRequest.status,
         DonationRequest.received_at,
         DonationRequest.created_at,
-        Product.name.label('product_name'),
-        InventoryLot.expiry_date,
+        func.sum(DonationRequestItem.quantity).label('total_qty'),
+        func.count(DonationRequestItem.id).label('item_count'),
         Store.name.label('store_name'),
         User.full_name.label('charity_name'),
     ).join(
-        DonationOffer, DonationOffer.id == DonationRequest.offer_id
+        DonationRequestItem, DonationRequestItem.request_id == DonationRequest.id
+    ).join(
+        DonationOffer, DonationOffer.id == DonationRequestItem.offer_id
     ).join(
         Store, Store.id == DonationOffer.store_id
-    ).join(
-        InventoryLot, InventoryLot.id == DonationOffer.lot_id
-    ).join(
-        Product, Product.id == InventoryLot.product_id
     ).join(
         User, User.id == DonationRequest.charity_id
     ).filter(
@@ -351,9 +349,16 @@ def list_donation_monitoring(db: Session, user_id: int, status_filter: str = "al
     )
 
     if status_filter != "all":
-        query = query.filter(DonationRequest.status == status_filter)
+        query = query.filter(DonationRequest.status == status_filter.upper())
 
-    rows = query.order_by(
+    rows = query.group_by(
+        DonationRequest.id,
+        DonationRequest.status,
+        DonationRequest.received_at,
+        DonationRequest.created_at,
+        Store.name,
+        User.full_name,
+    ).order_by(
         DonationRequest.created_at.desc()
     ).limit(500).all()
 
@@ -361,13 +366,12 @@ def list_donation_monitoring(db: Session, user_id: int, status_filter: str = "al
     for row in rows:
         items.append({
             "id": row.id,
-            "items": row.product_name,
-            "quantity": int(row.request_qty or 0),
+            "quantity": int(row.total_qty or 0),
+            "item_count": int(row.item_count or 0),
             "store": row.store_name or "-",
             "recipient": row.charity_name or "-",
-            "status": row.status,
+            "status": row.status.lower() if row.status else 'pending',
             "date": row.created_at.strftime("%d/%m/%Y %H:%M") if row.created_at else "-",
-            "exp": row.expiry_date.strftime("%d/%m/%Y") if row.expiry_date else "-",
         })
 
     return {"items": items}
@@ -600,9 +604,11 @@ def get_dashboard_summary(db: Session, user_id: int, period: str = "daily") -> d
     # --- Donations in period ---
     donation_metric = db.query(
         func.count(DonationRequest.id).label("donation_count"),
-        func.coalesce(func.sum(DonationRequest.request_qty), 0).label("donation_products"),
+        func.coalesce(func.sum(DonationRequestItem.quantity), 0).label("donation_products"),
     ).join(
-        DonationOffer, DonationOffer.id == DonationRequest.offer_id
+        DonationRequestItem, DonationRequestItem.request_id == DonationRequest.id
+    ).join(
+        DonationOffer, DonationOffer.id == DonationRequestItem.offer_id
     ).join(
         Store, Store.id == DonationOffer.store_id
     ).filter(
@@ -632,8 +638,10 @@ def get_dashboard_summary(db: Session, user_id: int, period: str = "daily") -> d
     ).outerjoin(
         DonationOffer, DonationOffer.store_id == Store.id
     ).outerjoin(
+        DonationRequestItem, DonationRequestItem.offer_id == DonationOffer.id
+    ).outerjoin(
         DonationRequest,
-        and_(DonationRequest.offer_id == DonationOffer.id, DonationRequest.created_at >= current_from)
+        and_(DonationRequest.id == DonationRequestItem.request_id, DonationRequest.created_at >= current_from)
     ).filter(
         Store.supermarket_id == supermarket_id
     ).group_by(Store.id, Store.name).limit(10).all()

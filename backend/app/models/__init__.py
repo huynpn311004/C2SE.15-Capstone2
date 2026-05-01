@@ -7,6 +7,7 @@ from app.models.delivery_partner import DeliveryPartner
 from app.models.discount_policy import DiscountPolicy
 from app.models.donation_offer import DonationOffer
 from app.models.donation_request import DonationRequest
+from app.models.donation_request_item import DonationRequestItem
 from app.models.inventory_lot import InventoryLot
 from app.models.notification import Notification
 from app.models.order import Order
@@ -27,6 +28,7 @@ __all__ = [
 	"OrderItem",
 	"DonationOffer",
 	"DonationRequest",
+	"DonationRequestItem",
 	"Delivery",
 	"Notification",
 	"AuditLog",

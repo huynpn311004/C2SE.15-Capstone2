@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getProductImageUrl } from '../../services/staffApi';
-import { validateCartStock, fetchCustomerProductDetail } from '../../services/customerApi';
+import { validateCartStock, fetchCustomerProductDetail, createMultiStoreOrder } from '../../services/customerApi';
 import './CustomerCart.css';
 
 const CART_KEY = 'seims_customer_cart';
@@ -70,6 +70,17 @@ const CustomerCart = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null); // productId cần xóa
   const [selectedItems, setSelectedItems] = useState({}); // { [productId]: boolean }
+
+  const getProfile = () => {
+    try {
+      const authRaw = localStorage.getItem('seims_auth_user');
+      const authUser = authRaw ? JSON.parse(authRaw) : null;
+      return authUser || {};
+    } catch { return {}; }
+  };
+
+  const profile = getProfile();
+  const shippingAddress = profile.address || '';
 
   // Initialize selected items when cart is loaded
   useEffect(() => {
@@ -290,6 +301,13 @@ const CustomerCart = () => {
         return;
       }
 
+      // Check if shipping address is available
+      if (!shippingAddress) {
+        showToast('Vui lòng cập nhật địa chỉ giao hàng trong hồ sơ trước khi thanh toán.');
+        setIsProcessing(false);
+        return;
+      }
+
       // Validate all selected cart items stock before checkout
       const validationItems = selectedCartItems.map(item => ({
         productId: item.id,
@@ -306,45 +324,29 @@ const CustomerCart = () => {
         return;
       }
 
-      // Group selected cart items by storeId for display
-      const storeGroups = {};
-      selectedCartItems.forEach(item => {
-        const storeId = item.storeId || item.store_id;
-        if (!storeGroups[storeId]) {
-          storeGroups[storeId] = {
-            storeId,
-            storeName: item.storeName || item.shop || `Cửa hàng ${storeId}`,
-            items: []
-          };
-        }
-        storeGroups[storeId].items.push(item);
+      // Create orders immediately to reserve stock
+      const result = await createMultiStoreOrder({
+        items: validationItems,
+        paymentMethod: 'cod',
+        shippingAddress: shippingAddress,
       });
 
-      // Prepare items for checkout (orders will be created AFTER user confirms address)
-      const items = selectedCartItems.map(item => ({
-        productId: item.id,
-        quantity: item.quantity,
-        lotCode: item.lotCode || null,
-        storeId: item.storeId || item.store_id,
-      }));
-
-      // Navigate to checkout page WITHOUT creating orders yet
-      // Orders will be created in checkout form submission with user-entered address
-      showToast('✅ Kiểm tra hàng thành công! Vui lòng điền địa chỉ giao hàng.');
+      // Navigate to checkout with created orders
+      showToast('✅ Đặt hàng và giữ chỗ thành công! Vui lòng xác nhận thông tin.');
 
       setTimeout(() => {
         navigate('/customer/checkout', {
           state: {
-            cartItems: selectedCartItems,
-            itemsForOrder: items,
+            orderGroups: result.orderGroups,
+            totalAmount: result.totalAmount,
             isMultiStore: true,
-            totalAmount: subtotal,
+            totalOrders: result.totalOrders,
           }
         });
       }, 1500);
 
     } catch (err) {
-      console.error('Failed to reserve:', err);
+      console.error('Failed to create orders:', err);
       const errorMsg = err.response?.data?.detail || 'Lỗi! Vui lòng thử lại.';
       showToast(errorMsg);
     } finally {
@@ -429,7 +431,7 @@ const CustomerCart = () => {
         {/* Cart Items */}
         <div className="cart-products-section cart-items-section">
           <div className="cart-section-header">
-            <div>
+            <div className="cart-header-left">
               <h3 className="cart-section-title">Danh sách sản phẩm</h3>
               <p className="cart-section-subtitle">{cart.length} sản phẩm trong giỏ hàng</p>
               {groupList.length > 1 && (
@@ -438,22 +440,24 @@ const CustomerCart = () => {
                 </p>
               )}
             </div>
-            {cart.length > 0 && (
-              <button className="cart-clear-btn" onClick={handleClearCart}>
-                🗑 Xóa tất cả
-              </button>
-            )}
-            {cart.length > 0 && (
-              <label className="cart-select-all" style={{ cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={cart.length > 0 && cart.every(item => selectedItems[item.id])}
-                  onChange={toggleSelectAll}
-                  style={{ width: '18px', height: '18px', accentColor: 'var(--seims-teal)' }}
-                />
-                <span>Chọn tất cả</span>
-              </label>
-            )}
+            <div className="cart-header-right">
+              {cart.length > 0 && (
+                <button className="cart-clear-btn" onClick={handleClearCart}>
+                  🗑 Xóa tất cả
+                </button>
+              )}
+              {cart.length > 0 && (
+                <label className="cart-select-all" style={{ cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={cart.length > 0 && cart.every(item => selectedItems[item.id])}
+                    onChange={toggleSelectAll}
+                    style={{ width: '18px', height: '18px', accentColor: 'var(--seims-teal)' }}
+                  />
+                  <span>Chọn tất cả</span>
+                </label>
+              )}
+            </div>
           </div>
 
           <div className="cart-content">
@@ -556,11 +560,9 @@ const CustomerCart = () => {
           {selectedCount > 0 ? (
             <>
               <div className="cart-section-header">
-                <div>
+                <div className="cart-header-left">
                   <h3 className="cart-section-title">Tóm tắt đơn hàng</h3>
-                  <p style={{ fontSize: '0.8rem', color: 'var(--seims-muted)' }}>
-                    {selectedCount} sản phẩm đã chọn
-                  </p>
+                  <p className="cart-section-subtitle">{selectedCount} sản phẩm đã chọn</p>
                 </div>
               </div>
 
@@ -600,12 +602,14 @@ const CustomerCart = () => {
                   <span className="cart-summary-label">Phí vận chuyển</span>
                   <span className="cart-summary-value" style={{ color: 'var(--seims-success)' }}>Miễn phí</span>
                 </div>
-                <div className="cart-summary-savings">
-                  <span className="cart-summary-label">Tiết kiệm</span>
-                  <span className="cart-summary-value" style={{ color: 'var(--seims-warning)' }}>
-                    -{totalSavings.toLocaleString()}đ
-                  </span>
-                </div>
+                {totalSavings > 0 && (
+                  <div className="cart-summary-savings">
+                    <span className="cart-summary-label">Tiết kiệm</span>
+                    <span className="cart-summary-value" style={{ color: 'var(--seims-warning)' }}>
+                      -{totalSavings.toLocaleString()}đ
+                    </span>
+                  </div>
+                )}
 
                 <div className="cart-grand-total">
                   <span className="cart-grand-total-label">Tổng thanh toán</span>

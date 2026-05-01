@@ -19,9 +19,8 @@ export default function DonationMarket() {
   const [offers, setOffers] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [selected, setSelected] = useState(null)
-  const [requestQty, setRequestQty] = useState(1)
-  const [note, setNote] = useState('')
+  const [selectedItems, setSelectedItems] = useState({}) // { offerId: qty }
+  const [showModal, setShowModal] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [submitSuccess, setSubmitSuccess] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -38,7 +37,13 @@ export default function DonationMarket() {
       const data = await fetchCharityDonationOffers()
       setOffers(data || [])
     } catch (err) {
-      setError(err?.response?.data?.detail || err.message || 'Không thể tải danh sách donation')
+      const detail = err?.response?.data?.detail
+      if (Array.isArray(detail)) {
+        const messages = detail.map(e => e.msg).join(', ')
+        setError(messages || 'Không thể tải danh sách donation')
+      } else {
+        setError(detail || err.message || 'Không thể tải danh sách donation')
+      }
       setOffers([])
     } finally {
       setLoading(false)
@@ -47,18 +52,39 @@ export default function DonationMarket() {
 
   const filtered = filter === 'all' ? offers : offers.filter(o => o.status === filter)
 
-  function openRequest(offer) {
-    setSelected(offer)
-    setRequestQty(1)
-    setNote('')
+  const selectedCount = Object.keys(selectedItems).length
+
+  function toggleItem(offerId) {
+    setSelectedItems(prev => {
+      if (prev[offerId]) {
+        const next = { ...prev }
+        delete next[offerId]
+        return next
+      }
+      return { ...prev, [offerId]: 1 }
+    })
+  }
+
+  function updateQty(offerId, qty) {
+    const offer = offers.find(o => o.id === offerId)
+    const maxQty = offer?.qty || 1
+    const newQty = Math.max(1, Math.min(qty, maxQty))
+    setSelectedItems(prev => ({ ...prev, [offerId]: newQty }))
+  }
+
+  function openCart() {
+    setShowModal(true)
     setSubmitError('')
     setSubmitSuccess('')
   }
 
   function closeModal() {
-    setSelected(null)
-    setSubmitError('')
-    setSubmitSuccess('')
+    setShowModal(false)
+  }
+
+  function clearSelection() {
+    setSelectedItems({})
+    setShowModal(false)
   }
 
   async function handleSubmit(e) {
@@ -66,25 +92,32 @@ export default function DonationMarket() {
     setSubmitError('')
     setSubmitSuccess('')
 
-    if (!selected) return
+    const items = Object.entries(selectedItems).map(([offerId, qty]) => ({
+      offer_id: parseInt(offerId),
+      quantity: qty
+    }))
 
-    if (requestQty < 1 || requestQty > selected.qty) {
-      setSubmitError(`Số lượng phải từ 1 đến ${selected.qty}.`)
+    if (items.length === 0) {
+      setSubmitError('Vui lòng chọn ít nhất 1 sản phẩm.')
       return
     }
 
     setSubmitting(true)
     try {
-      await createDonationRequest({
-        offerId: selected.id,
-        requestQty: requestQty,
-        note: note,
-      })
-      setSubmitSuccess(`Đã gửi yêu cầu nhận ${requestQty} sản phẩm "${selected.name}" thành công!`)
+      await createDonationRequest({ items })
+      const count = items.length
+      setSubmitSuccess(`Đã gửi yêu cầu nhận ${count} sản phẩm thành công!`)
+      setSelectedItems({})
       await loadOffers()
       setTimeout(() => closeModal(), 1500)
     } catch (err) {
-      setSubmitError(err?.response?.data?.detail || err.message || 'Gửi yêu cầu thất bại')
+      const detail = err?.response?.data?.detail
+      if (Array.isArray(detail)) {
+        const messages = detail.map(e => e.msg).join(', ')
+        setSubmitError(messages || 'Gửi yêu cầu thất bại')
+      } else {
+        setSubmitError(detail || err.message || 'Gửi yêu cầu thất bại')
+      }
     } finally {
       setSubmitting(false)
     }
@@ -104,7 +137,14 @@ export default function DonationMarket() {
               <option value="out_of_stock">Hết Hàng</option>
             </select>
           </div>
-          <div className="chmarket-toolbar-info">Hiển thị {filtered.length} donation offer</div>
+          <div className="chmarket-toolbar-right">
+            <div className="chmarket-toolbar-info">Hiển thị {filtered.length} donation offer</div>
+            {selectedCount > 0 && (
+              <button className="chmarket-btn-cart" onClick={openCart}>
+                Xem đơn ({selectedCount})
+              </button>
+            )}
+          </div>
         </div>
 
         {/* LOADING / ERROR */}
@@ -128,81 +168,99 @@ export default function DonationMarket() {
             {filtered.length === 0 ? (
               <div className="chmarket-empty">Không có donation nào.</div>
             ) : (
-              filtered.map(offer => (
-                <div key={offer.id} className={`chmarket-card ${offer.qty === 0 ? 'chmarket-card-disabled' : ''}`}>
-                  <div className="chmarket-card-header">
-                    <span className={`badge ${statusBadge[offer.status]}`}>
-                      {statusLabel[offer.status]}
-                    </span>
-                  </div>
-                  <h3 className="chmarket-card-name">{offer.name}</h3>
-                  <p className="chmarket-card-detail">Kho: <strong>{offer.qty}</strong> | HSD: {offer.exp}</p>
-                  <p className="chmarket-card-store">{offer.store}</p>
-                  {offer.supermarket && offer.supermarket !== offer.store && (
-                    <p className="chmarket-card-store chmarket-card-super">{offer.supermarket}</p>
-                  )}
-                  <button
-                    onClick={() => openRequest(offer)}
-                    disabled={offer.qty === 0 || offer.myRequestStatus === 'pending' || offer.myRequestStatus === 'approved'}
-                    className={`chmarket-btn-request ${offer.qty === 0 ? 'chmarket-btn-disabled' : ''} ${offer.myRequestStatus === 'pending' || offer.myRequestStatus === 'approved' ? 'chmarket-btn-pending' : ''}`}
+              filtered.map(offer => {
+                const isSelected = !!selectedItems[offer.id]
+                const isDisabled = offer.qty === 0 || offer.myRequestStatus === 'pending' || offer.myRequestStatus === 'approved'
+                return (
+                  <div
+                    key={offer.id}
+                    className={`chmarket-card ${offer.qty === 0 ? 'chmarket-card-disabled' : ''} ${isSelected ? 'chmarket-card-selected' : ''}`}
                   >
-                    {offer.myRequestStatus === 'pending' || offer.myRequestStatus === 'approved'
-                      ? 'Đã gửi yêu cầu'
-                      : offer.qty === 0
-                        ? 'Hết hàng'
-                        : 'Gửi yêu cầu nhận hàng'}
-                  </button>
-                </div>
-              ))
+                    <div className="chmarket-card-header">
+                      <span className={`badge ${statusBadge[offer.status]}`}>
+                        {statusLabel[offer.status]}
+                      </span>
+                    </div>
+                    <h3 className="chmarket-card-name">{offer.name}</h3>
+                    <p className="chmarket-card-detail">Kho: <strong>{offer.qty}</strong> | HSD: {offer.exp}</p>
+                    <p className="chmarket-card-store">{offer.store}</p>
+                    {offer.supermarket && offer.supermarket !== offer.store && (
+                      <p className="chmarket-card-store chmarket-card-super">{offer.supermarket}</p>
+                    )}
+                    <div className="chmarket-card-actions">
+                      <label className={`chmarket-checkbox-label ${isDisabled ? 'chmarket-checkbox-disabled' : ''}`}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          disabled={isDisabled}
+                          onChange={() => toggleItem(offer.id)}
+                        />
+                        Chọn
+                      </label>
+                    </div>
+                  </div>
+                )
+              })
             )}
           </div>
         )}
 
-        {/* REQUEST MODAL */}
-        {selected && (
+        {/* CART / REQUEST MODAL */}
+        {showModal && (
           <div className="chmarket-modal-overlay" onClick={closeModal}>
-            <div className="chmarket-modal" onClick={e => e.stopPropagation()}>
+            <div className="chmarket-modal chmarket-modal-cart" onClick={e => e.stopPropagation()}>
               <div className="chmarket-modal-header">
-                <h3>Yêu Cầu Nhận Hàng</h3>
+                <h3>Đơn Yêu Cầu Nhận Hàng</h3>
                 <button className="chmarket-modal-close" onClick={closeModal}>X</button>
               </div>
               <form className="chmarket-modal-body" onSubmit={handleSubmit}>
-                <p className="chmarket-modal-subtitle">
-                  Bạn đang yêu cầu nhận hàng từ: <strong>{selected.store}</strong>
-                </p>
-                <div className="chmarket-modal-product">
-                  <strong>{selected.name}</strong>
-                  <span>Kho: {selected.qty} | HSD: {selected.exp}</span>
-                </div>
-                <div className="chmarket-form-field">
-                  <label>Số lượng muốn nhận (Tối đa: {selected.qty})</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max={selected.qty}
-                    value={requestQty}
-                    onChange={e => setRequestQty(Number(e.target.value))}
-                    className="chmarket-input"
-                    required
-                  />
-                </div>
-                <div className="chmarket-form-field">
-                  <label>Ghi chú (Không bắt buộc)</label>
-                  <textarea
-                    value={note}
-                    onChange={e => setNote(e.target.value)}
-                    className="chmarket-input chmarket-textarea"
-                    placeholder="Lý do nhận hàng hoặc thời gian lấy hàng..."
-                    rows={3}
-                  />
+                <div className="chmarket-cart-items">
+                  {Object.entries(selectedItems).map(([offerId, qty]) => {
+                    const offer = offers.find(o => o.id === parseInt(offerId))
+                    if (!offer) return null
+                    return (
+                      <div key={offerId} className="chmarket-cart-item">
+                        <div className="chmarket-cart-item-info">
+                          <strong>{offer.name}</strong>
+                          <span>{offer.store} | Kho: {offer.qty}</span>
+                        </div>
+                        <div className="chmarket-cart-item-right">
+                          <div className="chmarket-qty-control">
+                            <button
+                              type="button"
+                              onClick={() => updateQty(parseInt(offerId), qty - 1)}
+                              disabled={qty <= 1}
+                            >-</button>
+                            <input
+                              type="number"
+                              min="1"
+                              max={offer.qty}
+                              value={qty}
+                              onChange={e => updateQty(parseInt(offerId), parseInt(e.target.value) || 1)}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => updateQty(parseInt(offerId), qty + 1)}
+                              disabled={qty >= offer.qty}
+                            >+</button>
+                          </div>
+                          <button
+                            type="button"
+                            className="chmarket-cart-remove"
+                            onClick={() => toggleItem(parseInt(offerId))}
+                          >✕</button>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
                 {submitError && <p className="chmarket-error">{submitError}</p>}
                 {submitSuccess && <p className="chmarket-success">{submitSuccess}</p>}
                 <div className="chmarket-form-footer">
                   <div className="chmarket-form-actions">
-                    <button type="button" className="btn-large btn-close" onClick={closeModal} disabled={submitting}>Hủy</button>
-                    <button type="submit" className="btn-large chmarket-btn-submit" disabled={submitting}>
-                      {submitting ? 'Đang gửi...' : 'Xác Nhận'}
+                    <button type="button" className="btn-large btn-close" onClick={clearSelection} disabled={submitting}>Hủy Đơn</button>
+                    <button type="submit" className="btn-large chmarket-btn-submit" disabled={submitting || selectedCount === 0}>
+                      {submitting ? 'Đang gửi...' : `Xác Nhận (${selectedCount})`}
                     </button>
                   </div>
                 </div>

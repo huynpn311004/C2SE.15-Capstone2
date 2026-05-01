@@ -264,7 +264,7 @@ def delete_delivery_partner(delivery_id: int, db: Session = Depends(get_db), _: 
 
 @router.post("/cleanup-expired-reservations")
 def cleanup_expired_reservations(
-	timeout_minutes: int = Query(default=15, ge=1),
+	timeout_minutes: int = Query(default=3, ge=1),
 	db: Session = Depends(get_db),
 	_: None = Depends(require_admin),
 ):
