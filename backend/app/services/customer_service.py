@@ -851,7 +851,7 @@ def create_customer_order(
 	logger = logging.getLogger(__name__)
 	
 	# Auto-cleanup expired reservations BEFORE creating new order
-	cleanup_result = _auto_cleanup_expired_reservations(db, timeout_minutes=15)
+	cleanup_result = _auto_cleanup_expired_reservations(db, timeout_minutes=3)
 	if cleanup_result["cleanedOrders"] > 0:
 		logger.info(f"Auto-cleanup before order: {cleanup_result['cleanedOrders']} expired orders")
 	
@@ -1148,7 +1148,7 @@ def confirm_customer_order(db: Session, order_id: int, user_id: int) -> dict:
 	return {"success": True, "message": "Xac nhan thanh toan thanh cong"}
 
 
-def _auto_cleanup_expired_reservations(db: Session, timeout_minutes: int = 15) -> dict:
+def _auto_cleanup_expired_reservations(db: Session, timeout_minutes: int = 3) -> dict:
 	"""
 	Auto-cleanup expired reservations before any stock operation.
 	SECOND layer of protection - validates and releases expired
@@ -1204,7 +1204,7 @@ def _auto_cleanup_expired_reservations(db: Session, timeout_minutes: int = 15) -
 	}
 
 
-def restore_expired_reserved_stock(db: Session, timeout_minutes: int = 15) -> dict:
+def restore_expired_reserved_stock(db: Session, timeout_minutes: int = 3) -> dict:
 	"""
 	Restore reserved stock for orders that haven't been paid within timeout period.
 	Should be called periodically (e.g., every 5 minutes via scheduled task).
@@ -1293,7 +1293,7 @@ def validate_cart_stock(db: Session, items: list, user_id: int = None) -> dict:
 	
 	# FIRST: Auto-cleanup expired reservations BEFORE checking stock
 	# This ensures expired reservations don't block valid purchases
-	cleanup_result = _auto_cleanup_expired_reservations(db, timeout_minutes=15)
+	cleanup_result = _auto_cleanup_expired_reservations(db, timeout_minutes=3)
 	if cleanup_result["cleanedOrders"] > 0:
 		logger.info(f"Auto-cleanup during validation: {cleanup_result['cleanedOrders']} expired orders released")
 	
@@ -1398,3 +1398,58 @@ def validate_cart_stock(db: Session, items: list, user_id: int = None) -> dict:
 		"items": results,
 		"outOfStockItems": out_of_stock
 	}
+
+
+# ========== Coupon Services ==========
+
+def list_available_coupons(db: Session) -> dict:
+	"""
+	List all available coupons for customers.
+	Returns coupons that are:
+	- Active (is_active = True)
+	- Not expired (valid_to >= now)
+	- Have remaining uses (current_uses < max_uses or max_uses is None/unlimited)
+	"""
+	from app.models.coupon import Coupon
+	from datetime import datetime
+
+	now = datetime.now()
+
+	# Query coupons that are active, not expired, and have remaining uses
+	coupons = db.query(
+		Coupon.id,
+		Coupon.code,
+		Coupon.description,
+		Coupon.discount_percent,
+		Coupon.min_amount,
+		Coupon.max_uses,
+		Coupon.current_uses,
+		Coupon.valid_from,
+		Coupon.valid_to,
+		Coupon.is_active,
+	).filter(
+		Coupon.is_active == True,
+		Coupon.valid_to >= now
+	).order_by(Coupon.discount_percent.desc()).all()
+
+	items = []
+	for coupon in coupons:
+		# Check if coupon has remaining uses
+		has_remaining = True
+		if coupon.max_uses is not None and coupon.current_uses >= coupon.max_uses:
+			has_remaining = False
+
+		items.append({
+			"id": coupon.id,
+			"code": coupon.code,
+			"description": coupon.description or "",
+			"discountPercent": float(coupon.discount_percent or 0),
+			"minAmount": float(coupon.min_amount) if coupon.min_amount else None,
+			"maxUses": coupon.max_uses,
+			"currentUses": coupon.current_uses or 0,
+			"validFrom": coupon.valid_from.strftime("%Y-%m-%d") if coupon.valid_from else "",
+			"validTo": coupon.valid_to.strftime("%Y-%m-%d") if coupon.valid_to else "",
+			"isActive": coupon.is_active,
+		})
+
+	return {"items": items}

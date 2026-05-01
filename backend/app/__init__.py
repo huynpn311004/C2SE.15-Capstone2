@@ -27,6 +27,35 @@ logger = logging.getLogger(__name__)
 
 def create_app():
     app = FastAPI()
+    
+    # Custom exception handler to add CORS headers to error responses
+    from fastapi.responses import JSONResponse
+    from starlette.exceptions import HTTPException as StarletteHTTPException
+    
+    @app.exception_handler(StarletteHTTPException)
+    async def http_exception_handler(request, exc):
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail},
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "*",
+                "Access-Control-Allow-Headers": "*",
+            }
+        )
+    
+    @app.exception_handler(Exception)
+    async def general_exception_handler(request, exc):
+        return JSONResponse(
+            status_code=500,
+            content={"detail": str(exc) if hasattr(exc, '__str__') else "Internal server error"},
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "*",
+                "Access-Control-Allow-Headers": "*",
+            }
+        )
+    
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[
@@ -46,7 +75,7 @@ def create_app():
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-        response.headers["Content-Security-Policy"] = "default-src 'self'"
+        response.headers["Content-Security-Policy"] = "default-src 'self'; connect-src 'self' http://localhost:5173 http://127.0.0.1:5173 http://127.0.0.1:8000 http://localhost:8000; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'"
         return response
 
     uploads_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads")
@@ -62,7 +91,7 @@ def create_app():
         db = None
         try:
             db = next(get_db())
-            result = restore_expired_reserved_stock(db, timeout_minutes=15)
+            result = restore_expired_reserved_stock(db, timeout_minutes=3)
             logger.info(f"Cleanup task completed: {result}")
         except Exception as e:
             logger.error(f"Error in cleanup task: {str(e)}")
@@ -82,7 +111,7 @@ def create_app():
             logger.info("Background scheduler started")
         try:
             db = next(get_db())
-            result = restore_expired_reserved_stock(db, timeout_minutes=15)
+            result = restore_expired_reserved_stock(db, timeout_minutes=3)
             logger.info(f"Startup cleanup completed: {result}")
             db.close()
         except Exception as e:

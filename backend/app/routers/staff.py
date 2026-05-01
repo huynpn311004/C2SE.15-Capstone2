@@ -320,6 +320,25 @@ def update_staff_donation_offer_status(
     return staff_service.update_donation_offer_status(db, current_user.id, offer_id, new_status)
 
 
+@router.put("/donation-offers/{offer_id}")
+def update_staff_donation_offer(
+	offer_id: int,
+	offered_qty: int = Query(..., ge=1),
+	current_user: User = Depends(get_current_user),
+	db: Session = Depends(get_db),
+):
+    return staff_service.update_donation_offer(db, current_user.id, offer_id, offered_qty)
+
+
+@router.delete("/donation-offers/{offer_id}")
+def delete_staff_donation_offer(
+	offer_id: int,
+	current_user: User = Depends(get_current_user),
+	db: Session = Depends(get_db),
+):
+    return staff_service.delete_donation_offer(db, current_user.id, offer_id)
+
+
 # ========== Donation Requests ==========
 @router.get("/donation-requests")
 def list_staff_donation_requests(
@@ -328,6 +347,15 @@ def list_staff_donation_requests(
 	db: Session = Depends(get_db),
 ):
     return staff_service.list_staff_donation_requests(db, current_user.id, status_filter)
+
+
+@router.get("/donation-requests/{request_id}")
+def get_staff_donation_request_detail(
+	request_id: int,
+	current_user: User = Depends(get_current_user),
+	db: Session = Depends(get_db),
+):
+    return staff_service.get_staff_donation_request_detail(db, current_user.id, request_id)
 
 
 @router.put("/donation-requests/{request_id}/status")

@@ -134,11 +134,24 @@ export async function cancelCustomerOrder(orderId) {
   return response.data
 }
 
+export async function confirmCustomerOrder(orderId) {
+  requireCustomer()
+  const response = await API.put(`/customer/orders/${orderId}/confirm-payment`)
+  return response.data
+}
+
 // Dashboard
 export async function fetchCustomerDashboardSummary() {
   requireCustomer()
   const response = await API.get('/customer/dashboard-summary')
   return response.data
+}
+
+// Coupons
+export async function fetchAvailableCoupons() {
+  requireCustomer()
+  const response = await API.get('/customer/coupons')
+  return response.data.items || []
 }
 
 // Helpers

@@ -243,4 +243,4 @@ class CreateBulkDonationOffersRequest(BaseModel):
 
 
 class UpdateDonationRequestStatusRequest(BaseModel):
-    status: str
+    status: str = Field(..., pattern="^(APPROVED|REJECTED)$")

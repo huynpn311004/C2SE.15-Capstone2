@@ -56,7 +56,9 @@ class DonationRequestsResponse(BaseModel):
     items: list[DonationRequestItem]
 
 
+class CreateDonationRequestItem(BaseModel):
+    offer_id: int
+    quantity: int
+
 class CreateDonationRequestRequest(BaseModel):
-    offerId: int
-    requestQty: int
-    note: str = ""
+    items: list[CreateDonationRequestItem]

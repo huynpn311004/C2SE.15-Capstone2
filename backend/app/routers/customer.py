@@ -24,6 +24,7 @@ from app.schemas.customer_schemas import (
 	SuccessResponse,
 	ValidateCartRequest,
 	ValidateCartResponse,
+	CouponListResponse,
 )
 from app.services.customer_service import (
 	get_customer_profile,
@@ -236,3 +237,19 @@ def validate_cart_items(
 	from app.services.customer_service import validate_cart_stock
 
 	return validate_cart_stock(db, data.items, current_user.id)
+
+
+# ========== Coupon Endpoints ==========
+
+@router.get("/coupons", response_model=CouponListResponse)
+def list_available_coupons(
+	current_user: User = Depends(get_current_user),
+	db: Session = Depends(get_db),
+):
+	"""
+	Get all available coupons for the customer.
+	Returns coupons that are active, not expired, and have remaining uses.
+	"""
+	from app.services.customer_service import list_available_coupons
+
+	return list_available_coupons(db)

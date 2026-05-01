@@ -4,23 +4,31 @@ import {
   fetchDonationOffers,
   createBulkDonationOffers,
   updateDonationOfferStatus,
+  updateDonationOffer,
+  deleteDonationOffer,
   fetchDonationRequests,
+  fetchDonationRequestDetail,
   updateDonationRequestStatus,
   fetchInventoryLotsForDonation,
 } from '../../services/staffApi'
 import './DonationManagement.css'
 
 function getBadgeClass(status) {
-  if (status === 'Approved') return 'badge-success'
-  if (status === 'Rejected') return 'badge-danger'
+  if (status === 'open') return 'badge-warning'
+  if (status === 'PENDING') return 'badge-warning'
+  if (status === 'APPROVED') return 'badge-success'
+  if (status === 'REJECTED') return 'badge-danger'
+  if (status === 'RECEIVED') return 'badge-success'
   if (status === 'Cancelled') return 'badge-muted'
-  return 'badge-warning'
+  return 'badge-muted'
 }
 
 function getStatusLabel(status) {
-  if (status === 'Pending') return 'Đang Chờ'
-  if (status === 'Approved') return 'Đã Duyệt'
-  if (status === 'Rejected') return 'Đã Từ Chối'
+  if (status === 'open') return 'Mở'
+  if (status === 'PENDING') return 'Đang Chờ'
+  if (status === 'APPROVED') return 'Đã Duyệt'
+  if (status === 'REJECTED') return 'Đã Từ Chối'
+  if (status === 'RECEIVED') return 'Đã Nhận'
   if (status === 'Cancelled') return 'Đã Hủy'
   return status
 }
@@ -35,20 +43,30 @@ export default function DonationManagement() {
   const [createSuccess, setCreateSuccess] = useState('')
   const [inventoryLots, setInventoryLots] = useState([])
   const [loadingLots, setLoadingLots] = useState(false)
+  const [statusFilter, setStatusFilter] = useState('all')
+
+  // Detail modal state
+  const [showDetailModal, setShowDetailModal] = useState(false)
+  const [selectedRequest, setSelectedRequest] = useState(null)
+  const [loadingDetail, setLoadingDetail] = useState(false)
 
   // selectedItems: array of { lotId, quantity }
   const [selectedItems, setSelectedItems] = useState([])
 
+  // State for editing donation offers
+  const [editingOfferId, setEditingOfferId] = useState(null)
+  const [editQuantity, setEditQuantity] = useState(1)
+
   useEffect(() => {
     loadData()
-  }, [])
+  }, [statusFilter])
 
   async function loadData() {
     try {
       setLoading(true)
       const [offersData, requestsData] = await Promise.all([
         fetchDonationOffers(),
-        fetchDonationRequests(),
+        fetchDonationRequests(statusFilter),
       ])
       setOffers(offersData)
       setRequests(requestsData)
@@ -63,13 +81,61 @@ export default function DonationManagement() {
     setLoadingLots(true)
     try {
       const lots = await fetchInventoryLotsForDonation()
-      // Chỉ lấy những lot có số lượng > 0
       const availableLots = lots.filter(lot => lot.quantity > 0)
       setInventoryLots(availableLots)
     } catch (err) {
       console.error('Failed to load inventory lots:', err)
     } finally {
       setLoadingLots(false)
+    }
+  }
+
+  // ========== Request Detail Modal ==========
+  async function openRequestDetail(requestId) {
+    setLoadingDetail(true)
+    setShowDetailModal(true)
+    try {
+      const detail = await fetchDonationRequestDetail(requestId)
+      setSelectedRequest(detail)
+    } catch (err) {
+      console.error('Failed to load request detail:', err)
+      alert('Không thể tải chi tiết yêu cầu')
+      setShowDetailModal(false)
+    } finally {
+      setLoadingDetail(false)
+    }
+  }
+
+  function closeRequestDetail() {
+    setShowDetailModal(false)
+    setSelectedRequest(null)
+  }
+
+  async function handleApproveRequest(requestId) {
+    if (!confirm('Bạn có chắc muốn duyệt yêu cầu này?')) return
+    try {
+      await updateDonationRequestStatus(requestId, 'APPROVED')
+      alert('Đã duyệt yêu cầu thành công!')
+      closeRequestDetail()
+      loadData()
+    } catch (err) {
+      console.error('Failed to approve request:', err)
+      const detail = err?.response?.data?.detail || 'Duyệt thất bại'
+      alert(detail)
+    }
+  }
+
+  async function handleRejectRequest(requestId) {
+    if (!confirm('Bạn có chắc muốn từ chối yêu cầu này?')) return
+    try {
+      await updateDonationRequestStatus(requestId, 'REJECTED')
+      alert('Đã từ chối yêu cầu!')
+      closeRequestDetail()
+      loadData()
+    } catch (err) {
+      console.error('Failed to reject request:', err)
+      const detail = err?.response?.data?.detail || 'Từ chối thất bại'
+      alert(detail)
     }
   }
 
@@ -91,11 +157,9 @@ export default function DonationManagement() {
   function handleLotCheckboxChange(lotId, checked) {
     setSelectedItems(prev => {
       if (checked) {
-        // Thêm lot mới với số lượng mặc định là 1
         const lot = inventoryLots.find(l => l.id === lotId)
         return [...prev, { lotId, quantity: 1, productName: lot?.productName || '', expiryDate: lot?.expiryDate || '' }]
       } else {
-        // Xóa lot
         return prev.filter(item => item.lotId !== lotId)
       }
     })
@@ -121,7 +185,6 @@ export default function DonationManagement() {
       return
     }
 
-    // Validate từng item
     for (const item of selectedItems) {
       const lot = inventoryLots.find(l => l.id === item.lotId)
       if (!lot) {
@@ -147,7 +210,6 @@ export default function DonationManagement() {
       }))
 
       const result = await createBulkDonationOffers(payload)
-      // Reload offers list
       await loadData()
       setCreateSuccess(`Đã tạo ${result.created || selectedItems.length} đề nghị quyên góp thành công!`)
       setTimeout(() => closeCreateModal(), 1000)
@@ -176,15 +238,42 @@ export default function DonationManagement() {
     }
   }
 
-  async function handleRequestStatusChange(id, newStatus) {
+  function startEditOffer(offer) {
+    setEditingOfferId(offer.id)
+    setEditQuantity(offer.remainingQty || offer.offeredQty)
+  }
+
+  function cancelEditOffer() {
+    setEditingOfferId(null)
+    setEditQuantity(1)
+  }
+
+  async function saveEditOffer(offerId) {
     try {
-      await updateDonationRequestStatus(id, newStatus)
-      setRequests((prev) =>
-        prev.map((r) => (r.id === id ? { ...r, status: newStatus } : r))
-      )
+      await updateDonationOffer(offerId, Number(editQuantity))
+      await loadData()
+      setEditingOfferId(null)
+      setEditQuantity(1)
+      alert('Đã cập nhật số lượng thành công!')
     } catch (err) {
-      console.error('Failed to update request status:', err)
-      alert('Cập nhật trạng thái thất bại')
+      console.error('Failed to update offer:', err)
+      const detail = err?.response?.data?.detail || 'Cập nhật thất bại'
+      alert(detail)
+    }
+  }
+
+  async function handleDeleteOffer(offerId) {
+    if (!confirm('Bạn có chắc muốn xóa đề nghị quyên góp này?')) {
+      return
+    }
+    try {
+      await deleteDonationOffer(offerId)
+      setOffers((prev) => prev.filter((r) => r.id !== offerId))
+      alert('Đã xóa đề nghị quyên góp!')
+    } catch (err) {
+      console.error('Failed to delete offer:', err)
+      const detail = err?.response?.data?.detail || 'Xóa thất bại'
+      alert(detail)
     }
   }
 
@@ -204,7 +293,18 @@ export default function DonationManagement() {
       {/* TOOLBAR */}
       <div className="donation-toolbar">
         <div className="donation-toolbar-info">
-          Hiển thị {offers.length + requests.length} mục
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="donation-filter-select"
+          >
+            <option value="all">Tất cả</option>
+            <option value="PENDING">Đang chờ</option>
+            <option value="APPROVED">Đã duyệt</option>
+            <option value="REJECTED">Đã từ chối</option>
+            <option value="RECEIVED">Đã nhận</option>
+          </select>
+          <span> | Hiển thị {offers.length + requests.length} mục</span>
         </div>
         <button
           onClick={openCreateModal}
@@ -230,29 +330,63 @@ export default function DonationManagement() {
                     </p>
                   </div>
                   <div className="donation-item-actions">
-                    <span className={`badge ${getBadgeClass(row.status)}`}>
-                      {getStatusLabel(row.status)}
-                    </span>
-                    {row.status === 'Pending' && (
+                    {editingOfferId === row.id ? (
                       <>
-                        <button
-                          onClick={() => handleOfferStatusChange(row.id, 'Approved')}
-                          className="action-btn icon-action-btn btn-approve"
-                          title="Duyệt"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                            <path d="M20 6L9 17l-5-5" />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={() => handleOfferStatusChange(row.id, 'Rejected')}
-                          className="action-btn icon-action-btn btn-reject"
-                          title="Từ chối"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                            <path d="M18 6L6 18M6 6l12 12" />
-                          </svg>
-                        </button>
+                        <div className="edit-quantity-form">
+                          <input
+                            type="number"
+                            min="1"
+                            value={editQuantity}
+                            onChange={(e) => setEditQuantity(e.target.value)}
+                            className="edit-quantity-input"
+                          />
+                          <button
+                            onClick={() => saveEditOffer(row.id)}
+                            className="donation-btn-edit"
+                            title="Lưu"
+                          >
+                            Lưu
+                          </button>
+                          <button
+                            onClick={cancelEditOffer}
+                            className="donation-btn-delete"
+                            title="Hủy"
+                          >
+                            Hủy
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        {row.status !== 'open' && (
+                          <span className={`badge ${getBadgeClass(row.status)}`}>
+                            {getStatusLabel(row.status)}
+                          </span>
+                        )}
+                        {row.status === 'open' && (
+                          <>
+                            <button
+                              onClick={() => startEditOffer(row)}
+                              className="donation-btn-edit"
+                              title="Sửa số lượng"
+                            >
+                              <svg className="donation-icon" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
+                              </svg>
+                              Sửa
+                            </button>
+                            <button
+                              onClick={() => handleDeleteOffer(row.id)}
+                              className="donation-btn-delete"
+                              title="Xóa"
+                            >
+                              <svg className="donation-icon" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+                              </svg>
+                              Xóa
+                            </button>
+                          </>
+                        )}
                       </>
                     )}
                   </div>
@@ -266,7 +400,7 @@ export default function DonationManagement() {
           </div>
         </div>
 
-        {/* Request List */}
+        {/* Request List (New Architecture) */}
         <div className="donation-card">
           <h3 className="donation-card-title">Yêu Cầu Nhận Quyên Góp</h3>
           <div className="donation-list">
@@ -274,35 +408,31 @@ export default function DonationManagement() {
               requests.map((row) => (
                 <div key={row.id} className="donation-item">
                   <div className="donation-item-info">
-                    <p className="donation-item-name">{row.organization}</p>
-                    <p className="donation-item-detail">{row.request}</p>
+                    <p className="donation-item-name">
+                      <strong>{row.organization || row.charityName}</strong>
+                      {row.charityPhone && (
+                        <span className="donation-charity-phone"> | {row.charityPhone}</span>
+                      )}
+                    </p>
+                    {row.charityAddress && (
+                      <p className="donation-charity-address">{row.charityAddress}</p>
+                    )}
+                    <p className="donation-item-detail">
+                      {row.total_items} sản phẩm
+                    </p>
+                    <p className="donation-item-meta">Mã yêu cầu: #{row.id} | Ngày: {row.createdAt}</p>
                   </div>
                   <div className="donation-item-actions">
                     <span className={`badge ${getBadgeClass(row.status)}`}>
                       {getStatusLabel(row.status)}
                     </span>
-                    {row.status === 'Pending' && (
-                      <>
-                        <button
-                          onClick={() => handleRequestStatusChange(row.id, 'Approved')}
-                          className="action-btn icon-action-btn btn-approve"
-                          title="Duyệt"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                            <path d="M20 6L9 17l-5-5" />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={() => handleRequestStatusChange(row.id, 'Rejected')}
-                          className="action-btn icon-action-btn btn-reject"
-                          title="Từ chối"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                            <path d="M18 6L6 18M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </>
-                    )}
+                    <button
+                      onClick={() => openRequestDetail(row.id)}
+                      className="donation-btn-detail"
+                      title="Xem chi tiết"
+                    >
+                      Xem
+                    </button>
                   </div>
                 </div>
               ))
@@ -314,6 +444,115 @@ export default function DonationManagement() {
           </div>
         </div>
       </div>
+
+      {/* REQUEST DETAIL MODAL */}
+      {showDetailModal && (
+        <div className="donation-modal-overlay" onClick={closeRequestDetail}>
+          <div className="donation-modal donation-modal-large" onClick={(e) => e.stopPropagation()}>
+            <div className="donation-modal-header">
+              <h3>Chi Tiết Yêu Cầu Quyên Góp #{selectedRequest?.id}</h3>
+              <button className="donation-modal-close" onClick={closeRequestDetail}>✕</button>
+            </div>
+            <div className="donation-modal-body">
+              {loadingDetail ? (
+                <div className="donation-loading">Đang tải chi tiết...</div>
+              ) : selectedRequest ? (
+                <>
+                  {/* Request Info */}
+                  <div className="request-detail-section">
+                    <h4>Thông Tin Tổ Chức</h4>
+                    <div className="request-detail-grid">
+                      <div className="request-detail-item">
+                        <span className="label">Tên tổ chức:</span>
+                        <span className="value">{selectedRequest.charity_org_name || selectedRequest.charity_name}</span>
+                      </div>
+                      <div className="request-detail-item">
+                        <span className="label">Số điện thoại:</span>
+                        <span className="value">{selectedRequest.charity_phone || '-'}</span>
+                      </div>
+                      <div className="request-detail-item">
+                        <span className="label">Địa chỉ:</span>
+                        <span className="value">{selectedRequest.charity_address || '-'}</span>
+                      </div>
+                      <div className="request-detail-item">
+                        <span className="label">Ngày tạo:</span>
+                        <span className="value">{selectedRequest.created_at}</span>
+                      </div>
+                      <div className="request-detail-item">
+                        <span className="label">Trạng thái:</span>
+                        <span className={`badge ${getBadgeClass(selectedRequest.status)}`}>
+                          {getStatusLabel(selectedRequest.status)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Items List */}
+                  <div className="request-detail-section">
+                    <h4>Danh Sách Sản Phẩm ({selectedRequest.total_items})</h4>
+                    <table className="request-items-table">
+                      <thead>
+                        <tr>
+                          <th>STT</th>
+                          <th>Tên sản phẩm</th>
+                          <th>Mã lô</th>
+                          <th>Cửa hàng</th>
+                          <th>HSD</th>
+                          <th>Số lượng</th>
+                          <th>Trạng thái</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedRequest.items?.map((item, idx) => (
+                          <tr key={item.id}>
+                            <td>{idx + 1}</td>
+                            <td>{item.product_name || '-'}</td>
+                            <td>{item.lot_code || '-'}</td>
+                            <td>{item.store_name || '-'}</td>
+                            <td>{item.expiry_date || '-'}</td>
+                            <td>{item.quantity}</td>
+                            <td>
+                              <span className={`badge ${getBadgeClass(item.status)}`}>
+                                {getStatusLabel(item.status)}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Action Buttons */}
+                  {selectedRequest.status === 'PENDING' && (
+                    <div className="request-detail-actions">
+                      <button
+                        onClick={() => handleApproveRequest(selectedRequest.id)}
+                        className="btn-large btn-approve"
+                      >
+                        Duyệt Tất Cả
+                      </button>
+                      <button
+                        onClick={() => handleRejectRequest(selectedRequest.id)}
+                        className="btn-large btn-reject"
+                      >
+                        Từ Chối Tất Cả
+                      </button>
+                      <button
+                        onClick={closeRequestDetail}
+                        className="btn-large btn-close"
+                      >
+                        Đóng
+                      </button>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="donation-empty">Không có dữ liệu</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* CREATE OFFER MODAL - BULK SELECT */}
       {showCreateModal && (

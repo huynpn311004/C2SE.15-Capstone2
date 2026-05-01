@@ -21,6 +21,7 @@ export default function DonationMonitoring() {
   const [filter, setFilter] = useState('all')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [selectedDonation, setSelectedDonation] = useState(null)
 
   useEffect(() => {
     let active = true
@@ -73,7 +74,7 @@ export default function DonationMonitoring() {
             <option value="rejected">Từ Chối</option>
           </select>
         </div>
-        <div className="sadonmon-toolbar-info">{loading ? 'Đang tải...' : `Hiển thị ${filtered.length} donation`}</div>
+        <div className="sadonmon-toolbar-info">{loading ? 'Đang tải...' : `Hiển thị ${filtered.length} đơn`}</div>
       </div>
 
       {/* SUMMARY */}
@@ -105,11 +106,11 @@ export default function DonationMonitoring() {
             <table className="sadonmon-table">
               <thead>
                 <tr>
-                  <th>Store</th>
+                  <th>Mã Đơn</th>
+                  <th>Siêu Thị</th>
                   <th>Tổ Chức Nhận</th>
-                  <th>Sản Phẩm</th>
-                  <th>Số Lượng</th>
-                  <th>HSD</th>
+                  <th>Số Mặt Hàng</th>
+                  <th>Tổng SL</th>
                   <th>Ngày</th>
                   <th>Trạng Thái</th>
                   <th>Thao Tác</th>
@@ -123,26 +124,48 @@ export default function DonationMonitoring() {
                 )}
                 {filtered.map(d => (
                   <tr key={d.id}>
+                    <td>{d.id}</td>
                     <td><span className="sadonmon-store">{d.store}</span></td>
                     <td>{d.recipient}</td>
-                    <td>{d.items}</td>
+                    <td>{d.item_count ?? '-'}</td>
                     <td>{d.quantity}</td>
-                    <td>{d.exp}</td>
                     <td>{d.date}</td>
                     <td><span className={`badge ${statusBadge[d.status]}`}>{statusLabel[d.status]}</span></td>
                     <td>
-                      <span className="sadonmon-status-text">
-                        {d.status === 'pending' && 'Chờ duyệt từ nhân viên'}
-                        {d.status === 'approved' && 'Đã duyệt'}
-                        {d.status === 'rejected' && 'Đã từ chối'}
-                        {d.status === 'received' && 'Đã nhận'}
-                        {d.status === 'completed' && 'Hoàn thành'}
-                      </span>
+                      <button
+                        type="button"
+                        className="sadonmon-btn-view"
+                        onClick={() => setSelectedDonation(d)}
+                      >
+                        Xem chi tiết
+                      </button>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+
+            {selectedDonation && (
+              <div className="sadonmon-modal-backdrop" onClick={() => setSelectedDonation(null)}>
+                <div className="sadonmon-modal" onClick={e => e.stopPropagation()}>
+                  <div className="sadonmon-modal-header">
+                    <h3>Chi tiết đơn {selectedDonation.id}</h3>
+                    <button type="button" className="sadonmon-modal-close" onClick={() => setSelectedDonation(null)}>✕</button>
+                  </div>
+                  <div className="sadonmon-modal-body">
+                    <p><strong>Siêu Thị:</strong> {selectedDonation.store}</p>
+                    <p><strong>Tổ Chức Nhận:</strong> {selectedDonation.recipient}</p>
+                    <p><strong>Số Mặt Hàng:</strong> {selectedDonation.item_count ?? '-'}</p>
+                    <p><strong>Tổng Số Lượng:</strong> {selectedDonation.quantity}</p>
+                    <p><strong>Ngày tạo:</strong> {selectedDonation.date}</p>
+                    <p><strong>Trạng thái:</strong> {statusLabel[selectedDonation.status]}</p>
+                  </div>
+                  <div className="sadonmon-modal-footer">
+                    <button type="button" className="sadonmon-btn-approve" onClick={() => setSelectedDonation(null)}>Đóng</button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

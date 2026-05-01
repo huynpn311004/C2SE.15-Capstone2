@@ -7,7 +7,11 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.models.user import User
 from app.services import charity_service
-from app.schemas.charity_schemas import CreateDonationRequestRequest
+from app.schemas.donation_request_schemas import (
+    CreateDonationRequestRequest,
+    DonationRequestListResponse,
+    DonationRequestDetailResponse,
+)
 
 
 router = APIRouter(prefix="/charity", tags=["charity"])
@@ -64,21 +68,35 @@ def list_charity_donation_offers(
 
 
 # ========== Donation Requests ==========
-@router.post("/donation-requests")
+@router.post("/donation-requests", response_model=dict)
 def create_charity_donation_request(
 	data: CreateDonationRequestRequest,
 	current_user: User = Depends(get_current_user),
 	db: Session = Depends(get_db),
 ):
-    return charity_service.create_charity_donation_request(db, current_user.id, data.offerId, data.requestQty)
+    """Create a new donation request with multiple items."""
+    return charity_service.create_charity_donation_request(
+        db, current_user.id, data.items
+    )
 
 
-@router.get("/donation-requests")
+@router.get("/donation-requests", response_model=DonationRequestListResponse)
 def list_charity_donation_requests(
 	current_user: User = Depends(get_current_user),
-	db: Session = Depends(get_db)
+	db: Session = Depends(get_db),
 ):
-    return charity_service.list_charity_donation_requests(db, current_user.id)
+    """List charity's donation requests (grouped by request, not by item)."""
+    return charity_service.list_charity_donation_requests_new(db, current_user.id)
+
+
+@router.get("/donation-requests/{request_id}", response_model=DonationRequestDetailResponse)
+def get_charity_donation_request_detail(
+	request_id: int,
+	current_user: User = Depends(get_current_user),
+	db: Session = Depends(get_db),
+):
+    """Get detail of a specific donation request."""
+    return charity_service.get_charity_donation_request_detail(db, current_user.id, request_id)
 
 
 @router.put("/donation-requests/{request_id}/confirm-received")
@@ -87,4 +105,5 @@ def confirm_received_donation(
 	current_user: User = Depends(get_current_user),
 	db: Session = Depends(get_db),
 ):
+    """Confirm received donation request."""
     return charity_service.confirm_received_donation(db, current_user.id, request_id)

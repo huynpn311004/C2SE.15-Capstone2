@@ -58,11 +58,6 @@ export default function SystemAdminDashboard() {
       value: summary.users,
       color: 'blue',
     },
-    {
-      label: 'Yêu cầu đang chờ',
-      value: summary.pendingRequests,
-      color: 'warning',
-    },
   ]
 
   return (
