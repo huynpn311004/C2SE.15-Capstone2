@@ -168,7 +168,9 @@ def create_order(
 		data.items,
 		data.storeId,
 		data.paymentMethod,
-		data.shippingAddress
+		data.shippingAddress,
+		data.couponId,
+		data.shippingPhone
 	)
 
 
@@ -187,7 +189,9 @@ def create_multi_store(
 		current_user.id,
 		data.items,
 		data.paymentMethod,
-		data.shippingAddress
+		data.shippingAddress,
+		data.couponId,
+		data.shippingPhone
 	)
 
 

@@ -15,6 +15,7 @@ from app.models.order import Order
 from app.models.order_item import OrderItem
 from app.models.supermarket import Supermarket
 from app.models.delivery import Delivery
+from app.models.coupon import Coupon
 
 
 def _get_or_create_order_group(
@@ -25,7 +26,9 @@ def _get_or_create_order_group(
 	payment_method: str,
 	shipping_address: str = None,
 	product_cache: dict = None,
-	store_cache: dict = None
+	store_cache: dict = None,
+	coupon_info: dict = None,
+	shipping_phone: str = None
 ) -> dict:
 	"""
 	Helper: Create an order for a single store group.
@@ -197,19 +200,38 @@ def _get_or_create_order_group(
 			})
 
 	# Create Order
+	# Calculate final amount with coupon discount
+	final_amount = total_amount
+	applied_coupon_id = None
+	applied_discount_amount = Decimal("0")
+	applied_coupon_code = None
+	
+	if coupon_info and coupon_info.get("valid"):
+		applied_coupon_id = coupon_info.get("coupon_id")
+		applied_discount_amount = coupon_info.get("discount_amount", Decimal("0"))
+		applied_coupon_code = coupon_info.get("coupon_code")
+		final_amount = max(Decimal("0"), total_amount - applied_discount_amount)
+	
 	new_order = Order(
 		store_id=store_id,
 		customer_id=user_id,
 		status='pending',
-		total_amount=total_amount,
+		total_amount=final_amount,
+		discount_amount=applied_discount_amount,
 		payment_method=payment_method,
 		payment_status='pending',
 		shipping_address=shipping_address,
-		reserved_at=datetime.now()
+		shipping_phone=shipping_phone,
+		reserved_at=datetime.now(),
+		coupon_id=applied_coupon_id
 	)
 	db.add(new_order)
 	db.flush()
 	order_id = new_order.id
+	
+	# Increment coupon usage count if applied
+	if applied_coupon_id:
+		_increment_coupon_usage(db, applied_coupon_id)
 
 	# Insert order items
 	for item_data in order_item_data:
@@ -240,7 +262,10 @@ def _get_or_create_order_group(
 		"orderId": order_id,
 		"orderCode": f"DH-{order_id}",
 		"items": product_details,
-		"totalAmount": float(total_amount),
+		"totalAmount": float(final_amount),
+		"originalAmount": float(total_amount),
+		"discountAmount": float(applied_discount_amount),
+		"couponCode": applied_coupon_code,
 		"shippingAddress": shipping_address,
 	}
 
@@ -250,7 +275,9 @@ def create_multi_store_order(
 	user_id: int,
 	items: list,
 	payment_method: str = "cod",
-	shipping_address: str = None
+	shipping_address: str = None,
+	coupon_id: int = None,
+	shipping_phone: str = None
 ) -> dict:
 	"""
 	Create separate orders for each store in the customer cart.
@@ -302,12 +329,37 @@ def create_multi_store_order(
 	product_cache = {}
 	store_cache = {}
 
+	# For coupon validation: calculate total amount first
+	total_order_amount = Decimal("0")
+	for item in items:
+		if isinstance(item, dict):
+			product_id = item.get("productId")
+		else:
+			product_id = item.productId
+		product = db.query(Product.base_price).filter(Product.id == product_id).first()
+		if product:
+			total_order_amount += Decimal(str(product.base_price or 0))
+	
+	# Validate coupon if provided
+	coupon_info = None
+	if coupon_id:
+		coupon_info = _validate_and_calculate_coupon(db, coupon_id, None, total_order_amount)
+		if not coupon_info.get("valid"):
+			raise HTTPException(
+				status_code=status.HTTP_400_BAD_REQUEST,
+				detail=coupon_info.get("error", "Coupon không hợp lệ")
+			)
+
 	success_orders = []
 	failed_orders = []
 	grand_total = Decimal("0")
+	coupon_applied = False
 
 	for store_id, store_items in store_groups.items():
 		try:
+			# Pass coupon only to first successful order
+			order_coupon_info = coupon_info if not coupon_applied else None
+			
 			order_info = _get_or_create_order_group(
 				db,
 				user_id,
@@ -316,10 +368,16 @@ def create_multi_store_order(
 				payment_method,
 				shipping_address,
 				product_cache,
-				store_cache
+				store_cache,
+				order_coupon_info,
+				shipping_phone
 			)
 			success_orders.append(order_info)
 			grand_total += Decimal(str(order_info["totalAmount"]))
+			
+			if not coupon_applied and coupon_info and order_info.get("couponCode"):
+				coupon_applied = True
+			
 			db.commit()
 		except HTTPException as e:
 			db.rollback()
@@ -364,6 +422,87 @@ def _status_label(expiry_date: date) -> str:
 	if (expiry_date - today).days <= 7:
 		return "Sap Het Han"
 	return "Moi"
+
+
+def _validate_and_calculate_coupon(db: Session, coupon_id: int, store_id: int, total_amount: Decimal) -> dict:
+	"""
+	Validate coupon and calculate discount amount.
+	
+	Returns:
+		{
+			"valid": True/False,
+			"error": "error message" (if invalid),
+			"coupon_id": int,
+			"coupon_code": str,
+			"discount_percent": float,
+			"discount_amount": Decimal
+		}
+	"""
+	from datetime import datetime
+	
+	if not coupon_id:
+		return {"valid": False, "error": None, "coupon_id": None}
+	
+	# Get coupon
+	coupon = db.query(Coupon).filter(Coupon.id == coupon_id).first()
+	
+	if not coupon:
+		return {"valid": False, "error": "Mã coupon không tồn tại", "coupon_id": None}
+	
+	if not coupon.is_active:
+		return {"valid": False, "error": "Mã coupon đã bị vô hiệu hóa", "coupon_id": coupon_id}
+	
+	now = datetime.now()
+	if coupon.valid_from and now < coupon.valid_from:
+		return {"valid": False, "error": "Mã coupon chưa có hiệu lực", "coupon_id": coupon_id}
+	
+	if coupon.valid_to and now > coupon.valid_to:
+		return {"valid": False, "error": "Mã coupon đã hết hạn", "coupon_id": coupon_id}
+	
+	if coupon.max_uses is not None and coupon.current_uses >= coupon.max_uses:
+		return {"valid": False, "error": "Mã coupon đã hết lượt sử dụng", "coupon_id": coupon_id}
+	
+	# Check minimum amount
+	if coupon.min_amount and float(total_amount) < float(coupon.min_amount):
+		return {
+			"valid": False,
+			"error": f"Đơn hàng tối thiểu {int(coupon.min_amount):,}đ để áp dụng mã này",
+			"coupon_id": coupon_id
+		}
+	
+	# Calculate discount
+	discount_amount = total_amount * Decimal(str(coupon.discount_percent / 100))
+	discount_amount = discount_amount.quantize(Decimal("0"))  # Round to whole number
+	
+	return {
+		"valid": True,
+		"error": None,
+		"coupon_id": coupon_id,
+		"coupon_code": coupon.code,
+		"discount_percent": coupon.discount_percent,
+		"discount_amount": discount_amount
+	}
+
+
+def _increment_coupon_usage(db: Session, coupon_id: int) -> bool:
+	"""
+	Increment coupon usage count atomically.
+	Returns True if successful, False if coupon limit reached.
+	"""
+	if not coupon_id:
+		return True
+	
+	coupon = db.query(Coupon).filter(Coupon.id == coupon_id).with_for_update().first()
+	
+	if not coupon:
+		return False
+	
+	# Check limit again (in case of race condition)
+	if coupon.max_uses is not None and coupon.current_uses >= coupon.max_uses:
+		return False
+	
+	coupon.current_uses = (coupon.current_uses or 0) + 1
+	return True
 
 
 def _calculate_discount(base_price: float, expiry_date: date, supermarket_id: int = None, product_id: int = None, db: Session = None) -> tuple[float, float]:
@@ -724,10 +863,11 @@ def list_customer_orders(
 ) -> dict:
 	"""List all orders for a customer"""
 	base_query = db.query(
-		Order.id, Order.status, Order.total_amount, Order.payment_method, 
-		Order.payment_status, Order.created_at,
+		Order.id, Order.status, Order.total_amount, Order.discount_amount, Order.coupon_id,
+		Order.payment_method, Order.payment_status, Order.created_at,
 		Store.name.label("store_name"), Store.location.label("store_address")
 	).join(Store, Store.id == Order.store_id)\
+	 .outerjoin(Coupon, Coupon.id == Order.coupon_id)\
 	 .filter(Order.customer_id == user_id)
 
 	if status_filter != "all":
@@ -751,6 +891,19 @@ def list_customer_orders(
 			}
 			for ir in item_rows
 		]
+		
+		# Build coupon info if exists
+		coupon_info = None
+		if row.coupon_id:
+			coupon_row = db.query(
+				Coupon.code, Coupon.discount_percent
+			).filter(Coupon.id == row.coupon_id).first()
+			if coupon_row:
+				coupon_info = {
+					"code": coupon_row.code,
+					"discountPercent": float(coupon_row.discount_percent or 0),
+					"discountAmount": float(row.discount_amount or 0),
+				}
 
 		items.append({
 			"id": f"DH-{row.id}",
@@ -759,10 +912,12 @@ def list_customer_orders(
 			"storeAddress": row.store_address or "",
 			"status": row.status,
 			"totalAmount": float(row.total_amount or 0),
+			"discountAmount": float(row.discount_amount or 0),
 			"paymentMethod": row.payment_method or "cod",
 			"paymentStatus": row.payment_status,
 			"createdAt": row.created_at.strftime("%d/%m/%Y %H:%M"),
 			"items": order_items,
+			"coupon": coupon_info,
 		})
 
 	return {"items": items}
@@ -774,12 +929,16 @@ def get_customer_order_detail(db: Session, order_id: int, user_id: int) -> dict:
 		Order.id,
 		Order.status,
 		Order.total_amount,
+		Order.discount_amount,
+		Order.coupon_id,
 		Order.payment_method,
 		Order.payment_status,
 		Order.created_at,
 		Store.name.label('store_name'),
 		Store.location.label('store_address')
-	).join(Store, Store.id == Order.store_id).filter(
+	).join(Store, Store.id == Order.store_id).outerjoin(
+		Coupon, Coupon.id == Order.coupon_id
+	).filter(
 		Order.id == order_id,
 		Order.customer_id == user_id
 	).first()
@@ -817,6 +976,19 @@ def get_customer_order_detail(db: Session, order_id: int, user_id: int) -> dict:
 			"lotCode": ir.lot_code,
 			"expiryDate": ir.expiry_date.strftime("%Y-%m-%d") if ir.expiry_date else "",
 		})
+	
+	# Build coupon info if exists
+	coupon_info = None
+	if order.coupon_id:
+		coupon_row = db.query(
+			Coupon.code, Coupon.discount_percent
+		).filter(Coupon.id == order.coupon_id).first()
+		if coupon_row:
+			coupon_info = {
+				"code": coupon_row.code,
+				"discountPercent": float(coupon_row.discount_percent or 0),
+				"discountAmount": float(order.discount_amount or 0),
+			}
 
 	return {
 		"id": f"DH-{order.id}",
@@ -825,6 +997,7 @@ def get_customer_order_detail(db: Session, order_id: int, user_id: int) -> dict:
 		"storeAddress": order.store_address or "",
 		"status": order.status,
 		"totalAmount": float(order.total_amount or 0),
+		"discountAmount": float(order.discount_amount or 0),
 		"paymentMethod": order.payment_method or "cod",
 		"paymentStatus": order.payment_status,
 		"createdAt": order.created_at.strftime("%d/%m/%Y %H:%M"),
@@ -835,6 +1008,7 @@ def get_customer_order_detail(db: Session, order_id: int, user_id: int) -> dict:
 			"pickedAt": delivery_row.picked_at.strftime("%d/%m/%Y %H:%M") if delivery_row and delivery_row.picked_at else None,
 			"deliveredAt": delivery_row.delivered_at.strftime("%d/%m/%Y %H:%M") if delivery_row and delivery_row.delivered_at else None,
 		} if delivery_row else None,
+		"coupon": coupon_info,
 	}
 
 
@@ -844,7 +1018,9 @@ def create_customer_order(
 	items: list,
 	store_id: int,
 	payment_method: str = "cod",
-	shipping_address: str = None
+	shipping_address: str = None,
+	coupon_id: int = None,
+	shipping_phone: str = None
 ) -> dict:
 	"""Create a new order - DEADLOCK PREVENTION: Lock ALL lots in single query sorted by ID"""
 	import logging
@@ -986,19 +1162,40 @@ def create_customer_order(
 			})
 
 	# Create Order using ORM
+	# Validate and calculate coupon discount
+	applied_coupon_id = None
+	applied_discount_amount = Decimal("0")
+	applied_coupon_code = None
+	final_amount = total_amount
+	
+	if coupon_id:
+		coupon_validation = _validate_and_calculate_coupon(db, coupon_id, store_id, total_amount)
+		if coupon_validation.get("valid"):
+			applied_coupon_id = coupon_validation.get("coupon_id")
+			applied_discount_amount = coupon_validation.get("discount_amount", Decimal("0"))
+			applied_coupon_code = coupon_validation.get("coupon_code")
+			final_amount = max(Decimal("0"), total_amount - applied_discount_amount)
+	
 	new_order = Order(
 		store_id=store_id,
 		customer_id=user_id,
 		status='pending',
-		total_amount=total_amount,
+		total_amount=final_amount,
+		discount_amount=applied_discount_amount,
 		payment_method=payment_method,
 		payment_status='pending',
 		shipping_address=shipping_address,
-		reserved_at=datetime.now()
+		shipping_phone=shipping_phone,
+		reserved_at=datetime.now(),
+		coupon_id=applied_coupon_id
 	)
 	db.add(new_order)
 	db.flush()
 	order_id = new_order.id
+	
+	# Increment coupon usage count if applied
+	if applied_coupon_id:
+		_increment_coupon_usage(db, applied_coupon_id)
 
 	# Insert order items using ORM
 	for item_data in order_item_data:
@@ -1020,6 +1217,9 @@ def create_customer_order(
 		"orderId": order_id,
 		"orderCode": f"DH-{order_id}",
 		"message": "Dat hang thanh cong",
+		"originalAmount": float(total_amount),
+		"discountAmount": float(applied_discount_amount),
+		"couponCode": applied_coupon_code,
 	}
 
 

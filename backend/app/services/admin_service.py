@@ -200,8 +200,16 @@ def get_reports(db: Session, days: int = 30) -> dict:
 	previous_orders = int(previous_orders)
 	previous_revenue = float(previous_orders and revenue_trend or 0)
 
-	order_growth = ((current_orders - previous_orders) * 100.0 / previous_orders) if previous_orders else 0.0
-	revenue_growth = ((current_revenue - previous_revenue) * 100.0 / previous_revenue) if previous_revenue else 0.0
+	order_growth = (
+		round(((current_orders - previous_orders) / previous_orders) * 100, 1)
+		if previous_orders
+		else (100 if current_orders > 0 else 0)
+	)
+	revenue_growth = (
+		round(((current_revenue - previous_revenue) / previous_revenue) * 100, 1)
+		if previous_revenue
+		else (100 if current_revenue > 0 else 0)
+	)
 
 	supermarket_rows = [
 		{

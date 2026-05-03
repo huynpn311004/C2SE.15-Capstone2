@@ -380,23 +380,6 @@ const CustomerCheckout = () => {
           <div className="customer-section-header">
             <div>
               <h3 className="customer-section-title">Đơn hàng của bạn</h3>
-              {isMultiStore && (orderGroups.length > 0 || cartItems.length > 0) ? (
-                <>
-                  <p className="customer-section-subtitle">{(orderGroups.length > 0 ? cart.length : cartItems.length)} sản phẩm</p>
-                </>
-              ) : (
-                <p className="customer-section-subtitle">{cart.length} sản phẩm</p>
-              )}
-              {isMultiStore && orderGroups.length > 0 && (
-                <p style={{ fontSize: '0.75rem', color: 'var(--seims-success)', marginTop: '0.25rem' }}>
-                  Đã giữ chỗ: {orderGroups.map(g => g.orderCode).join(', ')}
-                </p>
-              )}
-              {!isMultiStore && isReserved && reservedOrderCode && (
-                <p style={{ fontSize: '0.75rem', color: 'var(--seims-success)', marginTop: '0.25rem' }}>
-                  Đã giữ chỗ: {reservedOrderCode}
-                </p>
-              )}
             </div>
           </div>
 
@@ -577,12 +560,6 @@ const CustomerCheckout = () => {
           <div className="customer-section-header">
             <div>
               <h3 className="customer-section-title">Thông tin giao hàng</h3>
-              <p className="customer-section-subtitle">Vui lòng điền đầy đủ thông tin</p>
-              {isMultiStore && orderGroups.length > 0 && (
-                <p style={{ fontSize: '0.875rem', color: 'var(--seims-success)', marginTop: '0.5rem', fontWeight: '600' }}>
-                  Đã giữ chỗ <strong>{totalOrders} đơn hàng</strong>
-                </p>
-              )}
               {!isMultiStore && isReserved && reservedOrderCode && (
                 <p style={{ fontSize: '0.875rem', color: 'var(--seims-success)', marginTop: '0.5rem', fontWeight: '600' }}>
                   Hàng đã được giữ chỗ: <strong>{reservedOrderCode}</strong>
@@ -594,89 +571,43 @@ const CustomerCheckout = () => {
           <form onSubmit={handleSubmit} className="customer-checkout-form">
             <div className="customer-checkout-form-group">
               <label className="customer-checkout-field">
-                Họ và tên <span className="customer-checkout-required">*</span>
+                Họ và tên
               </label>
               <input
                 type="text"
                 name="name"
                 required
                 value={formData.name}
-                onChange={handleChange}
+                readOnly
                 className="customer-checkout-input"
-                placeholder="Nhập họ và tên của bạn"
               />
             </div>
 
             <div className="customer-checkout-form-group">
               <label className="customer-checkout-field">
-                Số điện thoại <span className="customer-checkout-required">*</span>
+                Số điện thoại
               </label>
               <input
                 type="tel"
                 name="phone"
                 required
                 value={formData.phone}
-                onChange={handleChange}
+                readOnly
                 className="customer-checkout-input"
-                placeholder="0901 234 567"
               />
             </div>
 
             <div className="customer-checkout-form-group">
               <label className="customer-checkout-field">
-                Địa chỉ giao hàng <span className="customer-checkout-required">*</span>
-              </label>
-              <div className="customer-checkout-address-row">
-                <textarea
-                  name="address"
-                  required
-                  value={formData.address}
-                  onChange={handleChange}
-                  className="customer-checkout-textarea"
-                  rows="3"
-                  placeholder="Số nhà, tên đường, phường/xã, quận/huyện, tỉnh/thành phố"
-                />
-                <button
-                  type="button"
-                  className="customer-checkout-map-btn"
-                  onClick={() => setShowLocationModal(true)}
-                  title="Chọn vị trí trên bản đồ"
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                    <circle cx="12" cy="10" r="3" />
-                  </svg>
-                </button>
-              </div>
-              <div className="customer-checkout-address-actions">
-                <button
-                  type="button"
-                  className="customer-checkout-address-save-btn"
-                  onClick={() => {
-                    const authRaw = localStorage.getItem('seims_auth_user');
-                    const authUser = authRaw ? JSON.parse(authRaw) : null;
-                    if (authUser) {
-                      authUser.address = formData.address;
-                      localStorage.setItem('seims_auth_user', JSON.stringify(authUser));
-                    }
-                  }}
-                >
-                  Lưu địa chỉ
-                </button>
-              </div>
-            </div>
-
-            <div className="customer-checkout-form-group">
-              <label className="customer-checkout-field">
-                Ghi chú (tùy chọn)
+                Địa chỉ giao hàng
               </label>
               <textarea
-                name="note"
-                value={formData.note}
-                onChange={handleChange}
+                name="address"
+                required
+                value={formData.address}
+                readOnly
                 className="customer-checkout-textarea"
-                rows="2"
-                placeholder="Thời gian nhận hàng, yêu cầu đặc biệt..."
+                rows="3"
               />
             </div>
 
@@ -684,11 +615,6 @@ const CustomerCheckout = () => {
               <p className="customer-checkout-note-title">Lưu ý quan trọng</p>
               <ul className="customer-checkout-note-list">
                 <li>Vui lòng kiểm tra kỹ thông tin trước khi đặt hàng</li>
-                {orderGroups.length > 0 && (
-                  <li style={{ color: 'var(--seims-success)' }}>
-                    Đơn hàng đã được giữ chỗ. Nhấn xác nhận để thanh toán.
-                  </li>
-                )}
                 {isMultiStore && orderGroups.length > 1 && (
                   <li style={{ color: 'var(--seims-warning)' }}>
                     Bạn sẽ nhận {orderGroups.length} gói hàng từ các cửa hàng khác nhau
@@ -703,7 +629,6 @@ const CustomerCheckout = () => {
                   );
                 })()}
                 <li>Thời gian giao hàng dự kiến: 30-60 phút</li>
-                <li>Miễn phí vận chuyển cho đơn hàng cận hạn</li>
               </ul>
             </div>
 
