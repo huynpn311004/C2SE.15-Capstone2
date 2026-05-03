@@ -797,7 +797,7 @@ def update_staff_order_status(db: Session, order_id: int, store_id: int, new_sta
     if not order:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Đơn hàng không tồn tại")
 
-    # Only allow update from pending or preparing state
+    # Only allow update from pending or preparing state to ready
     if order.status not in ["pending", "preparing"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -1295,12 +1295,12 @@ def staff_dashboard_summary(db: Session, store_id: int) -> dict:
 
     orders_pending = db.query(func.count(Order.id)).filter(
         Order.store_id == store_id,
-        func.lower(Order.status) == 'pending'
+        Order.status == 'pending'
     ).scalar() or 0
 
     orders_completed = db.query(func.count(Order.id)).filter(
         Order.store_id == store_id,
-        func.lower(Order.status) == 'completed'
+        Order.status == 'completed'
     ).scalar() or 0
 
     pending_requests = db.query(func.count(DonationRequest.id)).join(
@@ -1309,7 +1309,7 @@ def staff_dashboard_summary(db: Session, store_id: int) -> dict:
         DonationOffer, DonationOffer.id == DonationRequestItem.offer_id
     ).filter(
         DonationOffer.store_id == store_id,
-        func.lower(DonationRequest.status) == 'pending'
+        DonationRequest.status == 'PENDING'
     ).scalar() or 0
 
     return {

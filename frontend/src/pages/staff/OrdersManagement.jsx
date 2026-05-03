@@ -20,10 +20,9 @@ const statusText = {
 }
 
 const nextStatusMap = {
-  pending: 'preparing',
+  // Staff xác nhận đóng hàng xong → chuyển thẳng sang ready (delivery sẽ nhận đơn)
+  pending: 'ready',
   preparing: 'ready',
-  // ready status: Staff đã hoàn thành việc, Delivery Partner sẽ xử lý tiếp
-  // ready → picking_up → delivering → completed (do Delivery Partner)
 }
 
 export default function OrdersManagement() {
@@ -182,9 +181,9 @@ export default function OrdersManagement() {
                             disabled={updating}
                           >
                             <svg className="orders-icon" viewBox="0 0 24 24" fill="currentColor">
-                              <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+                              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
                             </svg>
-                            {updating ? 'Đang cập nhật...' : 'Cập Nhật'}
+                            {updating ? 'Đang xử lý...' : 'Xác Nhận Đóng Hàng'}
                           </button>
                         )}
                         {order.status === 'ready' && (
@@ -308,7 +307,7 @@ export default function OrdersManagement() {
                   onClick={() => handleUpdateStatus(selectedOrder.orderId, nextStatusMap[selectedOrder.status])}
                   disabled={updating}
                 >
-                  {updating ? 'Đang cập nhật...' : 'Cập Nhật Trạng Thái'}
+                  {updating ? 'Đang xử lý...' : 'Xác Nhận Đóng Hàng'}
                 </button>
               )}
               {selectedOrder.status === 'ready' && (

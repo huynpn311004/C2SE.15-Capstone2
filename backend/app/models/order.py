@@ -1,6 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
-from sqlalchemy import BigInteger, DECIMAL, DateTime, Enum, ForeignKey, String, func
+from sqlalchemy import BigInteger, DECIMAL, DateTime, Enum, ForeignKey, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 
@@ -18,12 +18,18 @@ class Order(Base):
         ForeignKey("users.id"),
         nullable=False,
     )
+    coupon_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        ForeignKey("coupons.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     status: Mapped[str] = mapped_column(
-        Enum("pending", "preparing", "ready", "completed", "cancelled", "multi_store_pending", name="order_status"),
+        Enum("pending", "preparing", "ready", "completed", "cancelled", "multi_store_pending", "expired", name="order_status"),
         nullable=False,
         default="pending",
     )
     total_amount: Mapped[Decimal | None] = mapped_column(DECIMAL(10, 2), nullable=True)
+    discount_amount: Mapped[Decimal | None] = mapped_column(DECIMAL(10, 2), nullable=True, default=0)
     payment_method: Mapped[str | None] = mapped_column(
         Enum("cod", "momo", name="order_payment_method"),
         nullable=True,
@@ -48,8 +54,9 @@ class Order(Base):
         nullable=True,
     )
     shipping_address: Mapped[str | None] = mapped_column(String(500), nullable=True)
-
+    shipping_phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
     # Relationships
     customer: Mapped["User"] = relationship("User", foreign_keys=[customer_id])
     store: Mapped["Store"] = relationship("Store", foreign_keys=[store_id])
+    coupon: Mapped["Coupon"] = relationship("Coupon", foreign_keys=[coupon_id])

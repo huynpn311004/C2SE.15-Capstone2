@@ -135,6 +135,13 @@ class OrderItemResponse(BaseModel):
 	expiryDate: Optional[str] = None
 
 
+class OrderCouponInfo(BaseModel):
+	"""Thông tin coupon đã sử dụng trong order"""
+	code: str
+	discountPercent: float
+	discountAmount: float
+
+
 class OrderDeliveryInfo(BaseModel):
 	status: Optional[str]
 	deliveryCode: Optional[str]
@@ -149,10 +156,12 @@ class OrderResponse(BaseModel):
 	storeAddress: str
 	status: str
 	totalAmount: float
+	discountAmount: float
 	paymentMethod: str
 	paymentStatus: str
 	createdAt: str
 	items: List[OrderItemResponse]
+	coupon: Optional[OrderCouponInfo] = None
 
 
 class OrderDetailResponse(BaseModel):
@@ -162,11 +171,13 @@ class OrderDetailResponse(BaseModel):
 	storeAddress: str
 	status: str
 	totalAmount: float
+	discountAmount: float
 	paymentMethod: str
 	paymentStatus: str
 	createdAt: str
 	items: List[OrderItemResponse]
 	delivery: Optional[OrderDeliveryInfo]
+	coupon: Optional[OrderCouponInfo] = None
 
 
 class OrderListResponse(BaseModel):
@@ -185,6 +196,8 @@ class CreateOrderRequest(BaseModel):
 	storeId: Optional[int] = None  # Optional for multi-store orders
 	paymentMethod: str = Field(default="cod")
 	shippingAddress: Optional[str] = None
+	couponId: Optional[int] = None  # ID của coupon được áp dụng
+	shippingPhone: Optional[str] = Field(default=None, max_length=20)  # Số điện thoại liên hệ khi giao hàng
 
 
 class CreateOrderResponse(BaseModel):

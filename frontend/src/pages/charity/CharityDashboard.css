@@ -34,13 +34,6 @@
   border-radius: 10px;
   border: 1px solid var(--char-border);
   box-shadow: 0 2px 8px rgba(15, 118, 110, 0.06);
-  transition: all 0.3s ease;
-}
-
-.chdash-stat-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(15, 118, 110, 0.12);
-  border-color: var(--char-teal);
 }
 
 .chdash-stat-warning {

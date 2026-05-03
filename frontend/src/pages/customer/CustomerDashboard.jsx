@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchCustomerOrders, fetchCustomerDashboardSummary } from '../../services/customerApi';
+import { fetchCustomerOrders, fetchCustomerDashboardSummary, fetchAvailableCoupons } from '../../services/customerApi';
 import './CustomerDashboard.css';
 
 const CustomerDashboard = () => {
@@ -14,15 +14,12 @@ const CustomerDashboard = () => {
   });
   const [allOrders, setAllOrders] = useState([]);
   const [orderFilter, setOrderFilter] = useState('all');
-  const [activePromotions] = useState([
-    { id: 1, code: 'GIAM10', description: 'Giảm 10% cho đơn hàng đầu tiên', minAmount: 100000, discount: 10, type: 'percent', expiresAt: '2026-04-30' },
-    { id: 2, code: 'FREESHIP', description: 'Miễn phí vận chuyển', minAmount: 200000, discount: 0, type: 'shipping', expiresAt: '2026-04-25' },
-  ]);
+  const [activePromotions, setActivePromotions] = useState([]);
 
   useEffect(() => {
     async function loadData() {
       try {
-        const [summaryData, ordersData] = await Promise.all([
+        const [summaryData, ordersData, couponsData] = await Promise.all([
           fetchCustomerDashboardSummary().catch(() => ({
             totalOrders: 0,
             pendingOrders: 0,
@@ -30,9 +27,11 @@ const CustomerDashboard = () => {
             totalSpent: 0,
           })),
           fetchCustomerOrders('all').catch(() => []),
+          fetchAvailableCoupons().catch(() => []),
         ]);
         setSummary(summaryData);
         setAllOrders(ordersData);
+        setActivePromotions(couponsData);
       } catch (err) {
         console.error('Failed to load dashboard data:', err);
       } finally {
@@ -190,7 +189,7 @@ const CustomerDashboard = () => {
                     </p>
                     <p className="customer-alert-meta">{coupon.description}</p>
                     <p className="customer-alert-meta">
-                      Đơn tối thiểu: {formatPrice(coupon.minAmount)} · HSD: {coupon.expiresAt}
+                      Đơn tối thiểu: {formatPrice(coupon.minAmount)} · HSD: {coupon.validTo}
                     </p>
                   </div>
                   <div className="customer-alert-right">
@@ -202,7 +201,7 @@ const CustomerDashboard = () => {
                         borderColor: 'rgba(139, 92, 246, 0.3)',
                       }}
                     >
-                      {coupon.type === 'percent' ? `-${coupon.discount}%` : 'Freeship'}
+                      -{coupon.discountPercent}%
                     </span>
                     <button
                       onClick={() => navigator.clipboard.writeText(coupon.code)}

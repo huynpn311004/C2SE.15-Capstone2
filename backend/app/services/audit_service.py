@@ -1,23 +1,3 @@
-"""Audit log service — centralizes all audit logging logic.
-
-Usage:
-    from app.services.audit_service import log_action, query_audit_logs
-
-    # Inside any business logic, AFTER the action succeeds:
-    log_action(db, user_id=5, store_id=3, action="CREATE_PRODUCT", entity_type="product", entity_id=42)
-
-    # With old/new values for update actions:
-    log_action(
-        db, user_id=5, store_id=3,
-        action="UPDATE_PRICE", entity_type="product", entity_id=42,
-        old_value={"base_price": 100},
-        new_value={"base_price": 150}
-    )
-
-    # Query logs for a store:
-    logs = query_audit_logs(db, store_id=3, limit=50, offset=0)
-"""
-
 import json
 from sqlalchemy.orm import Session
 
@@ -35,27 +15,6 @@ def log_action(
     old_value: dict | None = None,
     new_value: dict | None = None,
 ) -> AuditLog:
-    """Create an audit log entry.
-
-    Call this AFTER the business action completes successfully.
-    Commits within the same transaction — if the caller already committed,
-    this is safe (no-op on double-commit). If the caller hasn't committed,
-    this persists the log alongside the business change.
-
-    Args:
-        db: SQLAlchemy session.
-        user_id: ID of the user performing the action.
-        store_id: ID of the store the action targets.
-        action: One of the constants in audit_actions.py
-                (e.g. CREATE_PRODUCT, UPDATE_PRICE, CANCEL_ORDER).
-        entity_type: Type of entity affected (e.g. "product", "order").
-        entity_id: Primary key of the affected entity.
-        old_value: Dict of old values (for UPDATE actions). Will be JSON serialized.
-        new_value: Dict of new values (for CREATE/UPDATE actions). Will be JSON serialized.
-
-    Returns:
-        The created AuditLog record.
-    """
     entry = AuditLog(
         user_id=user_id,
         store_id=store_id,
@@ -81,23 +40,6 @@ def query_audit_logs(
     limit: int = 200,
     offset: int = 0,
 ) -> list[dict]:
-    """Query audit logs with optional filters.
-
-    Results are always sorted newest-first (created_at DESC).
-
-    Args:
-        store_id: Filter by store (recommended).
-        user_id: Filter by actor.
-        action: Filter by specific action (e.g. "CREATE_PRODUCT").
-        entity_type: Filter by entity type (e.g. "product").
-        entity_id: Filter by specific entity PK.
-        limit: Max records to return (default 200).
-        offset: Skip first N records for pagination.
-
-    Returns:
-        List of dicts with: id, user_id, store_id, action, entity_type,
-        entity_id, old_value, new_value, created_at (as ISO string).
-    """
     q = db.query(AuditLog)
 
     if store_id is not None:

@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from sqlalchemy import func, and_
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
@@ -181,24 +182,24 @@ def get_charity_dashboard_summary(db: Session, user_id: int) -> dict:
 
     total_received = db.query(func.count(DonationRequest.id)).filter(
         DonationRequest.charity_id == user_id,
-        func.lower(DonationRequest.status) == 'received'
+        DonationRequest.status == 'RECEIVED'
     ).scalar() or 0
 
     total_pending = db.query(func.count(DonationRequest.id)).filter(
         DonationRequest.charity_id == user_id,
-        func.lower(DonationRequest.status) == 'pending'
+        DonationRequest.status == 'PENDING'
     ).scalar() or 0
 
     total_approved = db.query(func.count(DonationRequest.id)).filter(
         DonationRequest.charity_id == user_id,
-        func.lower(DonationRequest.status) == 'approved'
+        DonationRequest.status == 'APPROVED'
     ).scalar() or 0
 
     total_products = db.query(func.coalesce(func.sum(DonationRequestItem.quantity), 0)).join(
         DonationRequest, DonationRequest.id == DonationRequestItem.request_id
     ).filter(
         DonationRequest.charity_id == user_id,
-        func.lower(DonationRequest.status) == 'received'
+        DonationRequest.status == 'RECEIVED'
     ).scalar() or 0
 
     unique_stores = db.query(func.count(Store.id.distinct())).join(
@@ -209,7 +210,7 @@ def get_charity_dashboard_summary(db: Session, user_id: int) -> dict:
         DonationRequest, DonationRequest.id == DonationRequestItem.request_id
     ).filter(
         DonationRequest.charity_id == user_id,
-        func.lower(DonationRequest.status) == 'received'
+        DonationRequest.status == 'RECEIVED'
     ).scalar() or 0
 
     # Received list - sum quantities from items
@@ -224,7 +225,7 @@ def get_charity_dashboard_summary(db: Session, user_id: int) -> dict:
         DonationOffer, DonationOffer.id == DonationRequestItem.offer_id
     ).filter(
         DonationRequest.charity_id == user_id,
-        func.lower(DonationRequest.status) == 'received'
+        DonationRequest.status == 'RECEIVED'
     ).group_by(
         DonationRequest.id, DonationRequest.status, DonationRequest.received_at
     ).order_by(DonationRequest.received_at.desc()).limit(20).all()
@@ -249,7 +250,7 @@ def get_charity_dashboard_summary(db: Session, user_id: int) -> dict:
         DonationOffer, DonationOffer.id == DonationRequestItem.offer_id
     ).filter(
         DonationRequest.charity_id == user_id,
-        func.lower(DonationRequest.status) == 'pending'
+        DonationRequest.status == 'PENDING'
     ).group_by(
         DonationRequest.id, DonationRequest.status, DonationRequest.created_at
     ).order_by(DonationRequest.created_at.desc()).limit(20).all()
@@ -347,11 +348,11 @@ def create_charity_donation_request(db: Session, user_id: int, items: list) -> d
     if not items or len(items) == 0:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Danh sach san pham trong")
 
-    # Validate all items first
     validated_items = []
+    offer_ids = []
     for idx, item in enumerate(items):
-        offer_id = item.offer_id
-        quantity = item.quantity
+        offer_id = getattr(item, 'offer_id', None)
+        quantity = getattr(item, 'quantity', None)
 
         if not offer_id or not quantity or quantity < 1:
             raise HTTPException(
@@ -367,68 +368,81 @@ def create_charity_donation_request(db: Session, user_id: int, items: list) -> d
                 detail=f"Item {idx + 1}: So luong khong hop le"
             )
 
-        offer = db.query(DonationOffer.id, DonationOffer.offered_qty, DonationOffer.status).filter(
-            DonationOffer.id == offer_id
-        ).first()
-
-        if not offer:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Donation offer {offer_id} khong ton tai"
-            )
-        if offer.status != "open":
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Donation offer {offer_id} da dong"
-            )
-
-        # Calculate available qty (consider pending + approved requests)
-        from sqlalchemy import func
-        total_requested = db.query(func.sum(DonationRequestItem.quantity)).join(
-            DonationRequest, DonationRequest.id == DonationRequestItem.request_id
-        ).filter(
-            DonationRequestItem.offer_id == offer_id,
-            DonationRequest.status.in_(['PENDING', 'APPROVED'])
-        ).scalar() or 0
-
-        available_qty = int(offer.offered_qty or 0) - int(total_requested)
-        if quantity > available_qty:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"San pham {offer_id}: So luong vuot qua. Con lai: {available_qty}"
-            )
-
         validated_items.append((offer_id, quantity))
+        offer_ids.append(offer_id)
 
     # Check for duplicate offers in same request
-    offer_ids = [item[0] for item in validated_items]
     if len(offer_ids) != len(set(offer_ids)):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Khong the yeu cau trung lap cung mot san pham"
         )
 
-    # Create DonationRequest
-    total_qty = sum(quantity for _, quantity in validated_items)
-    new_request = DonationRequest(
-        charity_id=user_id,
-        request_qty=total_qty,
-        status='PENDING'
-    )
-    db.add(new_request)
-    db.flush()  # Get request ID
+    # Lock all requested offers to prevent concurrent over-request
+    offers = db.query(DonationOffer).filter(DonationOffer.id.in_(offer_ids)).with_for_update().all()
+    offers_map = {offer.id: offer for offer in offers}
 
-    # Create DonationRequestItems
-    for offer_id, quantity in validated_items:
-        new_item = DonationRequestItem(
-            request_id=new_request.id,
-            offer_id=offer_id,
-            quantity=quantity,
+    if len(offers) != len(offer_ids):
+        missing = set(offer_ids) - set(offers_map.keys())
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Donation offer(s) khong ton tai: {', '.join(str(o) for o in missing)}"
+        )
+
+    try:
+        for offer_id, quantity in validated_items:
+            offer = offers_map.get(offer_id)
+            if not offer:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Donation offer {offer_id} khong ton tai"
+                )
+            if offer.status != "open":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Donation offer {offer_id} da dong"
+                )
+
+            total_requested = db.query(func.coalesce(func.sum(DonationRequestItem.quantity), 0)).join(
+                DonationRequest, DonationRequest.id == DonationRequestItem.request_id
+            ).filter(
+                DonationRequestItem.offer_id == offer_id,
+                DonationRequest.status.in_(['PENDING', 'APPROVED'])
+            ).scalar() or 0
+
+            remaining_qty = int(offer.offered_qty or 0) - int(total_requested)
+            if quantity > remaining_qty:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"San pham {offer_id}: So luong vuot qua. Con lai: {remaining_qty}"
+                )
+
+        total_qty = sum(quantity for _, quantity in validated_items)
+        new_request = DonationRequest(
+            charity_id=user_id,
+            request_qty=total_qty,
             status='PENDING'
         )
-        db.add(new_item)
+        db.add(new_request)
+        db.flush()  # Get request ID
 
-    db.commit()
+        for offer_id, quantity in validated_items:
+            new_item = DonationRequestItem(
+                request_id=new_request.id,
+                offer_id=offer_id,
+                quantity=quantity,
+                status='PENDING'
+            )
+            db.add(new_item)
+
+        db.commit()
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Khong the tao yeu cau donation. Vui long thu lai.",
+        ) from exc
+
     return {
         "success": True,
         "message": f"Tao yeu cau voi {len(validated_items)} san pham thanh cong",

@@ -150,10 +150,10 @@ def list_stores(db: Session, user_id: int) -> dict:
                 "address": row[3] or "",
                 "phone": row[4] or "",
                 "status": "active",
-                "staffCount": int(row[5] or 0),
+                "staffCount": int(row[7] or 0),
                 "code": row[1],
-                "latitude": float(row[6]) if row[6] is not None else None,
-                "longitude": float(row[7]) if row[7] is not None else None,
+                "latitude": float(row[5]) if row[5] is not None else None,
+                "longitude": float(row[6]) if row[6] is not None else None,
             }
         )
 
@@ -322,61 +322,6 @@ def delete_store(db: Session, user_id: int, store_id: int) -> dict:
     return {"success": True, "message": "Xóa store thành công"}
 
 
-# ========== Donation Monitoring ==========
-def list_donation_monitoring(db: Session, user_id: int, status_filter: str = "all") -> dict:
-    """List donation requests for all stores in supermarket."""
-    supermarket_id = _get_supermarket_scope(db, user_id)
-
-    query = db.query(
-        DonationRequest.id,
-        DonationRequest.status,
-        DonationRequest.received_at,
-        DonationRequest.created_at,
-        func.sum(DonationRequestItem.quantity).label('total_qty'),
-        func.count(DonationRequestItem.id).label('item_count'),
-        Store.name.label('store_name'),
-        User.full_name.label('charity_name'),
-    ).join(
-        DonationRequestItem, DonationRequestItem.request_id == DonationRequest.id
-    ).join(
-        DonationOffer, DonationOffer.id == DonationRequestItem.offer_id
-    ).join(
-        Store, Store.id == DonationOffer.store_id
-    ).join(
-        User, User.id == DonationRequest.charity_id
-    ).filter(
-        Store.supermarket_id == supermarket_id
-    )
-
-    if status_filter != "all":
-        query = query.filter(DonationRequest.status == status_filter.upper())
-
-    rows = query.group_by(
-        DonationRequest.id,
-        DonationRequest.status,
-        DonationRequest.received_at,
-        DonationRequest.created_at,
-        Store.name,
-        User.full_name,
-    ).order_by(
-        DonationRequest.created_at.desc()
-    ).limit(500).all()
-
-    items = []
-    for row in rows:
-        items.append({
-            "id": row.id,
-            "quantity": int(row.total_qty or 0),
-            "item_count": int(row.item_count or 0),
-            "store": row.store_name or "-",
-            "recipient": row.charity_name or "-",
-            "status": row.status.lower() if row.status else 'pending',
-            "date": row.created_at.strftime("%d/%m/%Y %H:%M") if row.created_at else "-",
-        })
-
-    return {"items": items}
-
-
 # ========== Staff Management ==========
 def list_supermarket_staff(db: Session, user_id: int) -> dict:
     """List all staff for supermarket admin."""
@@ -441,9 +386,6 @@ def list_supermarket_audit_logs(
 
     Results are sorted newest-first.
     """
-    from app.models.audit_log import AuditLog
-    from app.models.user import User
-    from app.models.store import Store
 
     supermarket_id = _get_supermarket_scope(db, user_id)
 
@@ -545,12 +487,12 @@ def get_dashboard_summary(db: Session, user_id: int, period: str = "daily") -> d
         staff_alias.role.in_(["store_staff", "staff"])
     ).scalar() or 0
 
-    total_products = db.query(func.count(Product.id)).join(
-        Store, Store.supermarket_id == supermarket_id
+    total_products = db.query(func.count(func.distinct(Product.id))).join(
+        InventoryLot, InventoryLot.product_id == Product.id
     ).join(
-        InventoryLot, InventoryLot.store_id == Store.id
+        Store, Store.id == InventoryLot.store_id
     ).filter(
-        Product.id == InventoryLot.product_id
+        Store.supermarket_id == supermarket_id
     ).scalar() or 0
 
     # --- Near expiry (expires in 7 days) ---
@@ -598,8 +540,8 @@ def get_dashboard_summary(db: Session, user_id: int, period: str = "daily") -> d
         Order.created_at < prev_to,
     ).scalar() or 0
 
-    orders_growth = round(((total_orders - int(prev_orders)) / int(prev_orders)) * 100, 1) if prev_orders else 0
-    revenue_growth = round(((total_revenue - float(prev_revenue)) / float(prev_revenue)) * 100, 1) if prev_revenue else 0
+    orders_growth = round(((total_orders - int(prev_orders)) / int(prev_orders)) * 100, 1) if prev_orders else (100 if total_orders > 0 else 0)
+    revenue_growth = round(((total_revenue - float(prev_revenue)) / float(prev_revenue)) * 100, 1) if prev_revenue else (100 if total_revenue > 0 else 0)
 
     # --- Donations in period ---
     donation_metric = db.query(
@@ -628,7 +570,7 @@ def get_dashboard_summary(db: Session, user_id: int, period: str = "daily") -> d
         func.count(
             func.distinct(
                 case(
-                    (func.lower(DonationRequest.status) == "received", DonationRequest.id),
+                    (DonationRequest.status == "RECEIVED", DonationRequest.id),
                     else_=None
                 )
             )
@@ -675,3 +617,59 @@ def get_dashboard_summary(db: Session, user_id: int, period: str = "daily") -> d
         },
         "storeStats": store_stats,
     }
+
+
+# ========== Donation Monitoring ==========
+def list_donation_monitoring(db: Session, user_id: int, status_filter: str = "all") -> dict:
+    """List donation requests that have offers from stores in this supermarket."""
+    from app.models.charity_organization import CharityOrganization
+
+    supermarket_id = _get_supermarket_scope(db, user_id)
+
+    # Query donation requests that have items from offers in our stores
+    q = (
+        db.query(
+            DonationRequest.id,
+            DonationRequest.status,
+            DonationRequest.created_at,
+            DonationRequest.received_at,
+            func.sum(DonationRequestItem.quantity).label("quantity"),
+            func.count(DonationRequestItem.id).label("item_count"),
+            Store.name.label("store"),
+            CharityOrganization.org_name.label("recipient"),
+        )
+        .join(DonationRequestItem, DonationRequestItem.request_id == DonationRequest.id)
+        .join(DonationOffer, DonationOffer.id == DonationRequestItem.offer_id)
+        .join(Store, Store.id == DonationOffer.store_id)
+        .join(User, User.id == DonationRequest.charity_id)
+        .join(CharityOrganization, CharityOrganization.user_id == User.id)
+        .filter(Store.supermarket_id == supermarket_id)
+    )
+
+    if status_filter != "all":
+        q = q.filter(DonationRequest.status == status_filter.upper())
+
+    q = q.group_by(
+        DonationRequest.id,
+        DonationRequest.status,
+        DonationRequest.created_at,
+        DonationRequest.received_at,
+        Store.name,
+        CharityOrganization.org_name,
+    ).order_by(DonationRequest.created_at.desc())
+
+    rows = q.limit(500).all()
+
+    items = []
+    for row in rows:
+        items.append({
+            "id": row.id,
+            "status": (row.status or "").lower(),
+            "date": row.created_at.strftime("%d/%m/%Y") if row.created_at else "-",
+            "quantity": int(row.quantity or 0),
+            "item_count": int(row.item_count or 0),
+            "store": row.store or "-",
+            "recipient": row.recipient or "-",  # This should be org_name
+        })
+
+    return {"items": items}

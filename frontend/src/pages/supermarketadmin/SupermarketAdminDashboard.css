@@ -85,22 +85,11 @@
   padding: 0.7rem 0.9rem;
   border-radius: 10px;
   border: 1px solid var(--sa-border);
-  transition: all 0.3s ease;
   box-shadow: 0 2px 8px rgba(15, 118, 110, 0.06);
-}
-
-.sadashboard-stat-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(15, 118, 110, 0.12);
-  border-color: var(--sa-teal);
 }
 
 .sad-stat-card-secondary {
   border-left: 3px solid var(--sa-border);
-}
-
-.sad-stat-card-secondary:hover {
-  border-left-color: var(--sa-teal);
 }
 
 .sadashboard-stat-header-row {

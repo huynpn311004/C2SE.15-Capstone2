@@ -82,11 +82,11 @@ const CustomerCart = () => {
   const profile = getProfile();
   const shippingAddress = profile.address || '';
 
-  // Initialize selected items when cart is loaded
+  // Initialize selected items when cart is loaded (start with none selected)
   useEffect(() => {
     if (cart.length > 0 && Object.keys(selectedItems).length === 0) {
       const initial = {};
-      cart.forEach(item => { initial[item.id] = true; });
+      cart.forEach(item => { initial[item.id] = false; }); // false = not selected
       setSelectedItems(initial);
     }
   }, [cart.length]);
@@ -166,9 +166,9 @@ const CustomerCart = () => {
         // Initialize with stored cart immediately
         if (stored.length > 0) {
           setCart(stored);
-          // Initialize selected items
+          // Initialize selected items - NOT selected by default
           const initial = {};
-          stored.forEach(item => { initial[item.id] = true; });
+          stored.forEach(item => { initial[item.id] = false; }); // false = customer must select
           setSelectedItems(initial);
         }
         setCartInitialized(true);
@@ -255,9 +255,9 @@ const CustomerCart = () => {
       if (isMounted) {
         const stored = getCart();
         setCart(stored);
-        // Also reset selected items
+        // Reset selected items - NOT selected by default
         const initial = {};
-        stored.forEach(item => { initial[item.id] = true; });
+        stored.forEach(item => { initial[item.id] = false; }); // customer must select manually
         setSelectedItems(initial);
       }
     };
@@ -331,10 +331,11 @@ const CustomerCart = () => {
         shippingAddress: shippingAddress,
       });
 
-      // Navigate to checkout with created orders
+
       showToast('✅ Đặt hàng và giữ chỗ thành công! Vui lòng xác nhận thông tin.');
 
       setTimeout(() => {
+        // Xóa các sản phẩm đã đặt khỏi giỏ hàng chỉ sau khi đã điều hướng sang trang checkout
         navigate('/customer/checkout', {
           state: {
             orderGroups: result.orderGroups,
@@ -343,6 +344,11 @@ const CustomerCart = () => {
             totalOrders: result.totalOrders,
           }
         });
+        // Xóa sản phẩm khỏi giỏ hàng
+        const cartNow = getCart();
+        const remainingCart = cartNow.filter(item => !selectedItems[item.id]);
+        saveCart(remainingCart);
+        window.dispatchEvent(new Event('seims-cart-updated'));
       }, 1500);
 
     } catch (err) {
@@ -434,11 +440,6 @@ const CustomerCart = () => {
             <div className="cart-header-left">
               <h3 className="cart-section-title">Danh sách sản phẩm</h3>
               <p className="cart-section-subtitle">{cart.length} sản phẩm trong giỏ hàng</p>
-              {groupList.length > 1 && (
-                <p className="cart-section-subtitle" style={{ color: 'var(--seims-info)' }}>
-                  Từ {groupList.length} cửa hàng khác nhau
-                </p>
-              )}
             </div>
             <div className="cart-header-right">
               {cart.length > 0 && (
@@ -592,16 +593,6 @@ const CustomerCart = () => {
                   </div>
                 ))}
 
-                <div style={{ borderTop: '1px solid var(--seims-border)', margin: '0.75rem 0' }} />
-
-                <div className="cart-summary-row">
-                  <span className="cart-summary-label">Tạm tính</span>
-                  <span className="cart-summary-value">{subtotal.toLocaleString()}đ</span>
-                </div>
-                <div className="cart-summary-row">
-                  <span className="cart-summary-label">Phí vận chuyển</span>
-                  <span className="cart-summary-value" style={{ color: 'var(--seims-success)' }}>Miễn phí</span>
-                </div>
                 {totalSavings > 0 && (
                   <div className="cart-summary-savings">
                     <span className="cart-summary-label">Tiết kiệm</span>

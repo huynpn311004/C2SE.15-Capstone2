@@ -88,14 +88,11 @@
   border: 1px solid var(--seims-border);
   border-radius: 10px;
   overflow: hidden;
-  transition: all 0.25s ease;
   cursor: pointer;
 }
 
 .customer-shop-product-card:hover {
   border-color: var(--seims-teal);
-  box-shadow: 0 6px 20px rgba(15, 118, 110, 0.14);
-  transform: translateY(-3px);
 }
 
 /* Image */
@@ -114,11 +111,6 @@
   height: 100%;
   object-fit: contain;
   padding: 0.5rem;
-  transition: transform 0.25s ease;
-}
-
-.customer-shop-product-card:hover .customer-shop-product-image {
-  transform: scale(1.04);
 }
 
 /* Info */
