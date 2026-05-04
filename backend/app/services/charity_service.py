@@ -342,7 +342,10 @@ def list_charity_donation_offers(db: Session, user_id: int) -> dict:
 
 # ========== Donation Requests (New Architecture) ==========
 def create_charity_donation_request(db: Session, user_id: int, items: list) -> dict:
-    """Create a new donation request with multiple items (1 order = 1 request with many items)."""
+    """Create donation requests, splitting by store (1 request per store).
+    
+    If charity selects items from 2 different stores, creates 2 separate requests.
+    """
     _get_charity_user(db, user_id)
 
     if not items or len(items) == 0:
@@ -390,6 +393,7 @@ def create_charity_donation_request(db: Session, user_id: int, items: list) -> d
         )
 
     try:
+        # Validate all items first
         for offer_id, quantity in validated_items:
             offer = offers_map.get(offer_id)
             if not offer:
@@ -417,37 +421,64 @@ def create_charity_donation_request(db: Session, user_id: int, items: list) -> d
                     detail=f"San pham {offer_id}: So luong vuot qua. Con lai: {remaining_qty}"
                 )
 
-        total_qty = sum(quantity for _, quantity in validated_items)
-        new_request = DonationRequest(
-            charity_id=user_id,
-            request_qty=total_qty,
-            status='PENDING'
-        )
-        db.add(new_request)
-        db.flush()  # Get request ID
-
+        # Group items by store_id
+        items_by_store = {}  # {store_id: [(offer_id, quantity, offer_obj)]}
         for offer_id, quantity in validated_items:
-            new_item = DonationRequestItem(
-                request_id=new_request.id,
-                offer_id=offer_id,
-                quantity=quantity,
+            offer = offers_map.get(offer_id)
+            store_id = offer.store_id
+            if store_id not in items_by_store:
+                items_by_store[store_id] = []
+            items_by_store[store_id].append((offer_id, quantity, offer))
+
+        # Get store names
+        store_ids = list(items_by_store.keys())
+        stores = db.query(Store.id, Store.name).filter(Store.id.in_(store_ids)).all()
+        store_names = {s.id: s.name for s in stores}
+
+        # Create one DonationRequest per store
+        created_requests = []
+        for store_id, store_items in items_by_store.items():
+            total_qty = sum(qty for _, qty, _ in store_items)
+            new_request = DonationRequest(
+                charity_id=user_id,
+                request_qty=total_qty,
                 status='PENDING'
             )
-            db.add(new_item)
+            db.add(new_request)
+            db.flush()  # Get request ID
+
+            for offer_id, quantity, offer in store_items:
+                new_item = DonationRequestItem(
+                    request_id=new_request.id,
+                    offer_id=offer_id,
+                    quantity=quantity,
+                    status='PENDING'
+                )
+                db.add(new_item)
+
+            created_requests.append({
+                "request_id": new_request.id,
+                "store_id": store_id,
+                "store_name": store_names.get(store_id, f"Cua hang {store_id}"),
+                "item_count": len(store_items),
+                "total_qty": total_qty
+            })
 
         db.commit()
+
+        total_requests = len(created_requests)
+        return {
+            "success": True,
+            "message": f"Tao {total_requests} yeu cau tu {len(items_by_store)} cua hang thanh cong",
+            "total_requests": total_requests,
+            "requests": created_requests
+        }
     except SQLAlchemyError as exc:
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Khong the tao yeu cau donation. Vui long thu lai.",
         ) from exc
-
-    return {
-        "success": True,
-        "message": f"Tao yeu cau voi {len(validated_items)} san pham thanh cong",
-        "request_id": new_request.id
-    }
 
 
 def list_charity_donation_requests_new(db: Session, user_id: int) -> dict:

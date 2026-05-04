@@ -671,23 +671,19 @@ def _create_delivery_for_donation_request(db: Session, donation_request_id: int,
     4. Create notification for delivery partner
     """
     # Get donation request with related details (via DonationRequestItem)
+    # Include charity's address for delivery destination
     request_row = db.query(
         DonationRequest.id,
         DonationRequest.charity_id,
         User.full_name.label("charity_name"),
         User.phone.label("charity_phone"),
-        Store.location.label("store_location")
+        CharityOrganization.address.label("charity_address")
     ).join(
         User, User.id == DonationRequest.charity_id
     ).join(
-        DonationRequestItem, DonationRequestItem.request_id == DonationRequest.id
-    ).join(
-        DonationOffer, DonationOffer.id == DonationRequestItem.offer_id
-    ).join(
-        Store, Store.id == DonationOffer.store_id
+        CharityOrganization, CharityOrganization.user_id == DonationRequest.charity_id
     ).filter(
-        DonationRequest.id == donation_request_id,
-        DonationOffer.store_id == store_id
+        DonationRequest.id == donation_request_id
     ).first()
     
     if not request_row:
@@ -696,9 +692,10 @@ def _create_delivery_for_donation_request(db: Session, donation_request_id: int,
             detail="Donation request không tồn tại"
         )
     
-    # Check if delivery already exists for this donation request
+    # Check if delivery already exists for this donation request from this store
     existing_delivery = db.query(Delivery).filter(
-        Delivery.donation_request_id == donation_request_id
+        Delivery.donation_request_id == donation_request_id,
+        Delivery.store_id == store_id
     ).first()
     
     if existing_delivery:
@@ -723,7 +720,7 @@ def _create_delivery_for_donation_request(db: Session, donation_request_id: int,
         delivery_partner_id=partner.id,
         receiver_name=request_row.charity_name,
         receiver_phone=request_row.charity_phone,
-        receiver_address=request_row.store_location,
+        receiver_address=request_row.charity_address or "Chua co dia chi",
         status="assigned"
     )
     
@@ -1905,9 +1902,16 @@ def update_donation_request_status(db: Session, user_id: int, request_id: int, n
         )
         db.commit()
 
+        # Create delivery for the approved donation request
+        try:
+            delivery_result = _create_delivery_for_donation_request(db, request_id, store_id)
+            delivery_info = f" | Giao hàng: {delivery_result.get('delivery_code', 'N/A')}"
+        except HTTPException:
+            delivery_info = " | (Khong tao duoc delivery)"
+
         return {
             "success": True,
-            "message": "Đã duyệt yêu cầu quyên góp",
+            "message": f"Da duyet yeu cau quyen gop{delivery_info}",
             "status": "APPROVED"
         }
     else:

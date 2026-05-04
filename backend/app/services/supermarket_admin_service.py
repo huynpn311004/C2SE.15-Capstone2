@@ -619,6 +619,97 @@ def get_dashboard_summary(db: Session, user_id: int, period: str = "daily") -> d
     }
 
 
+def list_expiring_products(db: Session, user_id: int, days: int = 7, store_id: int | None = None) -> dict:
+    """List inventory lots expiring within specified days for supermarket admin."""
+    from app.models.category import Category
+
+    supermarket_id = _get_supermarket_scope(db, user_id)
+
+    # Expiry threshold
+    now = datetime.now()
+    expiry_threshold = now + timedelta(days=days)
+
+    # Base query for expiring inventory lots
+    q = (
+        db.query(
+            InventoryLot.id.label("lot_id"),
+            InventoryLot.qty_on_hand.label("quantity"),
+            InventoryLot.expiry_date,
+            InventoryLot.lot_code.label("lot_code"),
+            Product.id.label("product_id"),
+            Product.name.label("product_name"),
+            Product.sku.label("product_sku"),
+            Product.image_url.label("product_image"),
+            Product.base_price.label("base_price"),
+            Category.name.label("category_name"),
+            Store.id.label("store_id"),
+            Store.name.label("store_name"),
+        )
+        .join(Product, Product.id == InventoryLot.product_id)
+        .join(Store, Store.id == InventoryLot.store_id)
+        .outerjoin(Category, Category.id == Product.category_id)
+        .filter(
+            Store.supermarket_id == supermarket_id,
+            InventoryLot.expiry_date <= expiry_threshold,
+            InventoryLot.expiry_date >= now,
+            InventoryLot.qty_on_hand > 0,
+        )
+    )
+
+    if store_id is not None:
+        q = q.filter(Store.id == store_id)
+
+    q = q.order_by(InventoryLot.expiry_date.asc())
+
+    rows = q.all()
+
+    # Calculate days remaining and group by urgency
+    items = []
+    critical_count = 0  # <= 3 days
+    warning_count = 0   # 4-7 days
+    caution_count = 0   # > 7 days
+
+    for row in rows:
+        days_remaining = (row.expiry_date - now.date()).days
+        urgency = "critical" if days_remaining <= 3 else ("warning" if days_remaining <= 7 else "caution")
+
+        if days_remaining <= 3:
+            critical_count += 1
+        elif days_remaining <= 7:
+            warning_count += 1
+        else:
+            caution_count += 1
+
+        items.append({
+            "lotId": row.lot_id,
+            "lotCode": row.lot_code or "-",
+            "productId": row.product_id,
+            "productName": row.product_name,
+            "productSku": row.product_sku or "-",
+            "productImage": row.product_image,
+            "category": row.category_name or "-",
+            "storeId": row.store_id,
+            "storeName": row.store_name or "-",
+            "quantity": int(row.quantity or 0),
+            "basePrice": float(row.base_price or 0),
+            "expiryDate": row.expiry_date.strftime("%d/%m/%Y"),
+            "expiryDateRaw": row.expiry_date.isoformat(),
+            "daysRemaining": days_remaining,
+            "urgency": urgency,
+        })
+
+    return {
+        "items": items,
+        "total": len(items),
+        "summary": {
+            "critical": critical_count,
+            "warning": warning_count,
+            "caution": caution_count,
+            "totalValue": sum(item["quantity"] * item["basePrice"] for item in items),
+        },
+    }
+
+
 # ========== Donation Monitoring ==========
 def list_donation_monitoring(db: Session, user_id: int, status_filter: str = "all") -> dict:
     """List donation requests that have offers from stores in this supermarket."""
@@ -669,7 +760,94 @@ def list_donation_monitoring(db: Session, user_id: int, status_filter: str = "al
             "quantity": int(row.quantity or 0),
             "item_count": int(row.item_count or 0),
             "store": row.store or "-",
-            "recipient": row.recipient or "-",  # This should be org_name
+            "recipient": row.recipient or "-",
         })
 
     return {"items": items}
+
+
+def get_donation_detail(db: Session, user_id: int, request_id: int) -> dict:
+    """Get detailed info for a single donation request with all items."""
+    from app.models.charity_organization import CharityOrganization
+
+    supermarket_id = _get_supermarket_scope(db, user_id)
+
+    # Get main request info
+    q = (
+        db.query(
+            DonationRequest.id,
+            DonationRequest.status,
+            DonationRequest.created_at,
+            DonationRequest.received_at,
+            func.sum(DonationRequestItem.quantity).label("quantity"),
+            func.count(DonationRequestItem.id).label("item_count"),
+            Store.name.label("store"),
+            User.full_name.label("charity_name"),
+            CharityOrganization.org_name.label("recipient"),
+        )
+        .join(DonationRequestItem, DonationRequestItem.request_id == DonationRequest.id)
+        .join(DonationOffer, DonationOffer.id == DonationRequestItem.offer_id)
+        .join(Store, Store.id == DonationOffer.store_id)
+        .join(User, User.id == DonationRequest.charity_id)
+        .join(CharityOrganization, CharityOrganization.user_id == User.id)
+        .filter(Store.supermarket_id == supermarket_id)
+        .filter(DonationRequest.id == request_id)
+        .group_by(
+            DonationRequest.id,
+            DonationRequest.status,
+            DonationRequest.created_at,
+            DonationRequest.received_at,
+            Store.name,
+            User.full_name,
+            CharityOrganization.org_name,
+        )
+    )
+
+    row = q.first()
+    if not row:
+        return None
+
+    # Get items details
+    items_q = (
+        db.query(
+            DonationRequestItem.id,
+            DonationRequestItem.quantity,
+            DonationRequestItem.status,
+            Product.name.label("product_name"),
+            Product.sku.label("product_sku"),
+            InventoryLot.lot_code,
+            InventoryLot.expiry_date,
+        )
+        .join(DonationOffer, DonationOffer.id == DonationRequestItem.offer_id)
+        .join(InventoryLot, InventoryLot.id == DonationOffer.lot_id)
+        .join(Product, Product.id == InventoryLot.product_id)
+        .join(Store, Store.id == DonationOffer.store_id)
+        .filter(DonationRequestItem.request_id == request_id)
+        .filter(Store.supermarket_id == supermarket_id)
+        .all()
+    )
+
+    items = []
+    for item in items_q:
+        items.append({
+            "id": item.id,
+            "productName": item.product_name or "-",
+            "productSku": item.product_sku or "-",
+            "lotCode": item.lot_code or "-",
+            "quantity": int(item.quantity or 0),
+            "expiryDate": item.expiry_date.strftime("%d/%m/%Y") if item.expiry_date else "-",
+            "status": (item.status or "").lower(),
+        })
+
+    return {
+        "id": row.id,
+        "status": (row.status or "").lower(),
+        "date": row.created_at.strftime("%d/%m/%Y") if row.created_at else "-",
+        "receivedDate": row.received_at.strftime("%d/%m/%Y %H:%M") if row.received_at else "-",
+        "quantity": int(row.quantity or 0),
+        "item_count": int(row.item_count or 0),
+        "store": row.store or "-",
+        "charityName": row.charity_name or "-",
+        "recipient": row.recipient or "-",
+        "items": items,
+    }

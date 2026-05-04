@@ -14,6 +14,7 @@ from app.schemas.customer_schemas import (
 	NearExpiryProductListResponse,
 	CategoryListResponse,
 	SupermarketListResponse,
+	StoreListResponse,
 	OrderListResponse,
 	OrderDetailResponse,
 	CreateOrderRequest,
@@ -35,6 +36,7 @@ from app.services.customer_service import (
 	list_near_expiry_products,
 	list_customer_categories,
 	list_customer_supermarkets,
+	list_customer_stores,
 	list_customer_orders,
 	get_customer_order_detail,
 	create_customer_order,
@@ -92,11 +94,14 @@ def change_password(
 @router.get("/products", response_model=ProductListResponse)
 def list_products(
 	supermarket_id: int = Query(default=None),
+	store_id: int = Query(default=None),
 	category_id: int = Query(default=None),
 	search: str = Query(default=None),
+	latitude: float = Query(default=None),
+	longitude: float = Query(default=None),
 	db: Session = Depends(get_db),
 ):
-	return list_customer_products(db, supermarket_id, category_id, search)
+	return list_customer_products(db, supermarket_id, store_id, category_id, search, latitude, longitude)
 
 
 @router.get("/products/{product_id}", response_model=ProductDetailResponse)
@@ -131,6 +136,15 @@ def list_supermarkets(
 	db: Session = Depends(get_db),
 ):
 	return list_customer_supermarkets(db)
+
+
+@router.get("/stores", response_model=StoreListResponse)
+def list_stores(
+	latitude: float = Query(default=None),
+	longitude: float = Query(default=None),
+	db: Session = Depends(get_db),
+):
+	return list_customer_stores(db, latitude, longitude)
 
 
 # ========== Order Endpoints ==========

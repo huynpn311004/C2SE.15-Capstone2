@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchCustomerProducts, fetchCustomerCategories, fetchCustomerSupermarkets } from '../../services/customerApi';
+import { fetchCustomerProducts, fetchCustomerCategories, fetchCustomerStores, fetchCustomerSetting } from '../../services/customerApi';
 import { getProductImageUrl } from '../../services/staffApi';
 import './CustomerShop.css';
 
@@ -43,32 +43,65 @@ const CustomerShop = () => {
   const navigate = useNavigate();
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [supermarkets, setSupermarkets] = useState([]);
+  const [stores, setStores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('');
-  const [selectedSupermarket, setSelectedSupermarket] = useState('');
+  const [selectedStore, setSelectedStore] = useState('');
   const [search, setSearch] = useState('');
   const [toast, setToast] = useState({ visible: false, message: '' });
+  const customerCoords = useRef({ lat: null, lng: null });
+  const [locationReady, setLocationReady] = useState(false);
 
+  // Bước 1: Lấy tọa độ customer trước
   useEffect(() => {
+    async function loadCustomerLocation() {
+      try {
+        const profile = await fetchCustomerSetting();
+        if (profile.latitude != null && profile.longitude != null) {
+          customerCoords.current = { lat: profile.latitude, lng: profile.longitude };
+          setLocationReady(true);
+          return;
+        }
+      } catch {}
+      // Fallback: thử lấy từ localStorage auth user
+      try {
+        const raw = localStorage.getItem('seims_auth_user');
+        if (raw) {
+          const user = JSON.parse(raw);
+          if (user.latitude != null && user.longitude != null) {
+            customerCoords.current = { lat: user.latitude, lng: user.longitude };
+          }
+        }
+      } catch {}
+      setLocationReady(true); // ready anyway, just no coords
+    }
+    loadCustomerLocation();
+  }, []);
+
+  // Bước 2: Load data SAU KHI có tọa độ
+  useEffect(() => {
+    if (!locationReady) return;
     loadData();
-  }, [selectedCategory, selectedSupermarket, search]);
+  }, [selectedCategory, selectedStore, search, locationReady]);
 
   async function loadData() {
     try {
       setLoading(true);
-      const [productsData, categoriesData, supermarketsData] = await Promise.all([
+      const { lat, lng } = customerCoords.current;
+      const [productsData, categoriesData, storesData] = await Promise.all([
         fetchCustomerProducts({ 
           categoryId: selectedCategory || undefined, 
-          supermarketId: selectedSupermarket || undefined,
+          storeId: selectedStore || undefined,
           search: search || undefined,
+          latitude: lat ?? undefined,
+          longitude: lng ?? undefined,
         }),
         fetchCustomerCategories(),
-        fetchCustomerSupermarkets(),
+        fetchCustomerStores({ latitude: lat ?? undefined, longitude: lng ?? undefined }),
       ]);
       setProducts(productsData || []);
       setCategories(categoriesData || []);
-      setSupermarkets(supermarketsData || []);
+      setStores(storesData || []);
     } catch (err) {
       console.error('Failed to load shop data:', err);
     } finally {
@@ -127,13 +160,15 @@ const CustomerShop = () => {
         />
 
         <select
-          value={selectedSupermarket}
-          onChange={(e) => setSelectedSupermarket(e.target.value)}
+          value={selectedStore}
+          onChange={(e) => setSelectedStore(e.target.value)}
           className="customer-shop-select"
         >
           <option value="">Tất cả cửa hàng</option>
-          {supermarkets.map((sm) => (
-            <option key={sm.id} value={sm.id}>{sm.name}</option>
+          {stores.map((st) => (
+            <option key={st.id} value={st.id}>
+              {st.name}{st.distance != null ? ` (${st.distance}km)` : ''}
+            </option>
           ))}
         </select>
 
@@ -158,7 +193,7 @@ const CustomerShop = () => {
         ) : (
           products.map((product) => (
             <div 
-              key={product.id} 
+              key={`${product.id}-${product.storeId}-${product.lotCode}`} 
               className="customer-shop-product-card"
               onClick={() => navigate(`/customer/product/${product.id}`)}
             >
