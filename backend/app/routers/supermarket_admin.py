@@ -153,6 +153,19 @@ def list_donation_monitoring(
     return supermarket_admin_service.list_donation_monitoring(db, current_user.id, status_filter)
 
 
+@router.get("/donations/{request_id}")
+def get_donation_detail(
+	request_id: int,
+	_=Depends(require_supermarket_admin),
+	current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    detail = supermarket_admin_service.get_donation_detail(db, current_user.id, request_id)
+    if not detail:
+        raise HTTPException(status_code=404, detail="Không tìm thấy đơn quyên góp")
+    return detail
+
+
 # ========== Staff Management ==========
 @router.get("/staff")
 def list_supermarket_staff(
@@ -187,4 +200,21 @@ def list_supermarket_audit_logs(
         to_date=to_date,
         limit=limit,
         offset=offset,
+    )
+
+
+# ========== Expiring Products ==========
+@router.get("/expiring-products")
+def list_expiring_products(
+	days: int = Query(default=7, ge=1, le=90, description="Số ngày còn lại để xem sản phẩm sắp hết hạn"),
+	store_id: int | None = Query(default=None, description="Lọc theo store cụ thể"),
+	_=Depends(require_supermarket_admin),
+	current_user: User = Depends(get_current_user),
+	db: Session = Depends(get_db),
+):
+    return supermarket_admin_service.list_expiring_products(
+        db,
+        current_user.id,
+        days=days,
+        store_id=store_id,
     )

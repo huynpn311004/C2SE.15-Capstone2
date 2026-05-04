@@ -21,6 +21,7 @@ import CategoryManagement from './pages/staff/CategoryManagement.jsx';
 import ProductManagement from './pages/staff/ProductManagement.jsx';
 import SupermarketAdminLayout from './components/layout/SupermarketAdmin.jsx';
 import SupermarketAdminDashboard from './pages/supermarketadmin/SupermarketAdminDashboard.jsx';
+import ExpiringProducts from './pages/supermarketadmin/ExpiringProducts.jsx';
 import StoreManagement from './pages/supermarketadmin/StoreManagement.jsx';
 import StaffManagement from './pages/supermarketadmin/StaffManagement.jsx';
 import PolicyConfiguration from './pages/supermarketadmin/PolicyConfiguration.jsx';
@@ -69,6 +70,7 @@ function App() {
           {/* Supermarket Admin Routes */}
           <Route path="/supermarketadmin" element={<Navigate to="/supermarketadmin/dashboard" replace />} />
           <Route path="/supermarketadmin/dashboard" element={<SupermarketAdminLayout><SupermarketAdminDashboard /></SupermarketAdminLayout>} />
+          <Route path="/supermarketadmin/expiring-products" element={<SupermarketAdminLayout><ExpiringProducts /></SupermarketAdminLayout>} />
           <Route path="/supermarketadmin/stores" element={<SupermarketAdminLayout><StoreManagement /></SupermarketAdminLayout>} />
           <Route path="/supermarketadmin/staff" element={<SupermarketAdminLayout><StaffManagement /></SupermarketAdminLayout>} />
           <Route path="/supermarketadmin/policies" element={<SupermarketAdminLayout><PolicyConfiguration /></SupermarketAdminLayout>} />

@@ -104,12 +104,13 @@ export default function DonationMarket() {
 
     setSubmitting(true)
     try {
-      await createDonationRequest({ items })
+      const result = await createDonationRequest({ items })
       const count = items.length
-      setSubmitSuccess(`Đã gửi yêu cầu nhận ${count} sản phẩm thành công!`)
+      const totalRequests = result?.total_requests || 1
+      setSubmitSuccess(`Đã gửi yêu cầu nhận ${count} sản phẩm từ ${totalRequests} cửa hàng thành công!`)
       setSelectedItems({})
       await loadOffers()
-      setTimeout(() => closeModal(), 1500)
+      setTimeout(() => closeModal(), 2000)
     } catch (err) {
       const detail = err?.response?.data?.detail
       if (Array.isArray(detail)) {

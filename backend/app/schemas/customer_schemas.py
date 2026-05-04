@@ -12,6 +12,9 @@ class CustomerProfileResponse(BaseModel):
 	fullName: str
 	phone: str
 	role: str
+	address: str = ""
+	latitude: Optional[float] = None
+	longitude: Optional[float] = None
 	createdAt: str
 
 
@@ -123,6 +126,24 @@ class SupermarketResponse(BaseModel):
 
 class SupermarketListResponse(BaseModel):
 	items: List[SupermarketResponse]
+
+
+# ========== Store Schemas ==========
+
+class StoreResponse(BaseModel):
+	id: int
+	name: str
+	supermarketId: int
+	supermarketName: str
+	location: Optional[str] = None
+	phone: Optional[str] = None
+	latitude: Optional[float] = None
+	longitude: Optional[float] = None
+	distance: Optional[float] = None
+
+
+class StoreListResponse(BaseModel):
+	items: List[StoreResponse]
 
 
 # ========== Order Schemas ==========
