@@ -85,6 +85,58 @@ function SearchBox({ onLocationSelect }) {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+  // Build list of queries to try (from specific to broad)
+  const buildSearchQueries = (raw) => {
+    const trimmed = raw.trim();
+    const hasCountry = /việt\s*nam|viet\s*nam|vn/i.test(trimmed);
+    // Don't append ", Vietnam" if query already contains it
+    const base = hasCountry ? trimmed : `${trimmed}, Vietnam`;
+
+    // Find city-level part (contains "thành phố", "tp.", "tp ", or known city names)
+    const cityPattern = /(?:thành\s*phố|tp[.\s])\s*\S+(?:\s+\S+){0,3}/i;
+    const parts = trimmed.split(',').map(p => p.trim()).filter(Boolean);
+
+    // Find the most likely "city" part (look for "Thành phố X" or known patterns)
+    let cityIdx = -1;
+    for (let i = 0; i < parts.length; i++) {
+      if (cityPattern.test(parts[i])) { cityIdx = i; break; }
+    }
+    // Fallback: last non-country part as city
+    if (cityIdx === -1) {
+      for (let i = parts.length - 1; i >= 0; i--) {
+        if (!/^việt\s*nam$/i.test(parts[i]) && !/^viet\s*nam$/i.test(parts[i])) {
+          cityIdx = i; break;
+        }
+      }
+    }
+
+    // Build simplified query: street number + street name + city
+    // e.g. "39 Phan Châu Trinh, Thành phố Đà Nẵng"
+    const streetPart = parts.slice(0, cityIdx > 0 ? cityIdx : parts.length)
+      .filter(p => !/^phường\b|^quận\b|^xã\b|^huyện\b|^tỉnh\b/i.test(p))
+      .join(', ');
+    const cityPart = cityIdx >= 0 ? parts[cityIdx] : '';
+    const simplified = [streetPart, cityPart].filter(Boolean).join(', ');
+
+    const queries = [base];
+    if (simplified && simplified.length < trimmed.length && simplified.length > 3) {
+      queries.push(hasCountry ? simplified : `${simplified}, Vietnam`);
+    }
+    return queries;
+  };
+
+  const doSearch = async (searchQuery) => {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=5&countrycodes=vn`,
+      { headers: { Accept: 'application/json', 'User-Agent': 'SEIMS/1.0' } }
+    );
+    if (!res.ok) {
+      if (res.status === 403) throw new Error('BLOCKED');
+      if (res.status === 429) throw new Error('RATE');
+      throw new Error(`SERVER:${res.status}`);
+    }
+    return await res.json();
+  };
 
   const search = async (e) => {
     e.preventDefault();
@@ -93,21 +145,34 @@ function SearchBox({ onLocationSelect }) {
     setError('');
     setShow(true);
     try {
-      // Add "Vietnam" to search query to prioritize Vietnamese addresses
-      const searchQuery = `${query.trim()}, Vietnam`;
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=5&countrycodes=vn`,
-        { headers: { Accept: 'application/json' } }
-      );
-      const data = await res.json();
-      if (data.length === 0) {
+      const queries = buildSearchQueries(query);
+      let data = [];
+      let lastError = null;
+      for (const q of queries) {
+        try {
+          data = await doSearch(q);
+          if (data.length > 0) break;
+        } catch (err) {
+          lastError = err.message;
+        }
+      }
+      if (lastError === 'BLOCKED') {
+        setError('OpenStreetMap từ chối yêu cầu (bị chặn). Vui lòng thử lại sau ít phút.');
+        setResults([]);
+      } else if (lastError === 'RATE') {
+        setError('Quá nhiều yêu cầu. Vui lòng đợi vài giây rồi thử lại.');
+        setResults([]);
+      } else if (lastError?.startsWith('SERVER')) {
+        setError(`Lỗi máy chủ (${lastError.split(':')[1]}). Vui lòng thử lại sau.`);
+        setResults([]);
+      } else if (data.length === 0) {
         setError('Không tìm thấy địa chỉ trong Việt Nam');
         setResults([]);
       } else {
         setResults(data);
       }
     } catch {
-      setError('Lỗi tìm kiếm');
+      setError('Lỗi kết nối. Kiểm tra mạng hoặc OpenStreetMap đang bị chặn.');
       setResults([]);
     } finally {
       setLoading(false);
@@ -235,7 +300,7 @@ export default function LocationModal({ isOpen, onClose, onSelectLocation, initi
     try {
       const res = await fetch(
         `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`,
-        { headers: { Accept: 'application/json' } }
+        { headers: { Accept: 'application/json', 'User-Agent': 'SEIMS/1.0' } }
       );
       const data = await res.json();
       setAddr(data.display_name || `${lat.toFixed(6)}, ${lng.toFixed(6)}`);

@@ -142,12 +142,28 @@ export async function fetchSupermarketReports(range = '30d') {
   return response.data
 }
 
+export async function fetchExpiringProducts(days = 7, storeId = null) {
+  requireSupermarketAdmin()
+  const params = { days }
+  if (storeId) {
+    params.store_id = storeId
+  }
+  const response = await API.get('/supermarket-admin/expiring-products', { params })
+  return response.data
+}
+
 export async function fetchDonationMonitoring(statusFilter = 'all') {
   requireSupermarketAdmin()
   const response = await API.get('/supermarket-admin/donations', {
     params: { status_filter: statusFilter },
   })
   return response.data.items || []
+}
+
+export async function fetchDonationDetail(requestId) {
+  requireSupermarketAdmin()
+  const response = await API.get(`/supermarket-admin/donations/${requestId}`)
+  return response.data
 }
 
 export async function fetchSupermarketProducts() {

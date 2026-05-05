@@ -55,11 +55,14 @@ export async function changeCustomerPassword(payload) {
 
 // Products APIs
 // KHONG can dang nhap - moi nguoi deu xem duoc san pham
-export async function fetchCustomerProducts({ supermarketId, categoryId, search } = {}) {
+export async function fetchCustomerProducts({ supermarketId, storeId, categoryId, search, latitude, longitude } = {}) {
   const params = {}
   if (supermarketId) params.supermarket_id = supermarketId
+  if (storeId) params.store_id = storeId
   if (categoryId) params.category_id = categoryId
   if (search) params.search = search
+  if (latitude != null) params.latitude = latitude
+  if (longitude != null) params.longitude = longitude
 
   const response = await API.get('/customer/products', { params })
   return response.data.items || []
@@ -89,6 +92,15 @@ export async function fetchCustomerCategories(supermarketId) {
 
 export async function fetchCustomerSupermarkets() {
   const response = await API.get('/customer/supermarkets')
+  return response.data.items || []
+}
+
+export async function fetchCustomerStores({ latitude, longitude } = {}) {
+  const params = {}
+  if (latitude != null) params.latitude = latitude
+  if (longitude != null) params.longitude = longitude
+
+  const response = await API.get('/customer/stores', { params })
   return response.data.items || []
 }
 
@@ -137,6 +149,14 @@ export async function cancelCustomerOrder(orderId) {
 export async function confirmCustomerOrder(orderId) {
   requireCustomer()
   const response = await API.put(`/customer/orders/${orderId}/confirm-payment`)
+  return response.data
+}
+
+// Payment APIs
+export async function initiatePayment(orderId, paymentMethod = 'momo') {
+  requireCustomer()
+  const payload = { order_id: orderId, payment_method: paymentMethod }
+  const response = await API.post(`/customer/orders/${orderId}/pay`, payload)
   return response.data
 }
 

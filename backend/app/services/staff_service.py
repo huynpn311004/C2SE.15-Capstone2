@@ -26,7 +26,6 @@ from app.models.donation_request import DonationRequest
 from app.models.donation_request_item import DonationRequestItem
 from app.models.delivery import Delivery
 from app.models.delivery_partner import DeliveryPartner
-from app.models.notification import Notification
 from app.models.charity_organization import CharityOrganization
 
 
@@ -585,7 +584,6 @@ def _create_delivery_for_order(db: Session, order_id: int, store_id: int) -> dic
     1. Fetch order and customer details
     2. Find available delivery partner
     3. Create Delivery record
-    4. Create notification for delivery partner
     """
     # Get order and customer
     order_row = db.query(
@@ -644,20 +642,9 @@ def _create_delivery_for_order(db: Session, order_id: int, store_id: int) -> dic
     db.add(new_delivery)
     db.flush()
     delivery_id = new_delivery.id
-    
-    # Create notification for delivery partner
-    notification_content = f"Có đơn giao hàng mới: {delivery_code} từ khách hàng {order_row.customer_name}"
-    
-    notification = Notification(
-        user_id=partner.user_id,
-        type="delivery_assigned",
-        content=notification_content,
-        is_read=False
-    )
-    
-    db.add(notification)
+
     db.commit()
-    
+
     return {"delivery_id": delivery_id, "delivery_code": delivery_code}
 
 
@@ -668,26 +655,21 @@ def _create_delivery_for_donation_request(db: Session, donation_request_id: int,
     1. Fetch donation request items, charity organization, offer, and lot details
     2. Find available delivery partner
     3. Create Delivery record
-    4. Create notification for delivery partner
     """
     # Get donation request with related details (via DonationRequestItem)
+    # Include charity's address for delivery destination
     request_row = db.query(
         DonationRequest.id,
         DonationRequest.charity_id,
         User.full_name.label("charity_name"),
         User.phone.label("charity_phone"),
-        Store.location.label("store_location")
+        CharityOrganization.address.label("charity_address")
     ).join(
         User, User.id == DonationRequest.charity_id
     ).join(
-        DonationRequestItem, DonationRequestItem.request_id == DonationRequest.id
-    ).join(
-        DonationOffer, DonationOffer.id == DonationRequestItem.offer_id
-    ).join(
-        Store, Store.id == DonationOffer.store_id
+        CharityOrganization, CharityOrganization.user_id == DonationRequest.charity_id
     ).filter(
-        DonationRequest.id == donation_request_id,
-        DonationOffer.store_id == store_id
+        DonationRequest.id == donation_request_id
     ).first()
     
     if not request_row:
@@ -696,9 +678,10 @@ def _create_delivery_for_donation_request(db: Session, donation_request_id: int,
             detail="Donation request không tồn tại"
         )
     
-    # Check if delivery already exists for this donation request
+    # Check if delivery already exists for this donation request from this store
     existing_delivery = db.query(Delivery).filter(
-        Delivery.donation_request_id == donation_request_id
+        Delivery.donation_request_id == donation_request_id,
+        Delivery.store_id == store_id
     ).first()
     
     if existing_delivery:
@@ -723,47 +706,16 @@ def _create_delivery_for_donation_request(db: Session, donation_request_id: int,
         delivery_partner_id=partner.id,
         receiver_name=request_row.charity_name,
         receiver_phone=request_row.charity_phone,
-        receiver_address=request_row.store_location,
+        receiver_address=request_row.charity_address or "Chua co dia chi",
         status="assigned"
     )
     
     db.add(new_delivery)
     db.flush()
     delivery_id = new_delivery.id
-    
-    # Get first item info for notification
-    first_item = db.query(
-        DonationRequestItem.quantity,
-        Product.name.label("product_name")
-    ).join(
-        DonationOffer, DonationOffer.id == DonationRequestItem.offer_id
-    ).join(
-        InventoryLot, InventoryLot.id == DonationOffer.lot_id
-    ).join(
-        Product, Product.id == InventoryLot.product_id
-    ).filter(
-        DonationRequestItem.request_id == donation_request_id
-    ).first()
-    
-    product_info = f"Sản phẩm: {first_item.product_name}, Số lượng: {first_item.quantity}" if first_item else "Nhiều sản phẩm"
-    
-    # Create notification for delivery partner
-    notification_content = (
-        f"Có đơn giao hàng donation mới: {delivery_code} "
-        f"cho tổ chức từ thiện {request_row.charity_name}. "
-        f"{product_info}"
-    )
-    
-    notification = Notification(
-        user_id=partner.user_id,
-        type="delivery_assigned",
-        content=notification_content,
-        is_read=False
-    )
-    
-    db.add(notification)
+
     db.commit()
-    
+
     return {"delivery_id": delivery_id, "delivery_code": delivery_code}
 
 
@@ -886,42 +838,6 @@ def get_staff_order_detail(db: Session, order_id: int, store_id: int) -> dict:
         "deliveredAt": order_row.delivered_at.strftime("%d/%m/%Y %H:%M") if order_row.delivered_at else None,
         "items": items,
     }
-
-
-# ========== Notifications Business Logic ==========
-def list_staff_notifications(db: Session, user_id: int) -> dict:
-    """List notifications for user."""
-    from app.models.notification import Notification
-    rows = db.query(
-        Notification.id, Notification.type, Notification.content, Notification.is_read, Notification.created_at
-    ).filter(Notification.user_id == user_id).order_by(Notification.created_at.desc()).all()
-
-    items = []
-    for row in rows:
-        items.append({
-            "id": row.id,
-            "type": row.type or "info",
-            "content": row.content or "",
-            "isRead": bool(row.is_read),
-            "createdAt": row.created_at.strftime("%d/%m/%Y %H:%M"),
-        })
-
-    return {"items": items}
-
-
-def mark_notification_as_read(db: Session, notification_id: int, user_id: int) -> dict:
-    """Mark notification as read."""
-    from app.models.notification import Notification
-    db.query(Notification).filter(
-        Notification.id == notification_id,
-        Notification.user_id == user_id
-    ).update(
-        {Notification.is_read: 1},
-        synchronize_session=False
-    )
-    db.commit()
-
-    return {"success": True}
 
 
 # ========== Categories Business Logic ==========
@@ -1905,9 +1821,16 @@ def update_donation_request_status(db: Session, user_id: int, request_id: int, n
         )
         db.commit()
 
+        # Create delivery for the approved donation request
+        try:
+            delivery_result = _create_delivery_for_donation_request(db, request_id, store_id)
+            delivery_info = f" | Giao hàng: {delivery_result.get('delivery_code', 'N/A')}"
+        except HTTPException:
+            delivery_info = " | (Khong tao duoc delivery)"
+
         return {
             "success": True,
-            "message": "Đã duyệt yêu cầu quyên góp",
+            "message": f"Da duyet yeu cau quyen gop{delivery_info}",
             "status": "APPROVED"
         }
     else:

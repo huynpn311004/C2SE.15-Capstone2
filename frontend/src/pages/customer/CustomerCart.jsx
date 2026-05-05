@@ -2,56 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getProductImageUrl } from '../../services/staffApi';
 import { validateCartStock, fetchCustomerProductDetail, createMultiStoreOrder } from '../../services/customerApi';
+import { getCart, setCart, removeFromCart, updateCartItemQuantity, clearCart } from '../../services/cartUtils';
 import './CustomerCart.css';
 
-const CART_KEY = 'seims_customer_cart';
-
-function getCart() {
-  try {
-    const raw = localStorage.getItem(CART_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch { return []; }
-}
-
-function saveCart(cart) {
-  localStorage.setItem(CART_KEY, JSON.stringify(cart));
-}
-
-function removeFromCart(productId) {
-  const cart = getCart().filter(item => item.id !== productId);
-  saveCart(cart);
-  window.dispatchEvent(new Event('seims-cart-updated'));
-}
-
-function updateCartItemQuantity(productId, delta, onDelete) {
-  const cart = getCart();
-  const item = cart.find(i => i.id === productId);
-
-  if (!item) return;
-
-  // If decreasing and quantity is 1, ask to delete
-  if (delta < 0 && item.quantity <= 1) {
-    if (onDelete) {
-      onDelete(productId);
-    }
-    return;
-  }
-
-  const updatedCart = cart.map(cartItem => {
-    if (cartItem.id === productId) {
-      const newQty = Math.max(1, cartItem.quantity + delta);
-      return { ...cartItem, quantity: newQty };
-    }
-    return cartItem;
-  });
-  saveCart(updatedCart);
-  window.dispatchEvent(new Event('seims-cart-updated'));
-}
-
-function clearCart() {
-  localStorage.removeItem(CART_KEY);
-  window.dispatchEvent(new Event('seims-cart-updated'));
-}
+const saveCart = setCart;
 
 function Toast({ message, visible }) {
   if (!visible) return null;

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from fastapi import status as http_status
 from sqlalchemy.orm import Session
-
+from app.schemas.payment_schemas import PaymentRequest
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.models.user import User
@@ -14,6 +14,7 @@ from app.schemas.customer_schemas import (
 	NearExpiryProductListResponse,
 	CategoryListResponse,
 	SupermarketListResponse,
+	StoreListResponse,
 	OrderListResponse,
 	OrderDetailResponse,
 	CreateOrderRequest,
@@ -35,14 +36,13 @@ from app.services.customer_service import (
 	list_near_expiry_products,
 	list_customer_categories,
 	list_customer_supermarkets,
+	list_customer_stores,
 	list_customer_orders,
 	get_customer_order_detail,
-	create_customer_order,
-	create_multi_store_order,
-	cancel_customer_order,
-	confirm_customer_order,
 	customer_dashboard_summary,
 )
+
+from app.services.order_service import create_customer_order, create_multi_store_order, confirm_customer_order, cancel_customer_order
 
 router = APIRouter(prefix="/customer", tags=["customer"])
 
@@ -92,11 +92,14 @@ def change_password(
 @router.get("/products", response_model=ProductListResponse)
 def list_products(
 	supermarket_id: int = Query(default=None),
+	store_id: int = Query(default=None),
 	category_id: int = Query(default=None),
 	search: str = Query(default=None),
+	latitude: float = Query(default=None),
+	longitude: float = Query(default=None),
 	db: Session = Depends(get_db),
 ):
-	return list_customer_products(db, supermarket_id, category_id, search)
+	return list_customer_products(db, supermarket_id, store_id, category_id, search, latitude, longitude)
 
 
 @router.get("/products/{product_id}", response_model=ProductDetailResponse)
@@ -133,6 +136,15 @@ def list_supermarkets(
 	return list_customer_supermarkets(db)
 
 
+@router.get("/stores", response_model=StoreListResponse)
+def list_stores(
+	latitude: float = Query(default=None),
+	longitude: float = Query(default=None),
+	db: Session = Depends(get_db),
+):
+	return list_customer_stores(db, latitude, longitude)
+
+
 # ========== Order Endpoints ==========
 
 @router.get("/orders", response_model=OrderListResponse)
@@ -167,11 +179,27 @@ def create_order(
 		current_user.id,
 		data.items,
 		data.storeId,
-		data.paymentMethod,
-		data.shippingAddress,
+		data.paymentMethod or 'cod',
+		data.shippingAddress or '',
 		data.couponId,
-		data.shippingPhone
+		data.shippingPhone or ''
 	)
+
+@router.post("/orders/{order_id}/pay")
+def pay_order(
+	order_id: int,
+	data: PaymentRequest,
+	current_user: User = Depends(get_current_user),
+	db: Session = Depends(get_db)
+):
+	"""Chuyển hướng đến payment gateway"""
+	from app.services.order_service import initiate_momo_payment
+	from app.schemas.payment_schemas import PaymentResponse
+	
+	payment_result = initiate_momo_payment(db, data)
+	
+	# Redirect to Momo (in production use frontend redirect)
+	return {"redirect_url": payment_result.payment_url, "message": "Redirecting to Momo..."}
 
 
 @router.post("/orders/multi-store", response_model=CreateMultiStoreOrderResponse)
@@ -188,10 +216,10 @@ def create_multi_store(
 		db,
 		current_user.id,
 		data.items,
-		data.paymentMethod,
-		data.shippingAddress,
+		data.paymentMethod or 'cod',
+		data.shippingAddress or '',
 		data.couponId,
-		data.shippingPhone
+		data.shippingPhone or ''
 	)
 
 

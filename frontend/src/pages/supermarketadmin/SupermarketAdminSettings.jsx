@@ -207,12 +207,6 @@ export default function SupermarketAdminSettings() {
           </label>
         </div>
 
-        <div className="sasettings-actions">
-          <button type="submit" className="sasettings-btn" disabled={loadingProfile || !isDirty}>
-            Lưu Thay Đổi
-          </button>
-        </div>
-
         {saveMessage && <p className="sasettings-msg-success">{saveMessage}</p>}
       </form>
 

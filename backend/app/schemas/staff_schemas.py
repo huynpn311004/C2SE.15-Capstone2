@@ -67,19 +67,6 @@ class OrderDetailResponse(BaseModel):
     items: list[OrderItemDetail]
 
 
-# ========== Notifications Schemas ==========
-class NotificationItem(BaseModel):
-    id: int
-    type: str
-    content: str
-    isRead: bool
-    createdAt: str
-
-
-class NotificationsListResponse(BaseModel):
-    items: list[NotificationItem]
-
-
 # ========== Categories Schemas ==========
 class CategoryItem(BaseModel):
     id: int

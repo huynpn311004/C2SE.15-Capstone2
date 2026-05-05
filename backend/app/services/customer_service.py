@@ -6,6 +6,7 @@ from fastapi import HTTPException, status
 
 from app.core.security import get_password_hash, verify_password
 from app.services import discount_policy_service
+from app.services.geocoding_service import calculate_distance
 from app.models.user import User
 from app.models.product import Product
 from app.models.category import Category
@@ -542,7 +543,8 @@ def _calculate_discount(base_price: float, expiry_date: date, supermarket_id: in
 def get_customer_profile(db: Session, user_id: int) -> dict:
 	"""Get customer profile by user_id"""
 	user = db.query(
-		User.id, User.username, User.email, User.full_name, User.phone, User.role, User.created_at, User.address
+		User.id, User.username, User.email, User.full_name, User.phone, User.role, User.created_at, User.address,
+		User.latitude, User.longitude
 	).filter(User.id == user_id, User.role == 'customer').first()
 
 	if not user:
@@ -556,6 +558,8 @@ def get_customer_profile(db: Session, user_id: int) -> dict:
 		"phone": user.phone or "",
 		"role": user.role,
 		"address": user.address or "",
+		"latitude": user.latitude,
+		"longitude": user.longitude,
 		"createdAt": user.created_at.strftime("%d/%m/%Y") if user.created_at else "",
 	}
 
@@ -621,15 +625,20 @@ def change_customer_password(db: Session, user_id: int, current_password: str, n
 def list_customer_products(
 	db: Session,
 	supermarket_id: int = None,
+	store_id: int = None,
 	category_id: int = None,
-	search: str = None
+	search: str = None,
+	customer_lat: float = None,
+	customer_lng: float = None,
+	radius_km: float = 10.0
 ) -> dict:
-	"""List all available products for customer"""
+	"""List available products. If customer coords provided, only show products from stores within radius_km."""
 	base_query = db.query(
 		Product.id, Product.sku, Product.name, Product.base_price, Product.image_url,
 		Product.supermarket_id, Category.id.label("category_id"), Category.name.label("category_name"),
 		InventoryLot.store_id, Store.name.label("store_name"),
-		InventoryLot.expiry_date, InventoryLot.qty_on_hand, InventoryLot.qty_reserved, InventoryLot.lot_code
+		InventoryLot.expiry_date, InventoryLot.qty_on_hand, InventoryLot.qty_reserved, InventoryLot.lot_code,
+		Store.latitude, Store.longitude
 	).distinct()\
 	 .join(Category, Category.id == Product.category_id)\
 	 .join(InventoryLot, InventoryLot.product_id == Product.id)\
@@ -638,6 +647,9 @@ def list_customer_products(
 
 	if supermarket_id:
 		base_query = base_query.filter(Product.supermarket_id == supermarket_id)
+
+	if store_id:
+		base_query = base_query.filter(InventoryLot.store_id == store_id)
 
 	if category_id:
 		base_query = base_query.filter(Product.category_id == category_id)
@@ -657,6 +669,14 @@ def list_customer_products(
 		
 		# Calculate available stock: on_hand - reserved
 		available_stock = max(0, int(row.qty_on_hand) - int(row.qty_reserved))
+
+		# Nếu có tọa độ customer và không chọn store cụ thể → lọc theo bán kính 10km
+		if customer_lat is not None and customer_lng is not None and store_id is None:
+			if row.latitude is None or row.longitude is None:
+				continue  # store không có tọa độ → loại bỏ
+			dist = calculate_distance(customer_lat, customer_lng, row.latitude, row.longitude)
+			if dist > radius_km:
+				continue  # quá xa → loại bỏ
 
 		items.append({
 			"id": row.id,
@@ -851,6 +871,63 @@ def list_customer_supermarkets(db: Session) -> dict:
 		}
 		for row in rows
 	]
+	return {"items": items}
+
+
+def list_customer_stores(
+	db: Session,
+	customer_lat: float = None,
+	customer_lng: float = None,
+	radius_km: float = 10.0
+) -> dict:
+	"""List stores with products within radius_km from customer, sorted by distance"""
+	rows = db.query(
+		Store.id, Store.name, Store.supermarket_id,
+		Supermarket.name.label("supermarket_name"),
+		Store.location, Store.phone, Store.latitude, Store.longitude
+	).join(
+		Supermarket, Supermarket.id == Store.supermarket_id
+	).filter(
+		Store.id.in_(
+			db.query(InventoryLot.store_id).filter(
+				InventoryLot.qty_on_hand > 0,
+				InventoryLot.expiry_date >= date.today()
+			).distinct()
+		)
+	).all()
+
+	items = []
+	for row in rows:
+		distance = None
+		if customer_lat is not None and customer_lng is not None:
+			# Store không có tọa độ → loại bỏ khi customer có tọa độ
+			if row.latitude is None or row.longitude is None:
+				continue
+			distance = calculate_distance(customer_lat, customer_lng, row.latitude, row.longitude)
+			# Quá bán kính → loại bỏ
+			if distance > radius_km:
+				continue
+
+		items.append({
+				"id": row.id,
+				"name": row.name,
+				"supermarketId": row.supermarket_id,
+				"supermarketName": row.supermarket_name or "",
+				"location": row.location or "",
+				"phone": row.phone or "",
+				"latitude": row.latitude,
+				"longitude": row.longitude,
+				"distance": distance,
+			})
+
+	if customer_lat is not None and customer_lng is not None:
+		items.sort(key=lambda x: (
+			x["distance"] if x["distance"] is not None else 999999,
+			x["name"]
+		))
+	else:
+		items.sort(key=lambda x: x["name"])
+
 	return {"items": items}
 
 

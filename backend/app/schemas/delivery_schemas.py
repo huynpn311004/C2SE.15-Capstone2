@@ -8,11 +8,18 @@ from pydantic import BaseModel
 class DeliveryItemResponse(BaseModel):
     id: int
     delivery_code: str
-    order_id: int
-    customer_id: int
-    customer_name: str
-    customer_phone: str
-    customer_address: str
+    delivery_type: Optional[str] = None
+    order_id: Optional[int] = None
+    customer_id: Optional[int] = None
+    customer_name: Optional[str] = None
+    customer_phone: Optional[str] = None
+    customer_address: Optional[str] = None
+    donation_request_id: Optional[int] = None
+    charity_id: Optional[int] = None
+    charity_name: Optional[str] = None
+    charity_phone: Optional[str] = None
+    charity_address: Optional[str] = None
+    receiver_name: Optional[str] = None
     store_id: int
     store_name: str
     store_address: str
@@ -21,15 +28,17 @@ class DeliveryItemResponse(BaseModel):
     items: str
     items_list: list
     quantity: int
-    total_amount: float
-    payment_method: str
-    payment_status: str
-    order_status: str
+    total_amount: Optional[float] = None
+    payment_method: Optional[str] = None
+    payment_status: Optional[str] = None
+    order_status: Optional[str] = None
+    donation_status: Optional[str] = None
     status: str
     assigned_at: str
     delivered_at: Optional[str] = None
+    completed_at: Optional[str] = None
     created_at: str
-    reward: float
+    reward: Optional[float] = None
 
     class Config:
         from_attributes = True

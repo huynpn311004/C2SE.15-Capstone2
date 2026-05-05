@@ -185,60 +185,218 @@
   color: white;
   border-color: #0369a1;
 }
-
-.sadonmon-modal-backdrop {
+.sadonmon-modal-overlay {
   position: fixed;
-  inset: 0;
-  z-index: 1000;
-  background: rgba(0, 0, 0, 0.35);
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1100;
+  background: rgba(0, 0, 0, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 1rem;
 }
 
 .sadonmon-modal {
-  width: min(100%, 460px);
-  background: var(--sa-card);
-  border-radius: 14px;
-  box-shadow: 0 20px 40px rgba(15, 118, 110, 0.2);
-  overflow: hidden;
+  background: #ffffff;
+  border-radius: 12px;
+  width: min(90vw, 580px);
+  max-width: 580px;
+  max-height: 92vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(15, 118, 110, 0.2);
+  position: relative;
 }
 
-.sadonmon-modal-header,
-.sadonmon-modal-footer {
-  padding: 1rem 1.2rem;
-  border-bottom: 1px solid var(--sa-border);
+.sadonmon-modal-header {
   display: flex;
-  align-items: center;
   justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  background: #f0faf9;
+  border-bottom: 1px solid #d1e7e4;
 }
 
-.sadonmon-modal-body {
-  padding: 1rem 1.2rem;
-  color: var(--sa-ink);
-}
-
-.sadonmon-modal-body p {
-  margin: 0 0 0.9rem;
-  line-height: 1.5;
+.sadonmon-modal-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: #134e4a;
+  font-weight: 700;
 }
 
 .sadonmon-modal-close {
+  background: none;
   border: none;
-  background: transparent;
-  color: var(--sa-ink);
-  font-size: 1rem;
+  font-size: 1.5rem;
+  color: #5b7573;
   cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: color 0.2s;
+}
+
+.sadonmon-modal-close:hover {
+  color: #134e4a;
+}
+
+.sadonmon-modal-body {
+  padding: 1.25rem;
+  overflow-y: auto;
 }
 
 .sadonmon-modal-footer {
-  border-top: 1px solid var(--sa-border);
+  display: flex;
   justify-content: flex-end;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  background: #f8fffe;
+  border-top: 1px solid #e0efed;
 }
 
-.sadonmon-modal-footer .sadonmon-btn-approve {
-  margin: 0;
+/* Detail Grid */
+.sadonmon-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.8rem;
+}
+
+.sadonmon-detail-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.sadonmon-detail-field label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #134e4a;
+}
+
+.sadonmon-detail-value {
+  padding: 0.5rem 0.7rem;
+  background: #f8fffe;
+  border: 1px solid #d1e7e4;
+  border-radius: 8px;
+  color: #134e4a;
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.sadonmon-id-badge {
+  color: #0f766e;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.sadonmon-qty-value {
+  color: #0f766e;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.sadonmon-received {
+  color: #10b981;
+  font-weight: 600;
+}
+
+.sadonmon-error {
+  color: #b91c1c;
+  font-size: 0.82rem;
+  font-weight: 500;
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  background: #fef2f2;
+  border-radius: 6px;
+}
+
+/* Loading spinner */
+.sadonmon-modal-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 3rem 1rem;
+  color: #6b7280;
+  font-size: 0.88rem;
+}
+
+.sadonmon-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid #e5e7eb;
+  border-top-color: #0f766e;
+  border-radius: 50%;
+  animation: sadonmon-spin 0.7s linear infinite;
+}
+
+@keyframes sadonmon-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Items table */
+.sadonmon-items-section {
+  margin-top: 1.2rem;
+  border-top: 1px solid #e5e7eb;
+  padding-top: 1rem;
+}
+
+.sadonmon-items-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #374151;
+  margin: 0 0 0.7rem 0;
+}
+
+.sadonmon-items-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.81rem;
+  background: #f9fafb;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.sadonmon-items-table th {
+  background: #f3f4f6;
+  color: #6b7280;
+  font-weight: 600;
+  padding: 0.55rem 0.8rem;
+  text-align: left;
+}
+
+.sadonmon-items-table td {
+  padding: 0.5rem 0.8rem;
+  border-bottom: 1px solid #f0f0f0;
+  color: #374151;
+}
+
+.sadonmon-items-table tr:last-child td {
+  border-bottom: none;
+}
+
+.sadonmon-item-qty {
+  color: #0f766e;
+  font-weight: 700;
+}
+
+/* Cancel button */
+.sadonmon-btn-cancel {
+  background: #ffffff;
+  color: #5b7573;
+  border: 1px solid #d1e7e4;
+  border-radius: 8px;
+  padding: 0.5rem 1rem;
+  font-size: 0.84rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sadonmon-btn-cancel:hover {
+  background: #f0faf9;
+  color: #134e4a;
 }
 
 .sadonmon-btn-reject:hover:not(:disabled) {

@@ -109,10 +109,19 @@
   min-height: 0;
 }
 
+/* TABLE */
+.table-responsive {
+  overflow-x: auto;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
 .charities-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.88rem;
+  table-layout: fixed;
 }
 
 .charities-table thead {
@@ -121,21 +130,27 @@
 }
 
 .charities-table th {
+  width: 16.66%;
+  text-align: left;
   padding: 0.52rem 0.56rem;
   font-size: 0.72rem;
-  text-align: left;
   font-weight: 600;
-  color: var(--seims-ink);  
+  color: var(--seims-ink);
   letter-spacing: 0.05em;
   white-space: nowrap;
+  vertical-align: middle;
 }
 
 .charities-table td {
+  width: 16.66%;
   padding: 0.46rem 0.56rem;
   font-size: 0.81rem;
   border-bottom: 1px solid var(--seims-border);
   color: var(--seims-ink);
   vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .charities-table tbody tr:hover {
@@ -155,6 +170,7 @@
 .charities-actions-cell {
   vertical-align: middle;
   white-space: nowrap;
+  text-align: center;
 }
 
 /* ACTION BUTTONS */
@@ -525,5 +541,24 @@
     flex-direction: column;
     align-items: stretch;
     gap: 0.3rem;
+  }
+
+  .charities-table {
+    table-layout: auto;
+  }
+
+  .charities-table th,
+  .charities-table td {
+    width: auto;
+  }
+
+  .charities-table th:nth-child(6),
+  .charities-table td:nth-child(6) {
+    min-width: 200px;
+  }
+
+  .table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
 }
