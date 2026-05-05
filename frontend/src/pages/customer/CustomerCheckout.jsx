@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { getProductImageUrl } from '../../services/staffApi';
-import { fetchCustomerProductDetail, createMultiStoreOrder, fetchAvailableCoupons, confirmCustomerOrder } from '../../services/customerApi';
+import { fetchCustomerProductDetail, createMultiStoreOrder, fetchAvailableCoupons, confirmCustomerOrder, initiatePayment } from '../../services/customerApi';
 import { LocationModal } from '../../components/map';
 import './CustomerCheckout.css';
 
@@ -120,6 +120,7 @@ const CustomerCheckout = () => {
   const [showCouponModal, setShowCouponModal] = useState(false);
   const [availableCoupons, setAvailableCoupons] = useState([]);
   const [selectedCoupon, setSelectedCoupon] = useState(null);
+  const [paymentMethod, setPaymentMethod] = useState('cod');  // 'cod' or 'momo'
 
   const getProfile = () => {
     try {
@@ -263,21 +264,42 @@ const CustomerCheckout = () => {
     try {
       setSubmitting(true);
 
-      // NEW FLOW: Create orders from cart items with user-entered address
-      if (isMultiStore && itemsForOrder.length > 0) {
-        // Validate address is provided
-        if (!formData.address || formData.address.trim() === '') {
-          setToast({ visible: true, message: ' Vui lòng nhập địa chỉ giao hàng!' });
-          setSubmitting(false);
-          return;
-        }
+        // NEW FLOW: Create orders from cart items with user-entered address
+        if (isMultiStore && itemsForOrder.length > 0) {
+          // Validate address is provided
+          if (!formData.address || formData.address.trim() === '') {
+            setToast({ visible: true, message: ' Vui lòng nhập địa chỉ giao hàng!' });
+            setSubmitting(false);
+            return;
+          }
 
-        // Create multi-store orders with address from form
-        const result = await createMultiStoreOrder({
-          items: itemsForOrder,
-          paymentMethod: 'cod',
-          shippingAddress: formData.address,  // ✅ Using user-entered address
-        });
+          // Create multi-store orders with selected payment method
+          const result = await createMultiStoreOrder({
+            items: itemsForOrder,
+            paymentMethod,
+            shippingAddress: formData.address,
+          });
+
+          if (paymentMethod === 'cod') {
+            // COD: Show success
+            const orderCodes = result.orderGroups.map(g => g.orderCode).join(', ');
+            setToast({
+              visible: true,
+              message: ` ✅ Đặt hàng COD thành công!\n${result.totalOrders} đơn: ${orderCodes}`
+            });
+            setTimeout(() => {
+              setToast(prev => ({ ...prev, visible: false }));
+              navigate('/customer/orders');
+            }, 3000);
+            clearCart();
+            return;
+          } else {
+            // Momo: Pay first order (lead order)
+            const leadOrderId = result.orderGroups[0].orderId;
+            const paymentResult = await initiatePayment(leadOrderId, 'momo');
+            window.location.href = paymentResult.redirect_url;
+            return;
+          }
 
         // Update localStorage with new address
         const authRaw = localStorage.getItem('seims_auth_user');
@@ -611,10 +633,45 @@ const CustomerCheckout = () => {
               />
             </div>
 
+            {/* Payment Method Selector */}
+            <div className="customer-checkout-form-group">
+              <label className="customer-checkout-field">Phương thức thanh toán <span className="customer-checkout-required">*</span></label>
+              <div style={{ display: 'flex', gap: '0.75rem', flexDirection: 'column' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', padding: '0.75rem', border: '1px solid var(--seims-border)', borderRadius: '10px', background: paymentMethod === 'cod' ? 'var(--seims-mint)' : 'var(--seims-bg)' }}>
+                  <input
+                    type="radio"
+                    name="paymentMethod"
+                    value="cod"
+                    checked={paymentMethod === 'cod'}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    style={{ width: '18px', height: '18px', accentColor: 'var(--seims-teal)' }}
+                  />
+                  <span style={{ fontSize: '0.95rem', fontWeight: '500' }}>Thanh toán khi nhận hàng (COD)</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', padding: '0.75rem', border: '1px solid var(--seims-border)', borderRadius: '10px', background: paymentMethod === 'momo' ? 'linear-gradient(135deg, #ff6b35, #f7931e)' : 'var(--seims-bg)', color: paymentMethod === 'momo' ? 'white' : 'inherit' }}>
+                  <input
+                    type="radio"
+                    name="paymentMethod"
+                    value="momo"
+                    checked={paymentMethod === 'momo'}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    style={{ width: '18px', height: '18px', accentColor: 'white' }}
+                  />
+                  <span style={{ fontSize: '0.95rem', fontWeight: '500' }}>Momo (Thanh toán online)</span>
+                </label>
+              </div>
+              {paymentMethod === 'momo' && (
+                <p style={{ fontSize: '0.8rem', color: 'var(--seims-teal-dark)', marginTop: '0.5rem' }}>
+                  An toàn, nhanh chóng. Hỗ trợ quét QR & app Momo.
+                </p>
+              )}
+            </div>
+
             <div className="customer-checkout-note">
               <p className="customer-checkout-note-title">Lưu ý quan trọng</p>
               <ul className="customer-checkout-note-list">
                 <li>Vui lòng kiểm tra kỹ thông tin trước khi đặt hàng</li>
+                {paymentMethod === 'momo' && <li>Thanh toán Momo: Nhận QR code hoặc link ngay sau khi xác nhận</li>}
                 {isMultiStore && orderGroups.length > 1 && (
                   <li style={{ color: 'var(--seims-warning)' }}>
                     Bạn sẽ nhận {orderGroups.length} gói hàng từ các cửa hàng khác nhau
@@ -636,8 +693,9 @@ const CustomerCheckout = () => {
               type="submit"
               className="customer-checkout-submit"
               disabled={(cart.length === 0 && orderGroups.length === 0 && itemsForOrder.length === 0) || submitting}
+              style={{ background: paymentMethod === 'momo' ? 'linear-gradient(135deg, #ff6b35, #f7931e)' : 'var(--seims-teal)' }}
             >
-              {submitting ? 'Đang xử lý...' : (orderGroups.length > 0 ? 'Xác nhận thanh toán' : 'Xác nhận đặt hàng')}
+              {submitting ? 'Đang xử lý...' : (orderGroups.length > 0 ? `Thanh toán ${paymentMethod.toUpperCase()}` : `Đặt hàng ${paymentMethod.toUpperCase()}`)}
             </button>
           </form>
         </div>

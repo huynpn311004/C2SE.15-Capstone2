@@ -152,6 +152,14 @@ export async function confirmCustomerOrder(orderId) {
   return response.data
 }
 
+// Payment APIs
+export async function initiatePayment(orderId, paymentMethod = 'momo') {
+  requireCustomer()
+  const payload = { order_id: orderId, payment_method: paymentMethod }
+  const response = await API.post(`/customer/orders/${orderId}/pay`, payload)
+  return response.data
+}
+
 // Dashboard
 export async function fetchCustomerDashboardSummary() {
   requireCustomer()
