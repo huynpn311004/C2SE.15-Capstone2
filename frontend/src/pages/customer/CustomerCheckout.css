@@ -254,6 +254,55 @@
   line-height: 1.5;
 }
 
+/* Payment Method Selector */
+.customer-payment-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.customer-payment-option {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 2px solid var(--seims-border);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.customer-payment-option:hover {
+  border-color: var(--seims-teal);
+  box-shadow: 0 4px 12px rgba(15, 118, 110, 0.15);
+}
+
+.customer-payment-option.selected {
+  border-color: var(--seims-teal);
+  background: linear-gradient(135deg, rgba(15, 118, 110, 0.08) 0%, rgba(20, 184, 166, 0.08) 100%);
+}
+
+.customer-payment-option.momo {
+  border-color: #f7931e;
+  background: linear-gradient(135deg, rgba(255, 107, 53, 0.1) 0%, rgba(247, 147, 30, 0.1) 100%);
+}
+
+.customer-payment-option.momo.selected {
+  background: linear-gradient(135deg, rgba(255, 107, 53, 0.15) 0%, rgba(247, 147, 30, 0.15) 100%);
+  border-color: #ff6b35;
+  color: #fff;
+}
+
+.customer-payment-option input[type="radio"] {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--seims-teal);
+  margin: 0;
+}
+
 /* Submit Button */
 .customer-checkout-submit {
   padding: 1rem 1.25rem;
@@ -266,6 +315,18 @@
   cursor: pointer;
   transition: all 0.25s ease;
   margin-top: 0.5rem;
+  width: 100%;
+}
+
+.customer-checkout-submit.momo {
+  background: linear-gradient(135deg, #ff6b35, #f7931e);
+  box-shadow: 0 4px 15px rgba(255, 107, 53, 0.4);
+}
+
+.customer-checkout-submit.momo:hover {
+  background: linear-gradient(135deg, #e55a2b, #e68414);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(255, 107, 53, 0.5);
 }
 
 .customer-checkout-submit:hover:not(:disabled) {
@@ -282,6 +343,10 @@
   background: var(--seims-muted);
   cursor: not-allowed;
   opacity: 0.7;
+}
+
+.customer-checkout-submit.cod {
+  background: linear-gradient(135deg, var(--seims-teal), #14b8a6);
 }
 
 /* Checkout Items */
