@@ -350,6 +350,11 @@ export default function InventoryLots() {
         </div>
       </div>
 
+      <p className="inventory-hint">
+        Import 1 file cho cả Sản phẩm + Lô tồn kho. Cột bắt buộc: ma_lo, ten_san_pham, so_luong, ngay_het_han.
+        Cột thêm để hiển thị đầy đủ: danh_muc, ngay_san_xuat (hoặc nsx), gia/ don_gia, ma_sku, trang_thai.
+      </p>
+
       {importError && <p className="inventory-error">{importError}</p>}
       {importResult && <p className="inventory-success">{importResult}</p>}
 

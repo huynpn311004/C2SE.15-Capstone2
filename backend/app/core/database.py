@@ -3,7 +3,9 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 from dotenv import load_dotenv
 import os
 
-load_dotenv()
+# Always load backend/.env regardless of current working directory.
+_BACKEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+load_dotenv(os.path.join(_BACKEND_DIR, ".env"))
 
 def get_env(name: str, default: str | None = None) -> str:
     value = os.getenv(name, default)

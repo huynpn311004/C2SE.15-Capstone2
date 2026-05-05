@@ -1,6 +1,7 @@
 """Product service layer with business logic."""
 
 import re
+from datetime import date, timedelta
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
@@ -14,6 +15,7 @@ from app.core.audit_actions import (
     UPDATE_PRODUCT,
     DELETE_PRODUCT,
     UPDATE_PRICE,
+    UPDATE_STOCK,
     ENTITY_PRODUCT,
 )
 
@@ -109,6 +111,16 @@ def _resolve_or_create_category(db: Session, category_name: object) -> int | Non
     db.add(new_category)
     db.flush()
     return int(new_category.id)
+
+
+def _status_label(expiry_date: date) -> str:
+    """Determine lot status from expiry date."""
+    today = date.today()
+    if expiry_date < today:
+        return "Het Han"
+    if (expiry_date - today).days <= 7:
+        return "Sap Het Han"
+    return "Moi"
 
 
 # ========== Product CRUD Services ==========
@@ -272,6 +284,241 @@ def delete_product(db: Session, product_id: int, supermarket_id: int,
                action=DELETE_PRODUCT, entity_type=ENTITY_PRODUCT, entity_id=product_id)
 
     return {"message": "Xóa sản phẩm thành công"}
+
+
+def adjust_product_stock(
+    db: Session,
+    product_id: int,
+    supermarket_id: int,
+    store_id: int,
+    user_id: int,
+    target_quantity: int,
+    reason: str | None = None,
+) -> dict:
+    """Adjust total stock of a product by redistributing across inventory lots."""
+    if target_quantity < 0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Số lượng mục tiêu phải >= 0")
+
+    product = db.query(Product).filter(
+        Product.id == product_id,
+        Product.supermarket_id == supermarket_id
+    ).first()
+    if not product:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sản phẩm không tìm thấy")
+
+    lots = db.query(InventoryLot).filter(
+        InventoryLot.store_id == store_id,
+        InventoryLot.product_id == product_id
+    ).order_by(
+        InventoryLot.expiry_date.asc(),
+        InventoryLot.id.asc()
+    ).all()
+
+    current_total = sum(int(lot.qty_on_hand or 0) for lot in lots)
+    delta = target_quantity - current_total
+
+    if delta == 0:
+        return {
+            "message": "Số lượng tồn kho không thay đổi",
+            "productId": product_id,
+            "oldTotalStock": current_total,
+            "newTotalStock": target_quantity,
+            "changedBy": 0,
+        }
+
+    # Build per-lot allocation plan (preview) then apply
+    plan = []
+    if delta > 0:
+        # try to find candidate lot to add into
+        candidate_lot = None
+        for lot in lots:
+            if lot.expiry_date >= date.today():
+                candidate_lot = lot
+                break
+        if candidate_lot is None and lots:
+            candidate_lot = lots[-1]
+
+        if candidate_lot is None:
+            expiry = date.today() + timedelta(days=365)
+            auto_lot_code = f"AUTO-{product_id}-{date.today().strftime('%Y%m%d')}"
+            suffix = 1
+            while db.query(InventoryLot.id).filter(
+                InventoryLot.store_id == store_id,
+                InventoryLot.lot_code == auto_lot_code,
+            ).first():
+                suffix += 1
+                auto_lot_code = f"AUTO-{product_id}-{date.today().strftime('%Y%m%d')}-{suffix}"
+
+            # Prepare new lot plan
+            plan.append({
+                "lot": None,
+                "lot_code": auto_lot_code,
+                "old_qty": 0,
+                "new_qty": delta,
+                "note": "auto_created"
+            })
+        else:
+            plan.append({
+                "lot": candidate_lot,
+                "lot_code": candidate_lot.lot_code,
+                "old_qty": int(candidate_lot.qty_on_hand or 0),
+                "new_qty": int(candidate_lot.qty_on_hand or 0) + delta,
+                "note": "increment"
+            })
+    else:
+        qty_to_reduce = abs(delta)
+        max_reducible = sum(max(int(lot.qty_on_hand or 0) - int(lot.qty_reserved or 0), 0) for lot in lots)
+        if max_reducible < qty_to_reduce:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "Không thể giảm tồn kho xuống mức yêu cầu vì một phần hàng đang được giữ chỗ "
+                    "hoặc không đủ số lượng khả dụng."
+                ),
+            )
+
+        for lot in lots:
+            if qty_to_reduce <= 0:
+                break
+            available = max(int(lot.qty_on_hand or 0) - int(lot.qty_reserved or 0), 0)
+            if available <= 0:
+                continue
+
+            remove_qty = min(available, qty_to_reduce)
+            plan.append({
+                "lot": lot,
+                "lot_code": lot.lot_code,
+                "old_qty": int(lot.qty_on_hand or 0),
+                "new_qty": int(lot.qty_on_hand or 0) - remove_qty,
+                "note": "decrement"
+            })
+            qty_to_reduce -= remove_qty
+
+    # Apply the plan
+    created_lot_obj = None
+    for step in plan:
+        if step["lot"] is None:
+            # create new lot
+            new_lot = InventoryLot(
+                store_id=store_id,
+                product_id=product_id,
+                lot_code=step["lot_code"],
+                expiry_date=date.today() + timedelta(days=365),
+                manufacturing_date=None,
+                qty_on_hand=step["new_qty"],
+                qty_reserved=0,
+                status=_status_label(date.today() + timedelta(days=365)),
+            )
+            db.add(new_lot)
+            created_lot_obj = new_lot
+        else:
+            lot_obj = step["lot"]
+            lot_obj.qty_on_hand = step["new_qty"]
+            lot_obj.status = _status_label(lot_obj.expiry_date)
+
+    db.commit()
+
+    # Build per-lot diffs for audit
+    per_lot_changes = []
+    for step in plan:
+        per_lot_changes.append({
+            "lotCode": step.get("lot_code"),
+            "oldQty": int(step.get("old_qty" or 0)),
+            "newQty": int(step.get("new_qty" or 0)),
+            "note": step.get("note")
+        })
+
+    log_action(
+        db,
+        user_id=user_id,
+        store_id=store_id,
+        action=UPDATE_STOCK,
+        entity_type=ENTITY_PRODUCT,
+        entity_id=product_id,
+        old_value={
+            "total_stock": current_total,
+            "per_lot": [{"lotCode": p["lot_code"], "old": p["old_qty"]} for p in plan],
+            "reason": reason,
+        },
+        new_value={
+            "total_stock": target_quantity,
+            "changed_by": delta,
+            "per_lot": per_lot_changes,
+            "reason": reason,
+        },
+    )
+
+    return {
+        "message": "Cập nhật tồn kho thành công",
+        "productId": product_id,
+        "oldTotalStock": current_total,
+        "newTotalStock": target_quantity,
+        "changedBy": delta,
+    }
+
+
+def preview_adjust_product_stock(
+    db: Session,
+    product_id: int,
+    supermarket_id: int,
+    store_id: int,
+    target_quantity: int,
+) -> dict:
+    """Compute allocation plan for adjusting total stock without applying changes."""
+    product = db.query(Product).filter(
+        Product.id == product_id,
+        Product.supermarket_id == supermarket_id
+    ).first()
+    if not product:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sản phẩm không tìm thấy")
+
+    lots = db.query(InventoryLot).filter(
+        InventoryLot.store_id == store_id,
+        InventoryLot.product_id == product_id
+    ).order_by(
+        InventoryLot.expiry_date.asc(),
+        InventoryLot.id.asc()
+    ).all()
+
+    current_total = sum(int(lot.qty_on_hand or 0) for lot in lots)
+    delta = target_quantity - current_total
+
+    if delta == 0:
+        return {"items": [], "oldTotal": current_total, "newTotal": target_quantity}
+
+    plan = []
+    if delta > 0:
+        candidate_lot = None
+        for lot in lots:
+            if lot.expiry_date >= date.today():
+                candidate_lot = lot
+                break
+        if candidate_lot is None and lots:
+            candidate_lot = lots[-1]
+
+        if candidate_lot is None:
+            auto_lot_code = f"AUTO-{product_id}-{date.today().strftime('%Y%m%d')}"
+            # ensure unique code but don't write DB
+            plan.append({"lotId": None, "lotCode": auto_lot_code, "oldQty": 0, "newQty": delta, "note": "auto_created"})
+        else:
+            plan.append({"lotId": int(candidate_lot.id), "lotCode": candidate_lot.lot_code, "oldQty": int(candidate_lot.qty_on_hand or 0), "newQty": int(candidate_lot.qty_on_hand or 0) + delta, "note": "increment"})
+    else:
+        qty_to_reduce = abs(delta)
+        max_reducible = sum(max(int(lot.qty_on_hand or 0) - int(lot.qty_reserved or 0), 0) for lot in lots)
+        if max_reducible < qty_to_reduce:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=("Không thể giảm tồn kho xuống mức yêu cầu vì một phần hàng đang được giữ chỗ hoặc không đủ số lượng khả dụng."))
+
+        for lot in lots:
+            if qty_to_reduce <= 0:
+                break
+            available = max(int(lot.qty_on_hand or 0) - int(lot.qty_reserved or 0), 0)
+            if available <= 0:
+                continue
+            remove_qty = min(available, qty_to_reduce)
+            plan.append({"lotId": int(lot.id), "lotCode": lot.lot_code, "oldQty": int(lot.qty_on_hand or 0), "newQty": int(lot.qty_on_hand or 0) - remove_qty, "note": "decrement"})
+            qty_to_reduce -= remove_qty
+
+    return {"items": plan, "oldTotal": current_total, "newTotal": target_quantity}
 
 
 def list_product_categories(db: Session, supermarket_id: int) -> dict:

@@ -34,4 +34,18 @@ API.interceptors.request.use(
   (error) => Promise.reject(error)
 )
 
+API.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error?.response?.status === 401) {
+      try {
+        localStorage.removeItem('seims_auth_user')
+      } catch {
+        // Ignore storage errors.
+      }
+    }
+    return Promise.reject(error)
+  }
+)
+
 export default API

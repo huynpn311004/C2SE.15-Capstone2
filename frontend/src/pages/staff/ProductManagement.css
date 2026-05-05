@@ -117,6 +117,24 @@
   flex-shrink: 0;
 }
 
+.product-import-hint {
+  padding: 0.6rem 0.75rem;
+  background: #f7fffe;
+  border: 1px dashed #9dd9d2;
+  border-radius: 10px;
+  color: #155e63;
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+.product-import-hint code {
+  padding: 0.08rem 0.28rem;
+  border-radius: 4px;
+  background: #e6fffb;
+  color: #0f766e;
+  font-size: 0.8rem;
+}
+
 .product-toolbar-actions {
   display: flex;
   align-items: center;
@@ -345,6 +363,27 @@
   border-color: #b91c1c;
 }
 
+.product-btn-adjust {
+  background: #ffffff;
+  color: #0b6aa2;
+  border: 1px solid #93c5fd;
+  border-radius: 6px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.product-btn-adjust:hover {
+  background: #0b6aa2;
+  color: #ffffff;
+  border-color: #0b6aa2;
+}
+
 /* Modal */
 .product-modal-overlay {
   position: fixed;
@@ -366,6 +405,94 @@
   max-width: 520px;
   box-shadow: 0 8px 32px rgba(15, 118, 110, 0.25);
   overflow: hidden;
+}
+
+.product-modal.audit-modal {
+  max-width: 840px;
+  width: 92%;
+}
+
+.audit-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-height: 60vh;
+  overflow: auto;
+  padding-right: 6px;
+}
+
+.audit-card {
+  background: #f7fffe;
+  border: 1px solid #dff4ef;
+  border-radius: 8px;
+  padding: 0.6rem;
+}
+
+.audit-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.audit-time {
+  color: #0f766e;
+  font-weight: 700;
+  font-size: 0.88rem;
+}
+
+.audit-meta .badge {
+  display: inline-block;
+  background: #ffffff;
+  border: 1px solid #d1e7e4;
+  color: #0f766e;
+  padding: 0.18rem 0.45rem;
+  border-radius: 6px;
+  margin-left: 0.4rem;
+  font-size: 0.78rem;
+}
+
+.audit-card-body {
+  padding: 0.25rem 0.15rem;
+}
+
+.audit-reason {
+  color: #134e4a;
+  margin-bottom: 0.45rem;
+}
+
+.audit-lot-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+
+.audit-lot-table th,
+.audit-lot-table td {
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid #e6fffb;
+  text-align: left;
+}
+
+.audit-json {
+  background: #ffffff;
+  border: 1px solid #e6fffb;
+  padding: 0.5rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: #134e4a;
+  max-height: 200px;
+  overflow: auto;
+}
+
+.audit-summary {
+  padding: 0.6rem;
+  background: #ffffff;
+  border: 1px solid #e6ffef;
+  border-radius: 6px;
+  color: #065f46;
+  font-weight: 700;
 }
 
 .product-modal-sm {

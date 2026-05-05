@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import StaffLayout from '../../components/layout/StaffLayout'
-import { fetchCategories, createCategory, updateCategory, deleteCategory } from '../../services/staffApi'
+import { fetchCategories, createCategory, updateCategory, deleteCategory, importProducts } from '../../services/staffApi'
 import './CategoryManagement.css'
 
 export default function CategoryManagement() {
@@ -13,6 +13,7 @@ export default function CategoryManagement() {
   const [success, setSuccess] = useState('')
   const [saving, setSaving] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(null)
+  const [isImporting, setIsImporting] = useState(false)
 
   useEffect(() => {
     loadCategories()
@@ -94,6 +95,47 @@ export default function CategoryManagement() {
     setDeleteConfirm(null)
   }
 
+  async function handleImportFile(event) {
+    const selectedFile = event.target.files?.[0]
+    event.target.value = ''
+
+    if (!selectedFile) {
+      return
+    }
+
+    const fileName = selectedFile.name.toLowerCase()
+    if (!fileName.endsWith('.xlsx') && !fileName.endsWith('.csv')) {
+      setError('Chỉ hỗ trợ file .xlsx hoặc .csv')
+      setSuccess('')
+      return
+    }
+
+    try {
+      setIsImporting(true)
+      setError('')
+      setSuccess('')
+
+      const result = await importProducts(selectedFile)
+      await loadCategories()
+
+      let message = `Import thành công: sản phẩm tạo mới ${result.productsCreated || 0}, cập nhật ${result.productsUpdated || 0}`
+      message += ` | danh mục tự tạo ${result.categoriesCreated || 0}`
+      message += ` | lô hàng tạo mới ${result.lotsCreated || 0}, cập nhật ${result.lotsUpdated || 0}`
+      if (result.failed) {
+        const firstError = result.errors?.[0]
+        const detail = firstError
+          ? ` Dòng lỗi đầu tiên: ${firstError.row} - ${firstError.message}`
+          : ''
+        message += `. Lỗi ${result.failed}.${detail}`
+      }
+      setSuccess(message)
+    } catch (err) {
+      setError(err.response?.data?.detail || err.message || 'Import file thất bại')
+    } finally {
+      setIsImporting(false)
+    }
+  }
+
   return (
     <StaffLayout>
       <div className="category-page">
@@ -103,6 +145,16 @@ export default function CategoryManagement() {
             Hiển thị {categories.length} danh mục
           </div>
           <div className="category-toolbar-actions">
+            <label className={`category-upload-btn ${isImporting ? 'is-disabled' : ''}`}>
+              {isImporting ? 'Đang import...' : 'Upload Excel/CSV'}
+              <input
+                type="file"
+                accept=".xlsx,.csv"
+                onChange={handleImportFile}
+                disabled={isImporting}
+                hidden
+              />
+            </label>
             <button className="category-btn-add category-toolbar-btn" onClick={openAddModal}>
               Thêm Danh Mục
             </button>

@@ -22,6 +22,8 @@ from app.schemas.staff_schemas import (
     ProductsListResponse,
     CreateProductRequest,
     UpdateProductRequest,
+    AdjustProductStockRequest,
+    AdjustProductStockPreviewResponse,
     ProductCategoriesListResponse,
     DashboardSummaryResponse,
     InventoryLotsListResponse,
@@ -32,8 +34,12 @@ from app.schemas.staff_schemas import (
     UploadImageResponse,
     CreateBulkDonationOffersRequest,
     UpdateDonationRequestStatusRequest,
+    AuditLogsResponse,
 )
 from app.services import staff_service
+from app.services.audit_service import query_audit_logs
+from app.models.user import User
+from app.models.product import Product
 
 router = APIRouter(prefix="/staff", tags=["staff"])
 
@@ -238,6 +244,90 @@ def delete_product(
 		scope["store_id"],
 		current_user.id,
 	)
+
+
+@router.put("/products/{product_id}/stock")
+def adjust_product_stock(
+    product_id: int,
+    data: AdjustProductStockRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    from app.services import product_service
+    scope = staff_service._get_staff_scope(db, current_user.id)
+    return product_service.adjust_product_stock(
+        db,
+        product_id,
+        scope["supermarket_id"],
+        scope["store_id"],
+        current_user.id,
+        data.targetQuantity,
+        data.reason,
+    )
+
+
+@router.post("/products/{product_id}/stock/preview", response_model=AdjustProductStockPreviewResponse)
+def preview_product_stock(
+    product_id: int,
+    data: AdjustProductStockRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    from app.services import product_service
+    scope = staff_service._get_staff_scope(db, current_user.id)
+    return product_service.preview_adjust_product_stock(
+        db,
+        product_id,
+        scope["supermarket_id"],
+        scope["store_id"],
+        data.targetQuantity,
+    )
+
+
+@router.get("/audit-logs", response_model=AuditLogsResponse)
+def get_audit_logs(
+    action: str | None = Query(default=None),
+    entity_type: str | None = Query(default=None),
+    entity_id: int | None = Query(default=None),
+    limit: int = Query(default=200),
+    offset: int = Query(default=0),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    scope = staff_service._get_staff_scope(db, current_user.id)
+    items = query_audit_logs(
+        db=db,
+        store_id=scope.get("store_id"),
+        action=action,
+        entity_type=entity_type,
+        entity_id=entity_id,
+        limit=limit,
+        offset=offset,
+    )
+    # Enrich with user full name and product name when available
+    enriched = []
+    for it in items:
+        user_name = None
+        product_name = None
+        try:
+            u = db.query(User.full_name).filter(User.id == it.get("user_id")).first()
+            if u:
+                user_name = u[0]
+        except Exception:
+            user_name = None
+
+        try:
+            p = db.query(Product.name).filter(Product.id == it.get("entity_id")).first()
+            if p:
+                product_name = p[0]
+        except Exception:
+            product_name = None
+
+        it["user_name"] = user_name
+        it["product_name"] = product_name
+        enriched.append(it)
+
+    return {"items": enriched}
 
 
 @router.get("/products/categories", response_model=ProductCategoriesListResponse)
