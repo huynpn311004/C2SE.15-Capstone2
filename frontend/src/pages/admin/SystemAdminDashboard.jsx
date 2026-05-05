@@ -1,4 +1,6 @@
-import SystemAdminLayout from '../../components/layout/Layout'
+import { useEffect, useState } from 'react'
+import SystemAdminLayout from '../../components/layout/SystemAdminLayout'
+import { fetchAdminDashboardSummary } from '../../services/adminApi'
 import './SystemAdminDashboard.css'
 
 /**
@@ -6,43 +8,61 @@ import './SystemAdminDashboard.css'
  * Hiển thị: thống kê tổng quan
  */
 export default function SystemAdminDashboard() {
+  const [summary, setSummary] = useState({
+    supermarkets: 0,
+    charities: 0,
+    users: 0,
+    pendingRequests: 0,
+  })
+
+  useEffect(() => {
+    let active = true
+
+    async function loadSummary() {
+      try {
+        const data = await fetchAdminDashboardSummary()
+        if (active) {
+          setSummary(data)
+        }
+      } catch {
+        if (active) {
+          setSummary({
+            supermarkets: 0,
+            charities: 0,
+            users: 0,
+            pendingRequests: 0,
+          })
+        }
+      }
+    }
+
+    loadSummary()
+    return () => {
+      active = false
+    }
+  }, [])
+
   const stats = [
     {
       label: 'Supermarket',
-      value: 12,
-      change: '+2',
+      value: summary.supermarkets,
       color: 'teal',
     },
     {
       label: 'Charity',
-      value: 8,
-      change: '+1',
+      value: summary.charities,
       color: 'red',
     },
     {
       label: 'Người dùng',
-      value: 1240,
-      change: '+45',
+      value: summary.users,
       color: 'blue',
-    },
-    {
-      label: 'Yêu cầu đang chờ',
-      value: 4,
-      change: '⚠️',
-      color: 'warning',
     },
   ]
 
   return (
     <SystemAdminLayout>
       <div className="dashboard-page">
-        {/* WELCOME BANNER */}
-        <div className="dashboard-welcome">
-          <div className="welcome-content">
-            <h2>Chào mừng, Quản trị viên Hệ thống</h2>
-          </div>
-        </div>
-
         {/* STATS GRID */}
         <div className="dashboard-stats">
           {stats.map((stat, idx) => (
@@ -50,10 +70,6 @@ export default function SystemAdminDashboard() {
               key={idx}
               className={`stat-card stat-card-${stat.color}`}
             >
-              <div className="stat-header">
-                <span className="stat-icon">{stat.icon}</span>
-                <span className="stat-change">{stat.change}</span>
-              </div>
               <div className="stat-value">{stat.value}</div>
               <div className="stat-label">{stat.label}</div>
             </div>

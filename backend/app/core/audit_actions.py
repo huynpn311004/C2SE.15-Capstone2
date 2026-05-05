@@ -1,0 +1,66 @@
+"""Audit action constants for tracking store operations.
+
+Use these constants as values for the `action` field in AuditLog records.
+This avoids typos and makes filtering/querying logs consistent.
+"""
+
+# Product actions
+CREATE_PRODUCT = "CREATE_PRODUCT"
+UPDATE_PRODUCT = "UPDATE_PRODUCT"
+DELETE_PRODUCT = "DELETE_PRODUCT"
+UPDATE_PRICE   = "UPDATE_PRICE"
+UPDATE_STOCK   = "UPDATE_STOCK"
+
+# Order actions
+CREATE_ORDER        = "CREATE_ORDER"
+CANCEL_ORDER       = "CANCEL_ORDER"
+UPDATE_ORDER_STATUS = "UPDATE_ORDER_STATUS"
+APPROVE_ORDER      = "APPROVE_ORDER"
+
+# Store actions
+CREATE_STORE = "CREATE_STORE"
+UPDATE_STORE = "UPDATE_STORE"
+DELETE_STORE = "DELETE_STORE"
+
+# User/Staff actions
+CREATE_STAFF = "CREATE_STAFF"
+UPDATE_STAFF = "UPDATE_STAFF"
+DELETE_STAFF = "DELETE_STAFF"
+LOCK_STAFF   = "LOCK_STAFF"
+UNLOCK_STAFF = "UNLOCK_STAFF"
+
+# Category actions
+CREATE_CATEGORY = "CREATE_CATEGORY"
+UPDATE_CATEGORY = "UPDATE_CATEGORY"
+DELETE_CATEGORY = "DELETE_CATEGORY"
+
+# All actions (useful for validation/enum-like patterns)
+ALL_ACTIONS = frozenset({
+    CREATE_PRODUCT,
+    UPDATE_PRODUCT,
+    DELETE_PRODUCT,
+    UPDATE_PRICE,
+    UPDATE_STOCK,
+    CREATE_ORDER,
+    CANCEL_ORDER,
+    UPDATE_ORDER_STATUS,
+    APPROVE_ORDER,
+    CREATE_STORE,
+    UPDATE_STORE,
+    DELETE_STORE,
+    CREATE_STAFF,
+    UPDATE_STAFF,
+    DELETE_STAFF,
+    LOCK_STAFF,
+    UNLOCK_STAFF,
+    CREATE_CATEGORY,
+    UPDATE_CATEGORY,
+    DELETE_CATEGORY,
+})
+
+# Entity type constants
+ENTITY_PRODUCT   = "product"
+ENTITY_ORDER     = "order"
+ENTITY_STORE     = "store"
+ENTITY_USER      = "user"
+ENTITY_CATEGORY  = "category"

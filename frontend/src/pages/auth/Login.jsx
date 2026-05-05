@@ -1,24 +1,41 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { useAuth } from '../../services/AuthContext'
 
 import './Login.css'
-
-/**
- * Trang đăng nhập SEIMS — chỉ dùng useState + form cơ bản.
- * Khi nhóm nối API: gọi API.post('/auth/login', ...) trong handleSubmit.
- */
 export default function Login() {
+  const ADMIN_CONTACT = {
+    email: 'admin@seims.vn',
+    hotline: '1900-0000',
+  }
+
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [showAdminContact, setShowAdminContact] = useState(false)
+  const { login } = useAuth()
+  const navigate = useNavigate()
 
-  function handleSubmit(e) {
+  function routeByRole(role) {
+    const routes = {
+      system_admin: '/admin/dashboard',
+      supermarket_admin: '/supermarketadmin/dashboard',
+      store_staff: '/staff/dashboard',
+      customer: '/customer/home',
+      charity: '/charity/dashboard',
+      delivery_partner: '/delivery/dashboard',
+    }
+    return routes[role] || '/'
+  }
+
+  async function handleSubmit(e) {
     e.preventDefault()
     setMessage('')
     setError('')
+    setShowAdminContact(false)
 
     if (!username.trim()) {
       setError('Vui lòng nhập tên đăng nhập hoặc email.')
@@ -30,19 +47,37 @@ export default function Login() {
     }
 
     setLoading(true)
-    // Giả lập gọi server — thay bằng axios + endpoint thật khi backend xong
-    window.setTimeout(() => {
+    try {
+      const response = await login({
+        username: username.trim(),
+        password,
+      })
+      const nextRole = response?.user?.role
+      setMessage('Đăng nhập thành công!')
+      setTimeout(() => {
+        navigate(routeByRole(nextRole))
+      }, 1500)
+    } catch (err) {
+      const status = err.response?.status
+      const detail = err.response?.data?.detail
+
+      if (detail) {
+        setError(detail)
+        if (status === 423 || detail.toLowerCase().includes('lien he admin')) {
+          setShowAdminContact(true)
+        }
+      } else {
+        setError('Đăng nhập thất bại. Vui lòng thử lại.')
+      }
+    } finally {
       setLoading(false)
-      setMessage(
-        'Đăng nhập (demo): dữ liệu hợp lệ. Nhóm có thể thay bằng gọi API và lưu token.',
-      )
-    }, 600)
+    }
   }
 
   return (
     <div className="login-page">
       <nav className="login-top-nav" aria-label="Điều hướng phụ">
-        <Link to="/">← Về trang chủ</Link>
+        <Link to="/">Về Trang Chủ</Link>
       </nav>
 
       <div className="login-shell">
@@ -50,25 +85,27 @@ export default function Login() {
           <span className="login-brand-badge">SEIMS</span>
           <h1 id="login-brand-title">Smart Expiry Integration Management</h1>
           <p>
-            Nền tảng quản lý hàng cận hạn, giảm giá và donation cho chuỗi siêu
-            thị — đăng nhập theo vai trò được cấp.
+            Nền tảng tích hợp giúp các chuỗi siêu thị theo dõi và quản lý hàng cận hạn,
+            triển khai chiến lược giảm giá linh hoạt và hỗ trợ hoạt động quyên góp.
+            Giải pháp hướng đến việc giảm lãng phí, tối ưu vận hành và nâng cao giá trị bền vững cho doanh nghiệp.
           </p>
           <ul className="login-brand-list">
-            <li>Quản trị hệ thống, siêu thị, cửa hàng</li>
-            <li>Khách hàng, từ thiện, đối tác giao hàng</li>
+            <li>Theo dõi & quản lý hàng cận hạn sử dụng</li>
+            <li>Chiến lược giảm giá linh hoạt theo thời gian thực</li>
+            <li>Hỗ trợ quyên góp từ thiện hiệu quả</li>
+            <li>Giảm lãng phí — tối ưu vận hành — phát triển bền vững</li>
           </ul>
         </aside>
 
         <div className="login-panel">
           <div className="login-card">
             <header className="login-card-header">
-              <h2>Đăng nhập</h2>
-              <span>Nhập tài khoản được quản trị viên cấp</span>
+              <h2>Đăng Nhập</h2>
             </header>
 
             <form onSubmit={handleSubmit} noValidate>
               <div className="login-field">
-                <label htmlFor="login-username">Tên đăng nhập hoặc email</label>
+                <label htmlFor="login-username">Tên Đăng Nhập Hoặc Email</label>
                 <input
                   id="login-username"
                   name="username"
@@ -76,12 +113,12 @@ export default function Login() {
                   autoComplete="username"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="vd: nv_cua_hang_01"
+                  placeholder="Nhập tên đăng nhập hoặc email"
                 />
               </div>
 
               <div className="login-field">
-                <label htmlFor="login-password">Mật khẩu</label>
+                <label htmlFor="login-password">Mật Khẩu</label>
                 <input
                   id="login-password"
                   name="password"
@@ -102,17 +139,28 @@ export default function Login() {
                   />
                   Hiển thị mật khẩu
                 </label>
-                <a href="#quen-mat-khau">Quên mật khẩu?</a>
+                <Link to="/forgot-password">Quên Mật Khẩu?</Link>
               </div>
 
               <button type="submit" className="login-submit" disabled={loading}>
-                {loading ? 'Đang xử lý…' : 'Đăng nhập'}
+                {loading ? 'Đang Xử Lý…' : 'Đăng Nhập'}
               </button>
 
               {error ? (
                 <p className="login-message error" role="alert">
                   {error}
                 </p>
+              ) : null}
+              {showAdminContact ? (
+                <div className="login-message error" role="status">
+                  <strong>Tài khoản bạn đã bị khóa.</strong>
+                  <br />
+                  Vui lòng liên hệ đến admin:
+                  <br />
+                  Email: {ADMIN_CONTACT.email}
+                  <br />
+                  Hotline: {ADMIN_CONTACT.hotline}
+                </div>
               ) : null}
               {message ? (
                 <p className="login-message info" role="status">
@@ -122,10 +170,7 @@ export default function Login() {
             </form>
 
             <footer className="login-footer">
-              Chưa có tài khoản? <Link to="/register">Đăng ký khách hàng</Link>
-              <br />
-              Đại diện siêu thị?{' '}
-              <a href="#dang-ky-sieu-thi">Gửi hồ sơ tham gia</a>
+              Chưa có tài khoản? <Link to="/register">Đăng ký Khách Hàng</Link>
             </footer>
           </div>
         </div>

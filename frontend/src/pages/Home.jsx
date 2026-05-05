@@ -71,25 +71,40 @@ export default function Home() {
           <article className="registration-card">
             <h3>Đăng ký siêu thị</h3>
             <p>Phù hợp cho siêu thị hoặc chuỗi cửa hàng muốn tham gia quản lý hàng cận hạn.</p>
-            <Link to="/register?type=supermarket" className="registration-btn">
+            <a
+              href="https://forms.gle/U2CU3fx4xRF8NRZp9"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="registration-btn"
+            >
               Đăng ký siêu thị
-            </Link>
+            </a>
           </article>
 
           <article className="registration-card">
             <h3>Đăng ký tổ chức từ thiện</h3>
             <p>Dành cho charity muốn tiếp nhận donation từ cửa hàng trên nền tảng SEIMS.</p>
-            <Link to="/register?type=charity" className="registration-btn">
+            <a
+              href="https://forms.gle/upNKQKbYe2hcRwxW9"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="registration-btn"
+            >
               Đăng ký tổ chức từ thiện
-            </Link>
+            </a>
           </article>
 
           <article className="registration-card">
             <h3>Đăng ký giao hàng</h3>
             <p>Dành cho đối tác giao hàng muốn tham gia nền tảng SEIMS.</p>
-            <Link to="/register?type=delivery" className="registration-btn">
+            <a
+              href="https://forms.gle/DiJp6TTvTXtxrzfc8"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="registration-btn"
+            >
               Đăng ký giao hàng
-            </Link>
+            </a>
           </article>
         </div>
       </section>

@@ -1,82 +1,254 @@
-import React, { useState } from 'react';
+import { useState, useEffect } from 'react'
+import CharityLayout from '../../components/layout/CharityLayout'
+import { fetchCharityDonationRequests, fetchCharityDonationRequestDetail, confirmDonationReceived } from '../../services/charityApi'
+import './DonationHistory.css'
 
-const DonationHistory = () => {
-  const [filterStatus, setFilterStatus] = useState('All');
-  
-  const [requests, setRequests] = useState([
-    { id: 101, item: "Gạo sạch", reqQty: 20, status: "Đang chờ duyệt", date: "24/03/2026", approvedDate: "-", receivedDate: "-", store: "WinMart" },
-    { id: 102, item: "Sữa tươi", reqQty: 5, status: "Đã duyệt", date: "25/03/2026", approvedDate: "25/03/2026", receivedDate: "-", store: "Coop Mart" },
-    { id: 103, item: "Dầu ăn", reqQty: 2, status: "Đã nhận hàng", date: "20/03/2026", approvedDate: "21/03/2026", receivedDate: "22/03/2026", store: "Lotte Mart" },
-  ]);
+const statusBadge = {
+  pending: 'badge-warning',
+  approved: 'badge-info',
+  received: 'badge-success',
+  rejected: 'badge-danger',
+}
 
-  const filteredData = filterStatus === 'All' ? requests : requests.filter(r => r.status === filterStatus);
+const statusLabel = {
+  pending: 'Đang Chờ',
+  approved: 'Đã Duyệt',
+  received: 'Đã Nhận',
+  rejected: 'Từ Chối',
+}
+
+export default function DonationHistory() {
+  const [requests, setRequests] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [filter, setFilter] = useState('all')
+  const [confirmingId, setConfirmingId] = useState(null)
+  const [confirmSuccess, setConfirmSuccess] = useState('')
+  const [selectedRequest, setSelectedRequest] = useState(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [detailError, setDetailError] = useState('')
+
+  useEffect(() => {
+    loadRequests()
+  }, [])
+
+  async function loadRequests() {
+    setLoading(true)
+    setError('')
+    try {
+      const data = await fetchCharityDonationRequests()
+      setRequests(data || [])
+    } catch (err) {
+      setError(err?.response?.data?.detail || err.message || 'Không thể tải danh sách yêu cầu')
+      setRequests([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const filtered = filter === 'all' ? requests : requests.filter(r => r.status === filter)
+
+  function getRequestQuantity(req) {
+    if (req.reqQty || req.total_items || req.totalItems) {
+      return req.reqQty || req.total_items || req.totalItems
+    }
+
+    if (!req.items?.length) {
+      return 0
+    }
+
+    return req.items.reduce((sum, item) => {
+      const qty = item.quantity ?? item.qty ?? 1
+      const parsed = typeof qty === 'number' ? qty : parseInt(qty, 10)
+      return sum + (Number.isFinite(parsed) ? parsed : 0)
+    }, 0)
+  }
+
+  async function handleConfirmReceived(req) {
+    const requestId = req.dbId || req.id
+    const quantity = getRequestQuantity(req)
+    if (!window.confirm(`Xác nhận đã nhận hàng "${req.item || req.items?.[0]?.product_name || ''}" (${quantity} sản phẩm)?`)) {
+      return
+    }
+    setConfirmingId(requestId)
+    setConfirmSuccess('')
+    try {
+      await confirmDonationReceived(requestId)
+      setConfirmSuccess(`Xác nhận thành công yêu cầu YC-${requestId}`)
+      await loadRequests()
+    } catch (err) {
+      alert(err?.response?.data?.detail || err.message || 'Xác nhận thất bại')
+    } finally {
+      setConfirmingId(null)
+    }
+  }
+
+  async function openRequestDetail(req) {
+    const requestId = req.dbId || req.id
+    setDetailError('')
+    setSelectedRequest(null)
+    setDetailLoading(true)
+    try {
+      const detail = await fetchCharityDonationRequestDetail(requestId)
+      setSelectedRequest(detail)
+    } catch (err) {
+      setDetailError(err?.response?.data?.detail || err.message || 'Không thể tải chi tiết yêu cầu')
+    } finally {
+      setDetailLoading(false)
+    }
+  }
+
+  function closeRequestDetail() {
+    setSelectedRequest(null)
+    setDetailError('')
+  }
 
   return (
-    <div className="admin-content-inner">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-        <h2 className="text-2xl font-bold text-[#134e4a]">Lịch sử & Trạng thái</h2>
-        
-        {/* 5. FILTER CHỨC NĂNG */}
-        <div className="flex gap-2">
-          <select 
-            className="admin-user-btn bg-white outline-none"
-            onChange={(e) => setFilterStatus(e.target.value)}
-          >
-            <option value="All">Tất cả trạng thái</option>
-            <option value="Đang chờ duyệt">Đang chờ duyệt</option>
-            <option value="Đã duyệt">Đã duyệt</option>
-            <option value="Đã nhận hàng">Đã nhận hàng</option>
-          </select>
+    <CharityLayout>
+      <div className="chhistory-page">
+        {/* TOOLBAR */}
+        <div className="chhistory-toolbar">
+          <div className="chhistory-filter-group">
+            <label>Lọc theo trạng thái:</label>
+            <select className="chhistory-filter-select" value={filter} onChange={e => setFilter(e.target.value)}>
+              <option value="all">Tất Cả</option>
+              <option value="pending">Đang Chờ</option>
+              <option value="approved">Đã Duyệt</option>
+              <option value="received">Đã Nhận</option>
+              <option value="rejected">Từ Chối</option>
+            </select>
+          </div>
+          <div className="chhistory-toolbar-info">Hiển thị {filtered.length} yêu cầu</div>
         </div>
-      </div>
 
-      <div className="seims-table-container shadow-sm border rounded-xl overflow-hidden bg-white">
-        <table className="min-w-full">
-          <thead>
-            <tr className="bg-[#ccfbf1]">
-              <th className="px-4 py-4 text-left text-[10px] font-bold uppercase text-[#0f766e]">Sản phẩm / Store</th>
-              <th className="px-4 py-4 text-center text-[10px] font-bold uppercase text-[#0f766e]">Số lượng yêu cầu</th>
-              <th className="px-4 py-4 text-center text-[10px] font-bold uppercase text-[#0f766e]">Các mốc thời gian</th>
-              <th className="px-4 py-4 text-center text-[10px] font-bold uppercase text-[#0f766e]">Trạng thái</th>
-              <th className="px-4 py-4 text-right text-[10px] font-bold uppercase text-[#0f766e]">Thao tác</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 text-sm">
-            {filteredData.map((req) => (
-              <tr key={req.id} className="hover:bg-gray-50 transition">
-                <td className="px-4 py-4">
-                  <div className="font-bold">{req.item}</div>
-                  <div className="text-xs text-gray-400">📍 {req.store}</div>
-                </td>
-                <td className="px-4 py-4 text-center font-bold text-teal-700">{req.reqQty}</td>
-                <td className="px-4 py-4 text-center text-[11px] leading-tight">
-                  <div>Yêu cầu: {req.date}</div>
-                  <div className="text-blue-500">Duyệt: {req.approvedDate}</div>
-                  <div className="text-green-600">Nhận: {req.receivedDate}</div>
-                </td>
-                <td className="px-4 py-4 text-center">
-                  <span className={`px-2 py-1 rounded-full text-[10px] font-bold border ${
-                    req.status === 'Đã nhận hàng' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 
-                    req.status === 'Đã duyệt' ? 'bg-blue-50 text-blue-600 border-blue-200' : 
-                    'bg-amber-50 text-amber-600 border-amber-200'
-                  }`}>
-                    {req.status}
-                  </span>
-                </td>
-                <td className="px-4 py-4 text-right">
-                  {req.status === 'Đã duyệt' && (
-                    <button className="bg-emerald-600 text-white px-3 py-1 rounded text-[10px] font-bold hover:bg-emerald-700 shadow-sm">
-                      Xác nhận đã nhận
-                    </button>
+        {/* CONFIRM SUCCESS */}
+        {confirmSuccess && (
+          <div className="chhistory-success-banner">{confirmSuccess}</div>
+        )}
+
+        {/* LOADING / ERROR */}
+        {loading && (
+          <div className="chhistory-loading">
+            <div className="spinner"></div>
+            <span>Đang tải dữ liệu...</span>
+          </div>
+        )}
+
+        {!loading && error && (
+          <div className="chhistory-error-banner">
+            <p>{error}</p>
+            <button onClick={loadRequests} className="chhistory-retry-btn">Thử lại</button>
+          </div>
+        )}
+
+        {/* TABLE */}
+        {!loading && !error && (
+          <div className="chhistory-card">
+            <div className="table-responsive">
+              <table className="chhistory-table">
+                <thead>
+                  <tr>
+                    <th>Mã đơn</th>
+                    <th>Số lượng sản phẩm</th>
+                    <th>Trạng thái</th>
+                    <th>Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.length > 0 ? (
+                    filtered.map(req => {
+                      const requestId = req.dbId || req.id
+                      const reqQty = getRequestQuantity(req)
+                      const statusKey = req.status || 'pending'
+
+                      return (
+                        <tr key={requestId}>
+                          <td className="chhistory-order-code">YC-{requestId}</td>
+                          <td className="chhistory-qty">{reqQty}</td>
+                          <td>
+                            <span className={`badge ${statusBadge[statusKey]}`}>{statusLabel[statusKey]}</span>
+                          </td>
+                          <td className="chhistory-action-cell">
+                            <button
+                              type="button"
+                              className="chhistory-btn-view"
+                              onClick={() => openRequestDetail(req)}
+                            >
+                              Xem
+                            </button>
+                            {statusKey === 'approved' && (
+                              <button
+                                type="button"
+                                onClick={() => handleConfirmReceived(req)}
+                                disabled={confirmingId === requestId}
+                                className="chhistory-btn-confirm"
+                              >
+                                {confirmingId === requestId ? 'Đang xử lý...' : 'Xác nhận'}
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan="4" className="chhistory-empty-cell">Không có dữ liệu</td>
+                    </tr>
                   )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                </tbody>
+              </table>
+              {selectedRequest && (
+                <div className="chhistory-modal-backdrop" onClick={closeRequestDetail}>
+                  <div className="chhistory-modal" onClick={e => e.stopPropagation()}>
+                    <div className="chhistory-modal-header">
+                      <h3>Chi tiết yêu cầu YC-{selectedRequest.id}</h3>
+                      <button className="chhistory-modal-close" onClick={closeRequestDetail}>×</button>
+                    </div>
+                    <div className="chhistory-modal-body">
+                      {detailLoading ? (
+                        <div className="chhistory-loading">
+                          <div className="spinner"></div>
+                          <span>Đang tải chi tiết...</span>
+                        </div>
+                      ) : detailError ? (
+                        <div className="chhistory-error-banner">{detailError}</div>
+                      ) : (
+                        <div className="chhistory-detail-grid">
+                          <div><strong>Mã đơn:</strong> YC-{selectedRequest.id}</div>
+                          <div><strong>Trạng thái:</strong> {selectedRequest.status}</div>
+                          <div><strong>Ngày tạo:</strong> {selectedRequest.createdAt || selectedRequest.created_at}</div>
+                          <div><strong>SL sản phẩm:</strong> {selectedRequest.total_items || selectedRequest.totalItems || selectedRequest.items?.length || 0}</div>
+                          <div className="chhistory-detail-items">
+                            <h4>Danh sách sản phẩm</h4>
+                            <table className="chhistory-detail-table">
+                              <thead>
+                                <tr>
+                                  <th>Sản phẩm</th>
+                                  <th>Số lượng</th>
+                                  <th>Trạng thái</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {(selectedRequest.items || []).map(item => (
+                                  <tr key={item.id}>
+                                    <td>{item.product_name || item.product || ''}</td>
+                                    <td>{item.quantity || item.qty || ''}</td>
+                                    <td>{item.status}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
-    </div>
-  );
-};
-
-export default DonationHistory;
+    </CharityLayout>
+  )
+}

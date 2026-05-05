@@ -1,0 +1,224 @@
+"""
+Shipping Fee Calculation Service
+Thiết kế cho nội thành Đà Nẵng — thực phẩm sắp hết hạn, giao bằng xe máy.
+
+3 vùng giao hàng:
+  🟢 Bình thường (0-10km): phí theo bậc, miễn phí cho đơn >= 100k
+  🟡 Cảnh báo (10-15km): 40k, có warning banner
+  🔴 Chặn (>15km): không cho đặt hàng
+"""
+
+from app.services.geocoding_service import calculate_distance, geocode_address
+
+
+# ===== CẤU HÌNH PHÍ VẬN CHUYỂN =====
+
+# Bảng phí theo bậc khoảng cách (max_km, fee)
+SHIPPING_TIERS = [
+    (2, 0),        # 0-2km:  miễn phí
+    (5, 10000),    # 2-5km:  10.000đ
+    (8, 20000),    # 5-8km:  20.000đ
+    (10, 30000),   # 8-10km: 30.000đ
+    (15, 40000),   # 10-15km: 40.000đ (vùng cảnh báo)
+]
+
+WARNING_DISTANCE_KM = 10.0     # Bắt đầu cảnh báo từ 10km
+MAX_DELIVERY_DISTANCE_KM = 15.0  # Chặn hoàn toàn > 15km
+FREE_SHIPPING_THRESHOLD = 100000  # Miễn phí ship cho đơn >= 100.000đ
+
+
+def calculate_shipping_fee(distance_km: float, order_amount: float = 0) -> dict:
+    """
+    Tính phí vận chuyển dựa trên khoảng cách.
+    
+    Returns:
+        dict với keys:
+        - fee: phí vận chuyển cuối cùng (VND) hoặc None nếu chặn
+        - original_fee: phí trước khi áp dụng miễn phí
+        - distance_km: khoảng cách (km)
+        - zone: "normal" | "warning" | "blocked"
+        - deliverable: True/False
+        - free_shipping: True nếu đơn đủ lớn để miễn phí
+        - message: thông báo cho user
+    """
+    distance_km = round(distance_km, 2)
+
+    # --- Vùng Chặn: > 15km ---
+    if distance_km > MAX_DELIVERY_DISTANCE_KM:
+        return {
+            "fee": None,
+            "original_fee": None,
+            "distance_km": distance_km,
+            "zone": "blocked",
+            "deliverable": False,
+            "free_shipping": False,
+            "free_shipping_threshold": FREE_SHIPPING_THRESHOLD,
+            "message": "Rất tiếc, khu vực này nằm ngoài phạm vi giao hàng.",
+        }
+
+    # --- Tính phí theo bậc ---
+    fee = SHIPPING_TIERS[-1][1]  # default: bậc cao nhất
+    for max_km, tier_fee in SHIPPING_TIERS:
+        if distance_km <= max_km:
+            fee = tier_fee
+            break
+
+    # --- Xác định zone ---
+    if distance_km > WARNING_DISTANCE_KM:
+        zone = "warning"
+    else:
+        zone = "normal"
+
+    # --- Miễn phí cho đơn lớn (chỉ áp dụng vùng normal) ---
+    free_shipping = (
+        zone == "normal"
+        and order_amount >= FREE_SHIPPING_THRESHOLD
+    )
+    final_fee = 0 if free_shipping else fee
+
+    # --- Message ---
+    if zone == "warning":
+        message = (
+            f"Khu vực cách cửa hàng {distance_km:.1f}km — nằm ngoài vùng giao hàng tiêu chuẩn. "
+            f"Thời gian giao hàng có thể lâu hơn và chất lượng thực phẩm có thể bị ảnh hưởng."
+        )
+    elif final_fee == 0:
+        message = "Miễn phí vận chuyển"
+    else:
+        message = f"Phí vận chuyển: {final_fee:,.0f}đ"
+
+    return {
+        "fee": final_fee,
+        "original_fee": fee,
+        "distance_km": distance_km,
+        "zone": zone,
+        "deliverable": True,
+        "free_shipping": free_shipping,
+        "free_shipping_threshold": FREE_SHIPPING_THRESHOLD,
+        "message": message,
+    }
+
+
+async def estimate_shipping_for_store(
+    db,
+    store_id: int,
+    address: str = None,
+    lat: float = None,
+    lng: float = None,
+    order_amount: float = 0,
+) -> dict:
+    """
+    Ước tính phí ship từ store đến địa chỉ/tọa độ khách hàng.
+    
+    Dùng cho API estimate-shipping endpoint.
+    """
+    from app.models.store import Store
+
+    store = db.query(Store).filter(Store.id == store_id).first()
+    if not store:
+        return {
+            "deliverable": False,
+            "zone": "blocked",
+            "message": "Cửa hàng không tồn tại",
+            "fee": None,
+        }
+
+    if not store.latitude or not store.longitude:
+        return {
+            "deliverable": False,
+            "zone": "blocked",
+            "message": "Cửa hàng chưa có tọa độ",
+            "fee": None,
+        }
+
+    # Nếu chưa có tọa độ → geocode từ address
+    if lat is None or lng is None:
+        if not address:
+            return {
+                "deliverable": False,
+                "zone": "blocked",
+                "message": "Cần cung cấp địa chỉ hoặc tọa độ giao hàng",
+                "fee": None,
+            }
+        geo = await geocode_address(address)
+        if not geo:
+            return {
+                "deliverable": False,
+                "zone": "blocked",
+                "message": "Không tìm được tọa độ từ địa chỉ này. Vui lòng nhập chính xác hơn.",
+                "fee": None,
+            }
+        lat, lng = geo["latitude"], geo["longitude"]
+
+    distance = calculate_distance(store.latitude, store.longitude, lat, lng)
+    result = calculate_shipping_fee(distance, order_amount)
+
+    # Bổ sung thông tin store
+    result["store_id"] = store.id
+    result["store_name"] = store.name
+    result["store_address"] = store.location or ""
+
+    return result
+
+
+def calculate_shipping_fee_sync(
+    db,
+    store_id: int,
+    shipping_address: str,
+    order_amount: float = 0,
+) -> dict:
+    """
+    Phiên bản SYNC để dùng trong flow tạo đơn hàng (customer_service).
+    Geocode synchronously bằng httpx.
+    """
+    import httpx
+    from app.models.store import Store
+    from app.models.user import User
+
+    store = db.query(Store).filter(Store.id == store_id).first()
+    if not store or not store.latitude or not store.longitude:
+        # Store chưa có tọa độ → miễn phí (fallback)
+        return {
+            "fee": 0,
+            "distance_km": 0,
+            "zone": "normal",
+            "deliverable": True,
+            "free_shipping": True,
+            "message": "Không thể tính khoảng cách — miễn phí vận chuyển",
+        }
+
+    # Geocode address synchronously
+    lat, lng = None, None
+    if shipping_address:
+        try:
+            with httpx.Client(timeout=10.0) as client:
+                response = client.get(
+                    "https://nominatim.openstreetmap.org/search",
+                    params={
+                        "q": shipping_address,
+                        "format": "json",
+                        "limit": 1,
+                        "countrycodes": "vn",
+                    },
+                    headers={"User-Agent": "SEIMS/1.0"},
+                )
+                data = response.json()
+                if data:
+                    lat = float(data[0]["lat"])
+                    lng = float(data[0]["lon"])
+        except Exception as e:
+            print(f"Shipping geocoding error: {e}")
+
+    if lat is None or lng is None:
+        # Không geocode được → miễn phí (fallback)
+        return {
+            "fee": 0,
+            "distance_km": 0,
+            "zone": "normal",
+            "deliverable": True,
+            "free_shipping": True,
+            "message": "Không thể xác định vị trí — miễn phí vận chuyển",
+        }
+
+    distance = calculate_distance(store.latitude, store.longitude, lat, lng)
+    return calculate_shipping_fee(distance, order_amount)

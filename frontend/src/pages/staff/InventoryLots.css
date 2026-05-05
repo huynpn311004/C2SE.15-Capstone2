@@ -1,0 +1,569 @@
+/* Inventory Lots Page CSS */
+.inventory-page {
+  --seims-teal: #0f766e;
+  --seims-teal-dark: #0d5c56;
+  --seims-teal-light: #14b8a6;
+  --seims-mint: #ccfbf1;
+  --seims-ink: #134e4a;
+  --seims-muted: #5b7573;
+  --seims-muted-light: #8b9b99;
+  --seims-card: #ffffff;
+  --seims-border: #d1e7e4;
+  --seims-bg: #f8fffe;
+  --seims-success: #10b981;
+  --seims-warning: #f59e0b;
+  --seims-error: #b91c1c;
+
+  max-width: 100%;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  height: calc(100vh - 64px);
+  overflow: hidden;
+}
+
+/* TOOLBAR */
+.inventory-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.6rem 0.7rem;
+  background: var(--seims-card);
+  border: 1px solid var(--seims-border);
+  border-radius: 9px;
+  box-shadow: 0 2px 8px rgba(15, 118, 110, 0.06);
+  flex-shrink: 0;
+}
+
+.inventory-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.inventory-filter-group label {
+  font-weight: 700;
+  color: var(--seims-ink);
+  white-space: nowrap;
+  font-size: 0.76rem;
+}
+
+.inventory-filter-select {
+  min-height: 32px;
+  padding: 0.34rem 0.72rem;
+  border: 1px solid var(--seims-border);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--seims-ink);
+  font-size: 0.76rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.inventory-filter-select:hover,
+.inventory-filter-select:focus {
+  border-color: var(--seims-teal);
+  box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.1);
+  outline: none;
+}
+
+.inventory-toolbar-info {
+  font-size: 0.76rem;
+  color: var(--seims-muted);
+  white-space: nowrap;
+}
+
+.inventory-toolbar-btn {
+  background: #0f766e;
+  color: #ffffff;
+  border: 1px solid #0f766e;
+  border-radius: 8px;
+  padding: 0.5rem 1rem;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.inventory-toolbar-btn:hover {
+  background: #0d5c56;
+  border-color: #0d5c56;
+}
+
+.inventory-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.inventory-upload-btn {
+  min-height: 32px;
+  height: 32px;
+  padding: 0 0.85rem;
+  border: 1px dashed var(--seims-teal);
+  border-radius: 8px;
+  color: var(--seims-teal);
+  font-size: 0.84rem;
+  font-weight: 600;
+  background: rgba(15, 118, 110, 0.06);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.inventory-upload-btn:hover {
+  background: rgba(15, 118, 110, 0.12);
+}
+
+.inventory-upload-btn.is-disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* CARD */
+.inventory-card {
+  background: var(--seims-card);
+  border: 1px solid var(--seims-border);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(15, 118, 110, 0.06);
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* TABLE */
+.table-responsive {
+  overflow-x: auto;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.inventory-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.inventory-table thead {
+  background: var(--seims-bg);
+  border-bottom: 2px solid var(--seims-border);
+}
+
+.inventory-table th {
+  padding: 0.52rem 0.56rem;
+  text-align: left;
+  font-weight: 600;
+  color: var(--seims-ink);
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.inventory-table td {
+  padding: 0.46rem 0.56rem;
+  border-bottom: 1px solid var(--seims-border);
+  color: var(--seims-ink);
+  font-size: 0.81rem;
+}
+
+.inventory-table tbody tr:hover {
+  background: rgba(15, 118, 110, 0.03);
+}
+
+/* LOT CODE */
+.lot-code {
+  font-weight: 600;
+  color: var(--seims-teal);
+}
+
+/* BADGES */
+.badge {
+  display: inline-block;
+  padding: 0.24rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge-new {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--seims-success);
+  border: 1px solid var(--seims-success);
+}
+
+.badge-warning {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--seims-warning);
+  border: 1px solid var(--seims-warning);
+}
+
+.badge-danger {
+  background: rgba(185, 28, 28, 0.15);
+  color: var(--seims-error);
+  border: 1px solid var(--seims-error);
+}
+
+/* ACTION BUTTONS */
+.action-group {
+  display: flex;
+  gap: 0.28rem;
+}
+
+.action-btn {
+  min-width: 40px;
+  padding: 0.26rem 0.48rem;
+  background: none;
+  border: 1px solid var(--seims-border);
+  border-radius: 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  height: auto;
+}
+
+.action-btn:hover {
+  transform: translateY(-1px);
+}
+
+.icon-action-btn {
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  padding: 0;
+}
+
+.icon-action-btn svg {
+  width: 15px;
+  height: 15px;
+  fill: currentColor;
+}
+
+.btn-edit {
+  color: var(--seims-teal);
+  border-color: rgba(15, 118, 110, 0.45);
+  background: rgba(15, 118, 110, 0.06);
+}
+
+.btn-edit:hover {
+  background: var(--seims-teal);
+  color: white;
+}
+
+.btn-delete-small {
+  color: var(--seims-error);
+  border-color: var(--seims-error);
+}
+
+.btn-delete-small:hover {
+  background: var(--seims-error);
+  color: white;
+}
+
+.empty-cell {
+  text-align: center;
+  padding: 1rem !important;
+  color: var(--seims-muted);
+}
+
+/* ACTION BUTTONS */
+.inventory-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.inventory-btn-edit {
+  background: #ffffff;
+  color: var(--seims-teal);
+  border: 1px solid var(--seims-teal);
+  border-radius: 6px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.inventory-btn-edit:hover {
+  background: var(--seims-teal);
+  color: #ffffff;
+}
+
+.inventory-btn-delete {
+  background: #ffffff;
+  color: var(--seims-error);
+  border: 1px solid #fca5a5;
+  border-radius: 6px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.inventory-btn-delete:hover {
+  background: var(--seims-error);
+  color: #ffffff;
+  border-color: var(--seims-error);
+}
+
+
+
+/* MODAL OVERLAY */
+.inventory-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 118, 110, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+/* MODAL */
+.inventory-modal {
+  background: #ffffff;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 500px;
+  box-shadow: 0 8px 32px rgba(15, 118, 110, 0.25);
+  overflow: hidden;
+}
+
+.inventory-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  background: #f0faf9;
+  border-bottom: 1px solid #d1e7e4;
+}
+
+.inventory-modal-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: #134e4a;
+  font-weight: 700;
+}
+
+.inventory-modal-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: #5b7573;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: color 0.2s;
+}
+
+.inventory-modal-close:hover {
+  color: #134e4a;
+}
+
+.inventory-modal-body {
+  padding: 1.25rem;
+}
+
+.inventory-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  background: #f8fffe;
+  border-top: 1px solid #e0efed;
+}
+
+/* FORM FIELDS */
+.inventory-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+
+.inventory-field span {
+  color: #134e4a;
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.inventory-field em {
+  color: #b91c1c;
+  font-style: normal;
+}
+
+.inventory-field input,
+.inventory-field select {
+  border: 1px solid #d1e7e4;
+  background: #f8fffe;
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+  color: #134e4a;
+  font-size: 0.86rem;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.inventory-field input:focus,
+.inventory-field select:focus {
+  border-color: #0f766e;
+  box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.15);
+}
+
+.inventory-field input::placeholder {
+  color: #8fb3af;
+}
+
+/* BUTTONS */
+.inventory-btn-cancel {
+  background: #ffffff;
+  color: #5b7573;
+  border: 1px solid #d1e7e4;
+  border-radius: 8px;
+  padding: 0.5rem 1rem;
+  font-size: 0.84rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.inventory-btn-cancel:hover {
+  background: #f0faf9;
+  color: #134e4a;
+}
+
+.inventory-btn-save {
+  background: #0f766e;
+  color: #ffffff;
+  border: 1px solid #0f766e;
+  border-radius: 8px;
+  padding: 0.5rem 1rem;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.inventory-btn-save:hover:not(:disabled) {
+  background: #0d5c56;
+}
+
+.inventory-btn-save:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* ERROR & SUCCESS MESSAGES */
+.inventory-error {
+  color: #b91c1c;
+  font-size: 0.82rem;
+  font-weight: 500;
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  background: #fef2f2;
+  border-radius: 6px;
+}
+
+.inventory-success {
+  color: #10b981;
+  font-size: 0.82rem;
+  font-weight: 500;
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  background: #ecfdf5;
+  border-radius: 6px;
+}
+
+/* TABLE STYLES */
+@media (max-width: 768px) {
+  .inventory-page {
+    gap: 0.8rem;
+    overflow-y: auto;
+  }
+
+  .inventory-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .inventory-toolbar-btn {
+    width: 100%;
+  }
+
+  .inventory-toolbar-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .inventory-upload-btn {
+    width: 100%;
+    justify-content: center;
+    height: 38px;
+  }
+
+  .inventory-filter-group {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.35rem;
+  }
+
+  .inventory-filter-select {
+    width: 100%;
+  }
+
+  .inventory-toolbar-info {
+    margin-left: 0;
+  }
+
+  .inventory-table {
+    font-size: 0.8rem;
+  }
+
+  .inventory-table th,
+  .inventory-table td {
+    padding: 0.75rem 0.5rem;
+  }
+
+  .action-btn {
+    width: auto;
+    height: auto;
+  }
+
+  .icon-action-btn {
+    width: 28px;
+    min-width: 28px;
+    height: 28px;
+  }
+
+  .inventory-modal {
+    width: calc(100vw - 1.2rem);
+    max-height: 95vh;
+  }
+}

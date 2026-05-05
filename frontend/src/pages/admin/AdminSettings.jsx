@@ -1,34 +1,33 @@
-import { useMemo, useState } from 'react'
-import SystemAdminLayout from '../../components/layout/Layout'
+import { useEffect, useMemo, useState } from 'react'
+import SystemAdminLayout from '../../components/layout/SystemAdminLayout'
+import { useAuth } from '../../services/AuthContext'
+import { changeAdminUserPassword, updateAdminUser } from '../../services/adminApi'
 import './AdminSettings.css'
 
 const ADMIN_PROFILE_STORAGE_KEY = 'seims_admin_profile'
-const ADMIN_PASSWORD_STORAGE_KEY = 'seims_admin_password'
+const AUTH_STORAGE_KEY = 'seims_auth_user'
 
 const DEFAULT_ADMIN_PROFILE = {
+  username: 'admin',
   fullName: 'Admin',
   email: 'admin@seims.vn',
   phone: '0900000000',
   position: 'System Admin',
 }
 
-const DEFAULT_ADMIN_PASSWORD = 'admin123'
-
-function getInitialProfile() {
-  try {
-    const raw = localStorage.getItem(ADMIN_PROFILE_STORAGE_KEY)
-    if (!raw) return DEFAULT_ADMIN_PROFILE
-    return {
-      ...DEFAULT_ADMIN_PROFILE,
-      ...JSON.parse(raw),
-    }
-  } catch {
-    return DEFAULT_ADMIN_PROFILE
+function createProfileFromUser(userData) {
+  return {
+    username: userData?.username || DEFAULT_ADMIN_PROFILE.username,
+    fullName: userData?.full_name || DEFAULT_ADMIN_PROFILE.fullName,
+    email: userData?.email || DEFAULT_ADMIN_PROFILE.email,
+    phone: userData?.phone || DEFAULT_ADMIN_PROFILE.phone,
+    position: 'System Admin',
   }
 }
 
 export default function AdminSettings() {
-  const [formData, setFormData] = useState(getInitialProfile)
+  const { user } = useAuth()
+  const [formData, setFormData] = useState(() => createProfileFromUser(user))
   const [saveMessage, setSaveMessage] = useState('')
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
@@ -38,10 +37,17 @@ export default function AdminSettings() {
   const [passwordMessage, setPasswordMessage] = useState('')
   const [passwordError, setPasswordError] = useState('')
 
+  useEffect(() => {
+    const profile = createProfileFromUser(user)
+    setFormData(profile)
+    localStorage.setItem(ADMIN_PROFILE_STORAGE_KEY, JSON.stringify(profile))
+    window.dispatchEvent(new Event('seims-admin-profile-updated'))
+  }, [user])
+
   const isDirty = useMemo(() => {
-    const current = getInitialProfile()
+    const current = createProfileFromUser(user)
     return JSON.stringify(current) !== JSON.stringify(formData)
-  }, [formData])
+  }, [formData, user])
 
   function handleChange(event) {
     const { name, value } = event.target
@@ -53,11 +59,44 @@ export default function AdminSettings() {
     }))
   }
 
-  function handleSave(event) {
+  async function handleSave(event) {
     event.preventDefault()
-    localStorage.setItem(ADMIN_PROFILE_STORAGE_KEY, JSON.stringify(formData))
-    window.dispatchEvent(new Event('seims-admin-profile-updated'))
-    setSaveMessage('Đã lưu thay đổi thành công.')
+    setSaveMessage('')
+
+    if (!user?.id) {
+      setSaveMessage('Không tìm thấy thông tin tài khoản hiện tại.')
+      return
+    }
+
+    try {
+      await updateAdminUser(user.id, {
+        fullName: formData.fullName,
+        email: formData.email,
+        phone: formData.phone,
+      })
+
+      const nextFormData = {
+        ...formData,
+        fullName: formData.fullName.trim(),
+        email: formData.email.trim().toLowerCase(),
+        phone: formData.phone.trim(),
+      }
+      setFormData(nextFormData)
+      localStorage.setItem(ADMIN_PROFILE_STORAGE_KEY, JSON.stringify(nextFormData))
+      localStorage.setItem(
+        AUTH_STORAGE_KEY,
+        JSON.stringify({
+          ...user,
+          full_name: nextFormData.fullName,
+          email: nextFormData.email,
+          phone: nextFormData.phone,
+        }),
+      )
+      window.dispatchEvent(new Event('seims-admin-profile-updated'))
+      setSaveMessage('Đã lưu thay đổi thành công.')
+    } catch (err) {
+      setSaveMessage(err?.response?.data?.detail || 'Lưu thay đổi thất bại.')
+    }
   }
 
   function handlePasswordChange(event) {
@@ -68,17 +107,10 @@ export default function AdminSettings() {
     }))
   }
 
-  function handleChangePassword(event) {
+  async function handleChangePassword(event) {
     event.preventDefault()
     setPasswordMessage('')
     setPasswordError('')
-
-    const storedPassword = localStorage.getItem(ADMIN_PASSWORD_STORAGE_KEY) || DEFAULT_ADMIN_PASSWORD
-
-    if (passwordData.currentPassword !== storedPassword) {
-      setPasswordError('Mật khẩu hiện tại không đúng.')
-      return
-    }
 
     if (passwordData.newPassword.length < 6) {
       setPasswordError('Mật khẩu mới phải có ít nhất 6 ký tự.')
@@ -90,13 +122,26 @@ export default function AdminSettings() {
       return
     }
 
-    localStorage.setItem(ADMIN_PASSWORD_STORAGE_KEY, passwordData.newPassword)
-    setPasswordData({
-      currentPassword: '',
-      newPassword: '',
-      confirmPassword: '',
-    })
-    setPasswordMessage('Đổi mật khẩu thành công.')
+
+    if (!user?.id) {
+      setPasswordError('Không tìm thấy thông tin tài khoản hiện tại.')
+      return
+    }
+
+    try {
+      await changeAdminUserPassword(user.id, {
+        currentPassword: passwordData.currentPassword,
+        newPassword: passwordData.newPassword,
+      })
+      setPasswordData({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+      })
+      setPasswordMessage('Đổi mật khẩu thành công.')
+    } catch (err) {
+      setPasswordError(err?.response?.data?.detail || 'Đổi mật khẩu thất bại.')
+    }
   }
 
   return (
@@ -106,13 +151,23 @@ export default function AdminSettings() {
           <h3 className="settings-section-title">Thông Tin Tài Khoản</h3>
           <div className="settings-grid">
             <label className="settings-field">
+              <span>Tên đăng nhập</span>
+              <input
+                type="text"
+                name="username"
+                value={formData.username}
+                readOnly
+                disabled
+              />
+            </label>
+
+            <label className="settings-field">
               <span>Họ Và Tên</span>
               <input
                 type="text"
                 name="fullName"
                 value={formData.fullName}
                 onChange={handleChange}
-                placeholder="Nhập Họ Và Tên"
                 required
               />
             </label>
@@ -125,7 +180,6 @@ export default function AdminSettings() {
                 value={formData.position}
                 readOnly
                 disabled
-                aria-label="Chức vụ hiện tại"
               />
             </label>
 
@@ -136,7 +190,6 @@ export default function AdminSettings() {
                 name="email"
                 value={formData.email}
                 onChange={handleChange}
-                placeholder="admin@seims.vn"
                 required
               />
             </label>
@@ -148,7 +201,6 @@ export default function AdminSettings() {
                 name="phone"
                 value={formData.phone}
                 onChange={handleChange}
-                placeholder="0900000000"
                 required
               />
             </label>

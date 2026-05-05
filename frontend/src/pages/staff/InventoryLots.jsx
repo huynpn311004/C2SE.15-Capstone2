@@ -1,137 +1,599 @@
-import { useMemo, useState } from 'react'
-import EmptyState from '../../components/staff/EmptyState'
-import Modal from '../../components/staff/Modal'
-import SectionCard from '../../components/staff/SectionCard'
-import StatusBadge from '../../components/staff/StatusBadge'
+import { useState, useEffect } from 'react'
+import StaffLayout from '../../components/layout/StaffLayout'
+import {
+  fetchInventoryLots,
+  createInventoryLot,
+  updateInventoryLot,
+  deleteInventoryLot,
+  importInventoryLots,
+} from '../../services/staffApi'
+import './InventoryLots.css'
 
-const initialLots = [
-  { id: 1, lotCode: 'LOT-001', productName: 'Greek Yogurt', quantity: 80, expiryDate: '2026-04-10', status: 'Near-expiry' },
-  { id: 2, lotCode: 'LOT-002', productName: 'Orange Juice', quantity: 120, expiryDate: '2026-06-01', status: 'New' },
-  { id: 3, lotCode: 'LOT-003', productName: 'Fresh Bread', quantity: 32, expiryDate: '2026-03-26', status: 'Expired' },
-]
+const statusColors = {
+  'Moi': 'badge-new',
+  'Sap Het Han': 'badge-warning',
+  'Het Han': 'badge-danger',
+}
 
-const defaultForm = { id: null, lotCode: '', productName: '', quantity: '', expiryDate: '', status: 'New' }
+const badgeTextMap = {
+  'Moi': 'Mới',
+  'Sap Het Han': 'Sắp Hết Hạn',
+  'Het Han': 'Hết Hạn',
+}
+
+const lotStatusOptions = ['Moi', 'Sap Het Han', 'Het Han']
+
+function getStatusLabel(status) {
+  if (status === 'Moi') return 'Mới'
+  if (status === 'Sap Het Han') return 'Sắp Hết Hạn'
+  if (status === 'Het Han') return 'Hết Hạn'
+  return status
+}
 
 export default function InventoryLots() {
-  const [lots, setLots] = useState(initialLots)
-  const [modalOpen, setModalOpen] = useState(false)
-  const [form, setForm] = useState(defaultForm)
+  const [lots, setLots] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const sortedLots = useMemo(
-    () => [...lots].sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate)),
-    [lots],
-  )
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [selectedLot, setSelectedLot] = useState(null)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [editError, setEditError] = useState('')
+  const [editSuccess, setEditSuccess] = useState('')
+  const [createError, setCreateError] = useState('')
+  const [createSuccess, setCreateSuccess] = useState('')
+  const [importError, setImportError] = useState('')
+  const [importResult, setImportResult] = useState('')
+  const [isImporting, setIsImporting] = useState(false)
 
-  function openCreate() {
-    setForm(defaultForm)
-    setModalOpen(true)
+  const [editForm, setEditForm] = useState({
+    lotCode: '',
+    productName: '',
+    quantity: '',
+    manufacturingDate: '',
+    expiryDate: '',
+  })
+
+  const [createForm, setCreateForm] = useState({
+    lotCode: '',
+    productName: '',
+    quantity: '',
+    manufacturingDate: '',
+    expiryDate: '',
+    status: 'Moi',
+  })
+
+  useEffect(() => {
+    loadLots()
+  }, [])
+
+  async function loadLots() {
+    try {
+      setLoading(true)
+      const data = await fetchInventoryLots()
+      setLots(data)
+    } catch (err) {
+      console.error('Failed to load inventory lots:', err)
+    } finally {
+      setLoading(false)
+    }
   }
 
-  function openEdit(lot) {
-    setForm(lot)
-    setModalOpen(true)
+  const filteredLots = statusFilter === 'all'
+    ? lots
+    : lots.filter((lot) => lot.status === statusFilter)
+
+  async function handleDeleteLot(id) {
+    const lot = lots.find((item) => item.id === id)
+    if (!lot) return
+
+    const confirmed = window.confirm(`Xóa lô hàng ${lot.lotCode}?`)
+    if (!confirmed) return
+
+    try {
+      await deleteInventoryLot(id)
+      setLots((prev) => prev.filter((item) => item.id !== id))
+      if (selectedLot?.id === id) {
+        setSelectedLot(null)
+      }
+    } catch (err) {
+      console.error('Failed to delete lot:', err)
+      alert('Xóa lô hàng thất bại')
+    }
   }
 
-  function handleSubmit(event) {
+  function openEditModal(lot) {
+    setSelectedLot(lot)
+    setEditForm({
+      lotCode: lot.lotCode,
+      productName: lot.productName,
+      quantity: String(lot.quantity),
+      manufacturingDate: lot.manufacturingDate || '',
+      expiryDate: lot.expiryDate,
+    })
+    setEditError('')
+    setEditSuccess('')
+    setShowEditModal(true)
+  }
+
+  function closeEditModal() {
+    setShowEditModal(false)
+    setSelectedLot(null)
+    setEditError('')
+    setEditSuccess('')
+  }
+
+  function handleEditFormChange(event) {
+    const { name, value } = event.target
+    setEditForm((prev) => ({ ...prev, [name]: value }))
+    setEditError('')
+    setEditSuccess('')
+  }
+
+  async function submitEditLot(event) {
     event.preventDefault()
+    setEditError('')
+    setEditSuccess('')
 
-    if (form.id) {
-      setLots((prev) => prev.map((item) => (item.id === form.id ? { ...form, quantity: Number(form.quantity) } : item)))
-    } else {
-      setLots((prev) => [...prev, { ...form, id: Date.now(), quantity: Number(form.quantity) }])
+    if (!editForm.lotCode.trim()) {
+      setEditError('Mã lô không được để trống.')
+      return
+    }
+    if (!editForm.productName.trim()) {
+      setEditError('Tên sản phẩm không được để trống.')
+      return
+    }
+    if (!editForm.quantity.trim() || isNaN(Number(editForm.quantity)) || Number(editForm.quantity) < 0) {
+      setEditError('Số lượng phải là số không âm.')
+      return
+    }
+    if (!editForm.expiryDate) {
+      setEditError('Ngày hết hạn không được để trống.')
+      return
     }
 
-    setModalOpen(false)
+    try {
+      setIsSubmitting(true)
+      await updateInventoryLot(selectedLot.id, {
+        lotCode: editForm.lotCode.trim(),
+        productName: editForm.productName.trim(),
+        quantity: Number(editForm.quantity),
+        manufacturingDate: editForm.manufacturingDate || null,
+        expiryDate: editForm.expiryDate,
+      })
+
+      setLots((prev) =>
+        prev.map((item) =>
+          item.id === selectedLot.id
+            ? {
+                ...item,
+                lotCode: editForm.lotCode.trim(),
+                productName: editForm.productName.trim(),
+                quantity: Number(editForm.quantity),
+                manufacturingDate: editForm.manufacturingDate || null,
+                expiryDate: editForm.expiryDate,
+              }
+            : item
+        )
+      )
+      setEditSuccess('Đã cập nhật thông tin lô hàng.')
+      setTimeout(() => closeEditModal(), 600)
+    } catch (err) {
+      console.error('Failed to update lot:', err)
+      setEditError(err?.response?.data?.detail || 'Cập nhật lô hàng thất bại.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  function resetCreateForm() {
+    setCreateForm({
+      lotCode: '',
+      manufacturingDate: '',
+      productName: '',
+      quantity: '',
+      expiryDate: '',
+      status: 'Moi',
+    })
+    setCreateError('')
+    setCreateSuccess('')
+  }
+
+  function openCreateModal() {
+    resetCreateForm()
+    setShowCreateModal(true)
+  }
+
+  function closeCreateModal() {
+    setShowCreateModal(false)
+    resetCreateForm()
+  }
+
+  function handleCreateFormChange(event) {
+    const { name, value } = event.target
+    setCreateForm((prev) => ({ ...prev, [name]: value }))
+    setCreateError('')
+    setCreateSuccess('')
+  }
+
+  async function submitCreateLot(event) {
+    event.preventDefault()
+    setCreateError('')
+    setCreateSuccess('')
+
+    if (!createForm.lotCode.trim()) {
+      setCreateError('Mã lô không được để trống.')
+      return
+    }
+    if (!createForm.productName.trim()) {
+      setCreateError('Tên sản phẩm không được để trống.')
+      return
+    }
+    if (!createForm.quantity.trim() || isNaN(Number(createForm.quantity)) || Number(createForm.quantity) < 0) {
+      setCreateError('Số lượng phải là số không âm.')
+      return
+    }
+    if (!createForm.expiryDate) {
+      setCreateError('Ngày hết hạn không được để trống.')
+      return
+    }
+
+    try {
+      setIsSubmitting(true)
+      const response = await createInventoryLot({
+        lotCode: createForm.lotCode.trim(),
+        productName: createForm.productName.trim(),
+        manufacturingDate: createForm.manufacturingDate || null,
+        quantity: Number(createForm.quantity),
+        expiryDate: createForm.expiryDate,
+        status: createForm.status,
+      })
+      await loadLots()
+      setCreateSuccess(`Đã tạo lô hàng mới thành công.`)
+      setTimeout(() => closeCreateModal(), 600)
+    } catch (err) {
+      console.error('Failed to create lot:', err)
+      setCreateError(err?.response?.data?.detail || 'Tạo lô hàng thất bại.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  async function handleImportFile(event) {
+    const selectedFile = event.target.files?.[0]
+    event.target.value = ''
+
+    if (!selectedFile) {
+      return
+    }
+
+    const fileName = selectedFile.name.toLowerCase()
+    if (!fileName.endsWith('.xlsx') && !fileName.endsWith('.csv')) {
+      setImportError('Chỉ hỗ trợ file .xlsx hoặc .csv')
+      setImportResult('')
+      return
+    }
+
+    try {
+      setIsImporting(true)
+      setImportError('')
+      setImportResult('')
+
+      const result = await importInventoryLots(selectedFile)
+      await loadLots()
+
+      let message = `Import thành công: tạo mới ${result.created || 0}, cập nhật ${result.updated || 0}`
+      if (typeof result.productsCreated !== 'undefined' || typeof result.productsUpdated !== 'undefined') {
+        message += ` | sản phẩm tạo mới ${result.productsCreated || 0}, cập nhật ${result.productsUpdated || 0}`
+      }
+      if (result.failed) {
+        const firstError = result.errors?.[0]
+        const detail = firstError
+          ? ` Dòng lỗi đầu tiên: ${firstError.row} - ${firstError.message}`
+          : ''
+        message += `. Lỗi ${result.failed}.${detail}`
+      }
+      setImportResult(message)
+    } catch (err) {
+      setImportError(err?.response?.data?.detail || 'Import file thất bại.')
+    } finally {
+      setIsImporting(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <StaffLayout>
+        <div className="inventory-page">
+          <div style={{ textAlign: 'center', padding: '3rem' }}>Đang tải dữ liệu...</div>
+        </div>
+      </StaffLayout>
+    )
   }
 
   return (
-    <SectionCard
-      title="Inventory Lot Management"
-      subtitle="Manage lot-level inventory with expiry status"
-      right={
-        <button onClick={openCreate} className="rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700">
-          Create Lot
-        </button>
-      }
-    >
-      {!sortedLots.length ? (
-        <EmptyState title="No inventory lots yet" description="Create your first lot to start tracking expiry." />
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-left text-sm">
+    <StaffLayout>
+      <div className="inventory-page">
+      {/* TOOLBAR */}
+      <div className="inventory-toolbar">
+        <div className="inventory-filter-group">
+          <label>Lọc theo trạng thái:</label>
+          <select
+            className="inventory-filter-select"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="all">Tất Cả</option>
+            <option value="Moi">Mới</option>
+            <option value="Sap Het Han">Sắp Hết Hạn</option>
+            <option value="Het Han">Hết Hạn</option>
+          </select>
+        </div>
+        <div className="inventory-toolbar-actions">
+          <label className={`inventory-upload-btn ${isImporting ? 'is-disabled' : ''}`}>
+            {isImporting ? 'Đang import...' : 'Upload Excel/CSV'}
+            <input
+              type="file"
+              accept=".xlsx,.csv"
+              onChange={handleImportFile}
+              disabled={isImporting}
+              hidden
+            />
+          </label>
+          <button className="inventory-btn-create inventory-toolbar-btn" onClick={openCreateModal}>
+            Tạo Lô Mới
+          </button>
+        </div>
+        <div className="inventory-toolbar-info">
+          Hiển thị {filteredLots.length} lô hàng
+        </div>
+      </div>
+
+      {importError && <p className="inventory-error">{importError}</p>}
+      {importResult && <p className="inventory-success">{importResult}</p>}
+
+      {/* TABLE */}
+      <div className="inventory-card">
+        <div className="table-responsive">
+          <table className="inventory-table">
             <thead>
-              <tr className="border-b border-emerald-100 text-xs uppercase tracking-wider text-slate-500">
-                <th className="py-3 pr-3">Lot Code</th>
-                <th className="py-3 pr-3">Product Name</th>
-                <th className="py-3 pr-3">Quantity</th>
-                <th className="py-3 pr-3">Expiry Date</th>
-                <th className="py-3 pr-3">Status</th>
-                <th className="py-3">Actions</th>
+              <tr>
+                <th>Mã Lô</th>
+                <th>Tên Sản Phẩm</th>
+                <th>Số Lượng</th>
+                <th>Ngày Sản Xuất</th>
+                <th>Ngày Hết Hạn</th>
+                <th>Trạng Thái</th>
+                <th>Thao Tác</th>
               </tr>
             </thead>
             <tbody>
-              {sortedLots.map((lot) => (
-                <tr key={lot.id} className="border-b border-emerald-50">
-                  <td className="py-3 pr-3 font-medium text-emerald-900">{lot.lotCode}</td>
-                  <td className="py-3 pr-3">{lot.productName}</td>
-                  <td className="py-3 pr-3">{lot.quantity}</td>
-                  <td className="py-3 pr-3">{lot.expiryDate}</td>
-                  <td className="py-3 pr-3">
-                    <StatusBadge
-                      tone={lot.status === 'New' ? 'safe' : lot.status === 'Near-expiry' ? 'warning' : 'danger'}
-                    >
-                      {lot.status}
-                    </StatusBadge>
-                  </td>
-                  <td className="py-3">
-                    <button onClick={() => openEdit(lot)} className="text-sm font-semibold text-emerald-700 hover:underline">
-                      Edit
-                    </button>
+              {filteredLots.length > 0 ? (
+                filteredLots.map((lot) => (
+                  <tr key={lot.id}>
+                    <td>
+                      <span className="lot-code">{lot.lotCode}</span>
+                    </td>
+                    <td>{lot.productName}</td>
+                    <td>{lot.quantity}</td>
+                    <td>
+                      {lot.manufacturingDate
+                        ? new Date(lot.manufacturingDate).toLocaleDateString('vi-VN')
+                        : '—'}
+                    </td>
+                    <td>{new Date(lot.expiryDate).toLocaleDateString('vi-VN')}</td>
+                    <td>
+                      <span className={`badge ${statusColors[lot.status]}`}>
+                        {getStatusLabel(lot.status)}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="inventory-actions">
+                        <button
+                          className="inventory-btn-edit"
+                          onClick={() => openEditModal(lot)}
+                        >
+                          <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+                            <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
+                          </svg>
+                          Sửa
+                        </button>
+                        <button
+                          className="inventory-btn-delete"
+                          onClick={() => handleDeleteLot(lot.id)}
+                        >
+                          <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+                            <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+                          </svg>
+                          Xóa
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                  <tr>
+                  <td colSpan="7" className="empty-cell">
+                    Không có dữ liệu
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* EDIT MODAL */}
+      {showEditModal && selectedLot && (
+        <div className="inventory-modal-overlay" onClick={closeEditModal}>
+          <div className="inventory-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="inventory-modal-header">
+              <h3>Chỉnh Sửa Lô Hàng</h3>
+              <button className="inventory-modal-close" onClick={closeEditModal}>×</button>
+            </div>
+            <form onSubmit={submitEditLot}>
+              <div className="inventory-modal-body">
+                <label className="inventory-field">
+                  <span>Mã Lô <em>*</em></span>
+                  <input
+                    type="text"
+                    name="lotCode"
+                    value={editForm.lotCode}
+                    onChange={handleEditFormChange}
+                    placeholder="VD: LOT-001"
+                    required
+                  />
+                </label>
+                <label className="inventory-field">
+                  <span>Tên Sản Phẩm <em>*</em></span>
+                  <input
+                    type="text"
+                    name="productName"
+                    value={editForm.productName}
+                    onChange={handleEditFormChange}
+                    placeholder="Nhập tên sản phẩm"
+                    required
+                  />
+                </label>
+                <label className="inventory-field">
+                  <span>Số Lượng <em>*</em></span>
+                  <input
+                    type="number"
+                    name="quantity"
+                    value={editForm.quantity}
+                    onChange={handleEditFormChange}
+                    placeholder="Nhập số lượng"
+                    min="0"
+                    required
+                  />
+                </label>
+                <label className="inventory-field">
+                  <span>Ngày Sản Xuất</span>
+                  <input
+                    type="date"
+                    name="manufacturingDate"
+                    value={editForm.manufacturingDate}
+                    onChange={handleEditFormChange}
+                  />
+                </label>
+                <label className="inventory-field">
+                  <span>Ngày Hết Hạn <em>*</em></span>
+                  <input
+                    type="date"
+                    name="expiryDate"
+                    value={editForm.expiryDate}
+                    onChange={handleEditFormChange}
+                    required
+                  />
+                </label>
+                {editError && <p className="inventory-error">{editError}</p>}
+              </div>
+              <div className="inventory-modal-footer">
+                <button type="button" className="inventory-btn-cancel" onClick={closeEditModal}>
+                  Hủy
+                </button>
+                <button type="submit" className="inventory-btn-save" disabled={isSubmitting}>
+                  {isSubmitting ? 'Đang lưu...' : 'Cập Nhật'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
-      <Modal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        title={form.id ? 'Edit Lot' : 'Create Lot'}
-        footer={
-          <div className="flex justify-end gap-2">
-            <button onClick={() => setModalOpen(false)} className="rounded-lg border border-slate-200 px-3 py-2 text-sm">
-              Cancel
-            </button>
-            <button onClick={handleSubmit} className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white">
-              Save
-            </button>
+      {/* CREATE MODAL */}
+      {showCreateModal && (
+        <div className="inventory-modal-overlay" onClick={closeCreateModal}>
+          <div className="inventory-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="inventory-modal-header">
+              <h3>Tạo Lô Hàng Mới</h3>
+              <button className="inventory-modal-close" onClick={closeCreateModal}>×</button>
+            </div>
+            <form onSubmit={submitCreateLot}>
+              <div className="inventory-modal-body">
+                <label className="inventory-field">
+                  <span>Mã Lô <em>*</em></span>
+                  <input
+                    type="text"
+                    name="lotCode"
+                    value={createForm.lotCode}
+                    onChange={handleCreateFormChange}
+                    placeholder="VD: LOT-001"
+                    required
+                  />
+                </label>
+                <label className="inventory-field">
+                  <span>Tên Sản Phẩm <em>*</em></span>
+                  <input
+                    type="text"
+                    name="productName"
+                    value={createForm.productName}
+                    onChange={handleCreateFormChange}
+                    placeholder="Nhập tên sản phẩm"
+                    required
+                  />
+                </label>
+                <label className="inventory-field">
+                  <span>Số Lượng <em>*</em></span>
+                  <input
+                    type="number"
+                    name="quantity"
+                    value={createForm.quantity}
+                    onChange={handleCreateFormChange}
+                    placeholder="Nhập số lượng"
+                    min="0"
+                    required
+                  />
+                </label>
+                <label className="inventory-field">
+                  <span>Ngày Sản Xuất</span>
+                  <input
+                    type="date"
+                    name="manufacturingDate"
+                    value={createForm.manufacturingDate}
+                    onChange={handleCreateFormChange}
+                  />
+                </label>
+                <label className="inventory-field">
+                  <span>Ngày Hết Hạn <em>*</em></span>
+                  <input
+                    type="date"
+                    name="expiryDate"
+                    value={createForm.expiryDate}
+                    onChange={handleCreateFormChange}
+                    required
+                  />
+                </label>
+                <label className="inventory-field">
+                  <span>Trạng Thái</span>
+                  <select
+                    name="status"
+                    value={createForm.status}
+                    onChange={handleCreateFormChange}
+                  >
+                    {lotStatusOptions.map((status) => (
+                      <option key={status} value={status}>
+                        {getStatusLabel(status)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {createError && <p className="inventory-error">{createError}</p>}
+              </div>
+              <div className="inventory-modal-footer">
+                <button type="button" className="inventory-btn-cancel" onClick={closeCreateModal}>
+                  Hủy
+                </button>
+                <button type="submit" className="inventory-btn-save" disabled={isSubmitting}>
+                  {isSubmitting ? 'Đang tạo...' : 'Tạo Mới'}
+                </button>
+              </div>
+            </form>
           </div>
-        }
-      >
-        <form onSubmit={handleSubmit} className="grid gap-3 sm:grid-cols-2">
-          <label className="text-sm">Lot Code
-            <input value={form.lotCode} onChange={(e) => setForm({ ...form, lotCode: e.target.value })} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" required />
-          </label>
-          <label className="text-sm">Product Name
-            <input value={form.productName} onChange={(e) => setForm({ ...form, productName: e.target.value })} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" required />
-          </label>
-          <label className="text-sm">Quantity
-            <input type="number" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" required />
-          </label>
-          <label className="text-sm">Expiry Date
-            <input type="date" value={form.expiryDate} onChange={(e) => setForm({ ...form, expiryDate: e.target.value })} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" required />
-          </label>
-          <label className="text-sm sm:col-span-2">Status
-            <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2">
-              <option>New</option>
-              <option>Near-expiry</option>
-              <option>Expired</option>
-            </select>
-          </label>
-        </form>
-      </Modal>
-    </SectionCard>
+        </div>
+      )}
+      </div>
+    </StaffLayout>
   )
 }

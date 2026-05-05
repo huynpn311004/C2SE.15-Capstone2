@@ -1,5 +1,14 @@
-import { useState } from 'react'
-import SystemAdminLayout from '../../components/layout/Layout'
+import { useEffect, useState } from 'react'
+import SystemAdminLayout from '../../components/layout/SystemAdminLayout'
+import LocationModal from '../../components/map/LocationModal'
+import {
+  createAdminCharityAccount,
+  createAdminCharityWithAccount,
+  deleteAdminCharity,
+  fetchAdminCharities,
+  toggleAdminCharityLock,
+  updateAdminCharity,
+} from '../../services/adminApi'
 import './CharityManagement.css'
 
 /**
@@ -15,50 +24,9 @@ export default function CharityManagement() {
     return `${year}-${month}-${day}`
   }
 
-  const [charities, setCharities] = useState([
-    {
-      id: 101,
-      name: 'Hope Foundation',
-      email: 'hello@hopefoundation.org',
-      phone: '0285-999-8888',
-      address: '100 Charity Lane, HCMC',
-      requestDate: '2024-03-16',
-      director: 'Dang Thi E',
-      isLocked: false,
-      accountCreated: false,
-      accountUsername: '',
-      accountStatus: '',
-      passwordStatus: '',
-    },
-    {
-      id: 102,
-      name: 'Community Care',
-      email: 'info@communitycare.org',
-      phone: '0287-777-6666',
-      address: '200 Aid Street, HCMC',
-      requestDate: '2024-03-19',
-      director: 'Hoang Van F',
-      isLocked: false,
-      accountCreated: true,
-      accountUsername: 'communitycare_charity',
-      accountStatus: 'active',
-      passwordStatus: 'active',
-    },
-    {
-      id: 103,
-      name: 'Children Tomorrow',
-      email: 'contact@childrentomorrow.org',
-      phone: '0243-444-3333',
-      address: '300 Future Road, HN',
-      requestDate: '2024-02-10',
-      director: 'Nguyen Thi G',
-      isLocked: false,
-      accountCreated: false,
-      accountUsername: '',
-      accountStatus: '',
-      passwordStatus: '',
-    },
-  ])
+  const [charities, setCharities] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
   const [selectedCharity, setSelectedCharity] = useState(null)
   const [showDetailModal, setShowDetailModal] = useState(false)
@@ -70,22 +38,45 @@ export default function CharityManagement() {
     email: '',
     phone: '',
     address: '',
+    latitude: null,
+    longitude: null,
     requestDate: '',
   })
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [createError, setCreateError] = useState('')
   const [createSuccess, setCreateSuccess] = useState('')
   const [createForm, setCreateForm] = useState({
-    charityId: '',
     name: '',
     director: '',
     email: '',
     phone: '',
+    address: '',
+    latitude: null,
+    longitude: null,
     password: '',
     confirmPassword: '',
     requestDate: getTodayDate(),
-    passwordStatus: 'active',
+    activityStatus: 'active',
   })
+
+  const [showLocationModal, setShowLocationModal] = useState(false)
+  const [locationModalTarget, setLocationModalTarget] = useState('create')
+
+  async function loadCharities() {
+    try {
+      setError('')
+      const items = await fetchAdminCharities()
+      setCharities(items)
+    } catch (err) {
+      setError(err?.response?.data?.detail || 'Không thể tải danh sách tổ chức từ thiện.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadCharities()
+  }, [])
 
   function openDetail(charity) {
     setSelectedCharity(charity)
@@ -95,6 +86,8 @@ export default function CharityManagement() {
       email: charity.email,
       phone: charity.phone,
       address: charity.address,
+      latitude: charity.latitude || null,
+      longitude: charity.longitude || null,
       requestDate: charity.requestDate,
     })
     setEditError('')
@@ -121,7 +114,7 @@ export default function CharityManagement() {
     setEditSuccess('')
   }
 
-  function submitEditCharity(event) {
+  async function submitEditCharity(event) {
     event.preventDefault()
 
     if (!selectedCharity) {
@@ -164,55 +157,30 @@ export default function CharityManagement() {
       email: editForm.email.trim(),
       phone: editForm.phone.trim(),
       address: editForm.address.trim(),
+      latitude: editForm.latitude,
+      longitude: editForm.longitude,
       requestDate: editForm.requestDate,
     }
 
-    setCharities((prev) =>
-      prev.map((item) =>
-        item.id === selectedCharity.id
-          ? {
-              ...item,
-              ...nextData,
-            }
-          : item
-      )
-    )
-
-    setSelectedCharity((prev) =>
-      prev
-        ? {
-            ...prev,
-            ...nextData,
-          }
-        : prev
-    )
-
-    setEditSuccess('Đã cập nhật thông tin charity.')
+    try {
+      await updateAdminCharity(selectedCharity.id, nextData)
+      setEditSuccess('Đã cập nhật thông tin charity.')
+      await loadCharities()
+    } catch (err) {
+      setEditError(err?.response?.data?.detail || 'Không thể cập nhật charity.')
+    }
   }
 
-  function handleToggleLockCharity(id) {
-    setCharities((prev) =>
-      prev.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              isLocked: !item.isLocked,
-            }
-          : item
-      )
-    )
-
-    setSelectedCharity((prev) =>
-      prev && prev.id === id
-        ? {
-            ...prev,
-            isLocked: !prev.isLocked,
-          }
-        : prev
-    )
+  async function handleToggleLockCharity(id) {
+    try {
+      await toggleAdminCharityLock(id)
+      await loadCharities()
+    } catch (err) {
+      window.alert(err?.response?.data?.detail || 'Không thể khóa/mở khóa charity.')
+    }
   }
 
-  function handleDeleteCharity(id) {
+  async function handleDeleteCharity(id) {
     const charity = charities.find((item) => item.id === id)
     if (!charity) {
       return
@@ -223,88 +191,43 @@ export default function CharityManagement() {
       return
     }
 
-    setCharities((prev) => prev.filter((item) => item.id !== id))
-
-    if (selectedCharity && selectedCharity.id === id) {
-      closeDetail()
+    try {
+      await deleteAdminCharity(id)
+      await loadCharities()
+      if (selectedCharity && selectedCharity.id === id) {
+        closeDetail()
+      }
+    } catch (err) {
+      window.alert(err?.response?.data?.detail || 'Không thể xóa charity.')
     }
   }
 
-  function handleCreateAccount(charity) {
-    const isLockedByStatus = createForm.passwordStatus === 'locked'
-
-    setCharities((prev) =>
-      prev.map((item) =>
-        item.id === charity.id
-          ? {
-              ...item,
-              name: createForm.name.trim(),
-              director: createForm.director.trim(),
-              email: createForm.email.trim(),
-              phone: createForm.phone.trim(),
-              requestDate: createForm.requestDate,
-              isLocked: isLockedByStatus,
-              accountCreated: true,
-              accountUsername: createForm.email.trim(),
-              accountStatus: isLockedByStatus ? 'inactive' : 'active',
-              passwordStatus: createForm.passwordStatus,
-            }
-          : item
-      )
-    )
-
-    setSelectedCharity((prev) =>
-      prev && prev.id === charity.id
-        ? {
-            ...prev,
-            name: createForm.name.trim(),
-            director: createForm.director.trim(),
-            email: createForm.email.trim(),
-            phone: createForm.phone.trim(),
-            requestDate: createForm.requestDate,
-            isLocked: isLockedByStatus,
-            accountCreated: true,
-            accountUsername: createForm.email.trim(),
-            accountStatus: isLockedByStatus ? 'inactive' : 'active',
-            passwordStatus: createForm.passwordStatus,
-          }
-        : prev
-    )
-  }
-
-  const pendingCharities = charities.filter((charity) => !charity.accountCreated)
-
-  function resetCreateForm(charityId = '') {
+  function resetCreateForm() {
     setCreateForm({
-      charityId: charityId ? String(charityId) : '',
       name: '',
       director: '',
       email: '',
       phone: '',
+      address: '',
+      latitude: null,
+      longitude: null,
       password: '',
       confirmPassword: '',
       requestDate: getTodayDate(),
-      passwordStatus: 'active',
+      activityStatus: 'active',
     })
     setCreateError('')
     setCreateSuccess('')
   }
 
   function openCreateModal() {
-    const charityId = pendingCharities[0]?.id
-
-    if (!charityId) {
-      window.alert('Không còn charity nào cần tạo tài khoản.')
-      return
-    }
-
-    resetCreateForm(charityId)
+    resetCreateForm()
     setShowCreateModal(true)
   }
 
   function closeCreateModal() {
     setShowCreateModal(false)
-    resetCreateForm('')
+    resetCreateForm()
   }
 
   function handleCreateFormChange(event) {
@@ -319,18 +242,33 @@ export default function CharityManagement() {
     setCreateSuccess('')
   }
 
-  function submitCreateAccount(event) {
+  const handleLocationSelect = (location) => {
+    if (locationModalTarget === 'create') {
+      setCreateForm((prev) => ({
+        ...prev,
+        address: location.address,
+        latitude: location.lat,
+        longitude: location.lng,
+      }))
+    } else {
+      setEditForm((prev) => ({
+        ...prev,
+        address: location.address,
+        latitude: location.lat,
+        longitude: location.lng,
+      }))
+    }
+  }
+
+  const openLocationModal = (target) => {
+    setLocationModalTarget(target)
+    setShowLocationModal(true)
+  }
+
+  async function submitCreateAccount(event) {
     event.preventDefault()
     setCreateError('')
     setCreateSuccess('')
-
-    const selectedId = Number(createForm.charityId)
-    const charity = charities.find((item) => item.id === selectedId)
-
-    if (!charity || charity.accountCreated) {
-      setCreateError('Charity đã có tài khoản hoặc không hợp lệ.')
-      return
-    }
 
     if (!createForm.name.trim()) {
       setCreateError('Tên tổ chức không được để trống.')
@@ -352,6 +290,11 @@ export default function CharityManagement() {
       return
     }
 
+    if (!createForm.address.trim()) {
+      setCreateError('Địa chỉ không được để trống.')
+      return
+    }
+
     if (!createForm.requestDate) {
       setCreateError('Ngày đăng ký không được để trống.')
       return
@@ -367,8 +310,26 @@ export default function CharityManagement() {
       return
     }
 
-    handleCreateAccount(charity)
-    setCreateSuccess(`Đã tạo tài khoản thành công cho ${charity.name}.`)
+    try {
+      const payload = {
+        name: createForm.name.trim(),
+        director: createForm.director.trim(),
+        email: createForm.email.trim(),
+        phone: createForm.phone.trim(),
+        address: createForm.address.trim(),
+        latitude: createForm.latitude,
+        longitude: createForm.longitude,
+        password: createForm.password,
+        activityStatus: createForm.activityStatus,
+      }
+
+      await createAdminCharityWithAccount(payload)
+      setCreateSuccess(`Đã tạo tài khoản thành công.`)
+      await loadCharities()
+    } catch (err) {
+      setCreateError(err?.response?.data?.detail || 'Không thể tạo tài khoản charity.')
+      return
+    }
 
     setTimeout(() => {
       closeCreateModal()
@@ -384,17 +345,18 @@ export default function CharityManagement() {
           <button
             className="charities-btn-create charities-toolbar-btn"
             onClick={openCreateModal}
-            disabled={pendingCharities.length === 0}
           >
             Tạo Tài Khoản
           </button>
           <div className="charities-toolbar-info">
-            Hiển thị {charities.length} charity
+            Hiển thị {charities.length} tổ chức từ thiện
           </div>
         </div>
 
         {/* TABLE */}
         <div className="charities-card">
+          {loading && <div className="empty-cell">Đang tải dữ liệu...</div>}
+          {error && <div className="empty-cell">{error}</div>}
           <div className="table-responsive">
             <table className="charities-table">
               <thead>
@@ -420,43 +382,48 @@ export default function CharityManagement() {
                       </td>
                       <td>{charity.phone}</td>
                       <td>{new Date(charity.requestDate).toLocaleDateString('vi-VN')}</td>
-                      <td>
-                        <div className="action-group">
+                      <td className="charities-actions-cell">
+                        <div className="charities-actions">
                           <button
-                            className="action-btn icon-action-btn btn-edit"
+                            className="charities-btn-edit"
                             onClick={() => openDetail(charity)}
                             title="Chỉnh sửa"
-                            aria-label="Chỉnh sửa"
                           >
-                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                              <path d="m3 17.25 8.06-8.06 2.75 2.75L5.75 20H3v-2.75Zm13.71-9.04 1.04-1.04a1 1 0 0 0 0-1.41l-1.55-1.55a1 1 0 0 0-1.41 0l-1.04 1.04 2.96 2.96Z" />
+                            <svg className="charities-btn-icon" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="m3 17.25 8.06-8.06 2.75 2.75L5.75 20H3v-2.75Zm13.71-9.04 1.04-1.04a1 1 0 0 0 0-1.41l-1.55-1.55a1 1 0 0 0-1.41 0l-1.04 1.04 2.96 2.96Z"/>
                             </svg>
+                            Sửa
                           </button>
                           <button
-                            className={`action-btn icon-action-btn ${charity.isLocked ? 'btn-unlock-small' : 'btn-lock-small'}`}
+                            className={`charities-btn-lock ${charity.isLocked ? 'charities-btn-unlock' : 'charities-btn-lock-active'}`}
                             onClick={() => handleToggleLockCharity(charity.id)}
                             title={charity.isLocked ? 'Mở khóa tổ chức' : 'Khóa tổ chức'}
-                            aria-label={charity.isLocked ? 'Mở khóa tổ chức' : 'Khóa tổ chức'}
                           >
                             {charity.isLocked ? (
-                              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                                <path d="M17 9h-7V7a3 3 0 0 1 5.8-1.2l1.9-.6A5 5 0 0 0 8 7v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm0 10H7v-8h10v8Z" />
-                              </svg>
+                              <>
+                                <svg className="charities-btn-icon" viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M17 9h-7V7a3 3 0 0 1 5.8-1.2l1.9-.6A5 5 0 0 0 8 7v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm0 10H7v-8h10v8Z"/>
+                                </svg>
+                                Mở khóa
+                              </>
                             ) : (
-                              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                                <path d="M17 9h-1V7a4 4 0 1 0-8 0v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm-7-2a2 2 0 1 1 4 0v2h-4V7Zm7 12H7v-8h10v8Z" />
-                              </svg>
+                              <>
+                                <svg className="charities-btn-icon" viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M17 9h-1V7a4 4 0 1 0-8 0v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm-7-2a2 2 0 1 1 4 0v2h-4V7Zm7 12H7v-8h10v8Z"/>
+                                </svg>
+                                Khóa
+                              </>
                             )}
                           </button>
                           <button
-                            className="action-btn icon-action-btn btn-delete-small"
+                            className="charities-btn-delete"
                             onClick={() => handleDeleteCharity(charity.id)}
                             title="Xóa tổ chức"
-                            aria-label="Xóa tổ chức"
                           >
-                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                              <path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-2 6h10l-1 11a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2L7 9Zm3 2v8h2v-8h-2Zm4 0v8h2v-8h-2Z" />
+                            <svg className="charities-btn-icon" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
                             </svg>
+                            Xóa
                           </button>
                         </div>
                       </td>
@@ -474,96 +441,119 @@ export default function CharityManagement() {
           </div>
         </div>
 
-        {/* DETAIL MODAL */}
+        {/* EDIT MODAL */}
         {showDetailModal && selectedCharity && (
           <div className="charities-modal-overlay" onClick={closeDetail}>
-            <div className="charities-modal charities-edit-modal" onClick={(e) => e.stopPropagation()}>
-              <div className="modal-header">
+            <div className="charities-modal charities-create-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="charities-modal-header">
                 <h3>Chỉnh Sửa Tổ Chức Từ Thiện</h3>
-                <button className="modal-close" onClick={closeDetail}>✕</button>
+                <button className="charities-modal-close" onClick={closeDetail}>×</button>
               </div>
-              <form className="modal-body" onSubmit={submitEditCharity}>
-                <div className="detail-grid">
-                  <div className="detail-field">
-                    <label>Tên Tổ Chức</label>
-                    <input
-                      type="text"
-                      name="name"
-                      value={editForm.name}
-                      onChange={handleEditFormChange}
-                      className="charities-input"
-                      required
-                    />
+              <form onSubmit={submitEditCharity}>
+                <div className="charities-modal-body">
+                  <div className="charities-create-grid">
+                    <div className="charities-form-field">
+                      <label>Tên Tổ Chức</label>
+                      <input
+                        type="text"
+                        name="name"
+                        value={editForm.name}
+                        onChange={handleEditFormChange}
+                        className="charities-input"
+                        placeholder="Nhập tên tổ chức"
+                        required
+                      />
+                    </div>
+
+                    <div className="charities-form-field">
+                      <label>Người Đại Diện</label>
+                      <input
+                        type="text"
+                        name="director"
+                        value={editForm.director}
+                        onChange={handleEditFormChange}
+                        className="charities-input"
+                        placeholder="Nhập tên người đại diện"
+                        required
+                      />
+                    </div>
+
+                    <div className="charities-form-field">
+                      <label>Email</label>
+                      <input
+                        type="email"
+                        name="email"
+                        value={editForm.email}
+                        onChange={handleEditFormChange}
+                        className="charities-input"
+                        placeholder="Nhập email"
+                        required
+                      />
+                    </div>
+
+                    <div className="charities-form-field">
+                      <label>Điện Thoại</label>
+                      <input
+                        type="text"
+                        name="phone"
+                        value={editForm.phone}
+                        onChange={handleEditFormChange}
+                        className="charities-input"
+                        placeholder="Nhập số điện thoại"
+                        required
+                      />
+                    </div>
+
+                    <div className="charities-form-field">
+                      <label>Địa Chỉ</label>
+                      <div className="charities-address-wrapper">
+                        <input
+                          type="text"
+                          name="address"
+                          value={editForm.address}
+                          onChange={handleEditFormChange}
+                          className="charities-input"
+                          placeholder="Nhập địa chỉ"
+                          required
+                        />
+                        <button
+                          type="button"
+                          className="charities-location-btn"
+                          onClick={() => openLocationModal('edit')}
+                          title="Chọn vị trí trên bản đồ"
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                            <circle cx="12" cy="10" r="3" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="charities-form-field">
+                      <label>Ngày Đăng Ký</label>
+                      <input
+                        type="date"
+                        name="requestDate"
+                        value={editForm.requestDate}
+                        onChange={handleEditFormChange}
+                        className="charities-input"
+                        required
+                      />
+                    </div>
                   </div>
-                  <div className="detail-field">
-                    <label>Người Đại Diện</label>
-                    <input
-                      type="text"
-                      name="director"
-                      value={editForm.director}
-                      onChange={handleEditFormChange}
-                      className="charities-input"
-                      required
-                    />
-                  </div>
-                  <div className="detail-field">
-                    <label>Email</label>
-                    <input
-                      type="email"
-                      name="email"
-                      value={editForm.email}
-                      onChange={handleEditFormChange}
-                      className="charities-input"
-                      required
-                    />
-                  </div>
-                  <div className="detail-field">
-                    <label>Điện Thoại</label>
-                    <input
-                      type="text"
-                      name="phone"
-                      value={editForm.phone}
-                      onChange={handleEditFormChange}
-                      className="charities-input"
-                      required
-                    />
-                  </div>
-                  <div className="detail-field">
-                    <label>Địa Chỉ</label>
-                    <input
-                      type="text"
-                      name="address"
-                      value={editForm.address}
-                      onChange={handleEditFormChange}
-                      className="charities-input"
-                      required
-                    />
-                  </div>
-                  <div className="detail-field">
-                    <label>Ngày Đăng Ký</label>
-                    <input
-                      type="date"
-                      name="requestDate"
-                      value={editForm.requestDate}
-                      onChange={handleEditFormChange}
-                      className="charities-input"
-                      required
-                    />
-                  </div>
+
+                  {editError && <p className="charities-error">{editError}</p>}
+                  {editSuccess && <p className="charities-success">{editSuccess}</p>}
                 </div>
 
-                {editError && <p className="charities-error">{editError}</p>}
-                {editSuccess && <p className="charities-success">{editSuccess}</p>}
-
-                <div className="create-form-footer">
-                  <div className="create-form-actions">
-                    <button type="submit" className="btn-large charities-btn-create">
-                      Lưu thay đổi
-                    </button>
-                    <button type="button" className="btn-large btn-close" onClick={closeDetail}>
-                      Hủy
-                    </button>
-                  </div>
+                <div className="charities-modal-footer">
+                  <button type="submit" className="charities-btn-create">
+                    Lưu Thay Đổi
+                  </button>
+                  <button type="button" className="charities-btn-cancel" onClick={closeDetail}>
+                    Hủy
+                  </button>
                 </div>
               </form>
             </div>
@@ -573,135 +563,169 @@ export default function CharityManagement() {
         {showCreateModal && (
           <div className="charities-modal-overlay" onClick={closeCreateModal}>
             <div className="charities-modal charities-create-modal" onClick={(e) => e.stopPropagation()}>
-              <div className="modal-header">
-                <h3>Tạo Tài khoản Tổ Chức Từ Thiện</h3>
-                <button className="modal-close" onClick={closeCreateModal}>✕</button>
+              <div className="charities-modal-header">
+                <h3>Tạo Tài Khoản Tổ Chức Từ Thiện</h3>
+                <button className="charities-modal-close" onClick={closeCreateModal}>×</button>
               </div>
+              <form onSubmit={submitCreateAccount}>
+                <div className="charities-modal-body">
+                  <div className="charities-create-grid">
+                    <div className="charities-form-field">
+                      <label>Tên Tổ Chức</label>
+                      <input
+                        type="text"
+                        name="name"
+                        value={createForm.name}
+                        onChange={handleCreateFormChange}
+                        className="charities-input"
+                        placeholder="Nhập tên tổ chức"
+                        required
+                      />
+                    </div>
 
-              <form className="modal-body charities-form" onSubmit={submitCreateAccount}>
-                <div className="create-form-grid charities-create-grid">
-                  <div className="create-form-field">
-                    <label>Tên Tổ Chức</label>
-                    <input
-                      type="text"
-                      name="name"
-                      value={createForm.name}
-                      onChange={handleCreateFormChange}
-                      className="charities-input"
-                      placeholder="Nhập tên tổ chức"
-                      required
-                    />
+                    <div className="charities-form-field">
+                      <label>Người Đại Diện</label>
+                      <input
+                        type="text"
+                        name="director"
+                        value={createForm.director}
+                        onChange={handleCreateFormChange}
+                        className="charities-input"
+                        placeholder="Nhập tên người đại diện"
+                        required
+                      />
+                    </div>
+
+                    <div className="charities-form-field">
+                      <label>Email</label>
+                      <input
+                        type="email"
+                        name="email"
+                        value={createForm.email}
+                        onChange={handleCreateFormChange}
+                        className="charities-input"
+                        placeholder="Nhập email"
+                        required
+                      />
+                    </div>
+
+                    <div className="charities-form-field">
+                      <label>Điện Thoại</label>
+                      <input
+                        type="text"
+                        name="phone"
+                        value={createForm.phone}
+                        onChange={handleCreateFormChange}
+                        className="charities-input"
+                        placeholder="Nhập số điện thoại"
+                        required
+                      />
+                    </div>
+
+                    <div className="charities-form-field">
+                      <label>Địa Chỉ</label>
+                      <div className="charities-address-wrapper">
+                        <input
+                          type="text"
+                          name="address"
+                          value={createForm.address}
+                          onChange={handleCreateFormChange}
+                          className="charities-input"
+                          placeholder="Nhập địa chỉ"
+                          required
+                        />
+                        <button
+                          type="button"
+                          className="charities-location-btn"
+                          onClick={() => openLocationModal('create')}
+                          title="Chọn vị trí trên bản đồ"
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                            <circle cx="12" cy="10" r="3" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="charities-form-field">
+                      <label>Ngày Đăng Ký</label>
+                      <input
+                        type="date"
+                        name="requestDate"
+                        value={createForm.requestDate}
+                        onChange={handleCreateFormChange}
+                        className="charities-input"
+                        required
+                      />
+                    </div>
                   </div>
 
-                  <div className="create-form-field">
-                    <label>Người Đại Diện</label>
-                    <input
-                      type="text"
-                      name="director"
-                      value={createForm.director}
-                      onChange={handleCreateFormChange}
-                      className="charities-input"
-                      placeholder="Nhập tên người đại diện"
-                      required
-                    />
-                  </div>
+                  <div className="charities-create-grid">
+                    <div className="charities-form-field">
+                      <label>Mật Khẩu</label>
+                      <input
+                        type="password"
+                        name="password"
+                        value={createForm.password}
+                        onChange={handleCreateFormChange}
+                        className="charities-input"
+                        placeholder="Nhập mật khẩu"
+                        required
+                      />
+                    </div>
 
-                  <div className="create-form-field">
-                    <label>Email</label>
-                    <input
-                      type="email"
-                      name="email"
-                      value={createForm.email}
-                      onChange={handleCreateFormChange}
-                      className="charities-input"
-                      placeholder="Nhập email"
-                      required
-                    />
-                  </div>
+                    <div className="charities-form-field">
+                      <label>Xác Nhận Mật Khẩu</label>
+                      <input
+                        type="password"
+                        name="confirmPassword"
+                        value={createForm.confirmPassword}
+                        onChange={handleCreateFormChange}
+                        className="charities-input"
+                        placeholder="Nhập lại mật khẩu"
+                        required
+                      />
+                    </div>
 
-                  <div className="create-form-field">
-                    <label>Điện Thoại</label>
-                    <input
-                      type="text"
-                      name="phone"
-                      value={createForm.phone}
-                      onChange={handleCreateFormChange}
-                      className="charities-input"
-                      placeholder="Nhập số điện thoại"
-                      required
-                    />
-                  </div>
-
-                  <div className="create-form-field">
-                    <label>Mật Khẩu</label>
-                    <input
-                      type="password"
-                      name="password"
-                      value={createForm.password}
-                      onChange={handleCreateFormChange}
-                      className="charities-input"
-                      placeholder="Nhập mật khẩu"
-                      required
-                    />
-                  </div>
-
-                  <div className="create-form-field">
-                    <label>Xác Nhận Mật Khẩu</label>
-                    <input
-                      type="password"
-                      name="confirmPassword"
-                      value={createForm.confirmPassword}
-                      onChange={handleCreateFormChange}
-                      className="charities-input"
-                      placeholder="Nhập lại mật khẩu"
-                      required
-                    />
-                  </div>
-
-                  <div className="create-form-field">
-                    <label>Ngày Đăng Ký</label>
-                    <input
-                      type="date"
-                      name="requestDate"
-                      value={createForm.requestDate}
-                      onChange={handleCreateFormChange}
-                      className="charities-input"
-                      required
-                    />
-                  </div>
-
-                  <div className="create-form-field">
-                    <label>Trạng Thái Hoạt Động</label>
-                    <select
-                      name="passwordStatus"
-                      value={createForm.passwordStatus}
-                      onChange={handleCreateFormChange}
-                      className="charities-input"
-                    >
-                      <option value="active">Đang hoạt động</option>
-                      <option value="locked">Bị khóa</option>
-                    </select>
+                    <div className="charities-form-field">
+                      <label>Trạng Thái Hoạt Động</label>
+                      <select
+                        name="activityStatus"
+                        value={createForm.activityStatus}
+                        onChange={handleCreateFormChange}
+                        className="charities-input"
+                      >
+                        <option value="active">Đang hoạt động</option>
+                        <option value="locked">Bị khóa</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
 
                 {createError && <p className="charities-error">{createError}</p>}
                 {createSuccess && <p className="charities-success">{createSuccess}</p>}
 
-                <div className="create-form-footer">
-                  <div className="create-form-actions">
-                    <button type="submit" className="btn-large charities-btn-create">
-                      Tạo mới
-                    </button>
-                    <button type="button" className="btn-large btn-close" onClick={closeCreateModal}>
-                      Hủy
-                    </button>
-                  </div>
+                <div className="charities-modal-footer">
+                  <button type="submit" className="charities-btn-create">
+                    Tạo mới
+                  </button>
+                  <button type="button" className="charities-btn-cancel" onClick={closeCreateModal}>
+                    Hủy
+                  </button>
                 </div>
               </form>
             </div>
           </div>
         )}
       </div>
+
+      <LocationModal
+        isOpen={showLocationModal}
+        onClose={() => setShowLocationModal(false)}
+        onSelectLocation={handleLocationSelect}
+        initialAddress={locationModalTarget === 'create' ? createForm.address : editForm.address}
+      />
     </SystemAdminLayout>
   )
 }
