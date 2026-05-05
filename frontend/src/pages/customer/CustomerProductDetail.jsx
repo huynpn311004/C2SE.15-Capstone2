@@ -2,33 +2,8 @@ import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { fetchCustomerProductDetail, validateCartStock } from "../../services/customerApi";
 import { getProductImageUrl } from "../../services/staffApi";
+import { getCart, addToCart } from "../../services/cartUtils";
 import './CustomerProductDetail.css';
-
-const CART_KEY = 'seims_customer_cart';
-
-function getCart() {
-  try {
-    const raw = localStorage.getItem(CART_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch { return []; }
-}
-
-function addToCart(product) {
-  const cart = getCart();
-  // Find existing item with same id AND same storeId (same lotCode)
-  const existing = cart.find(item =>
-    item.id === product.id &&
-    (item.storeId || item.store_id) === (product.storeId || product.store_id) &&
-    (item.lotCode || item.lot_code) === (product.lotCode || product.lot_code)
-  );
-  if (existing) {
-    existing.quantity += 1;
-  } else {
-    cart.push({ ...product, quantity: 1 });
-  }
-  localStorage.setItem(CART_KEY, JSON.stringify(cart));
-  window.dispatchEvent(new Event('seims-cart-updated'));
-}
 
 function Toast({ message, visible }) {
   if (!visible) return null;
