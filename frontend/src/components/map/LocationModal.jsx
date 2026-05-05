@@ -85,7 +85,6 @@ function SearchBox({ onLocationSelect }) {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
-
   // Build list of queries to try (from specific to broad)
   const buildSearchQueries = (raw) => {
     const trimmed = raw.trim();
