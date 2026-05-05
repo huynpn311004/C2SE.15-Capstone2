@@ -2,33 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchCustomerProducts, fetchCustomerCategories, fetchCustomerStores, fetchCustomerSetting } from '../../services/customerApi';
 import { getProductImageUrl } from '../../services/staffApi';
+import { getCart, addToCart } from '../../services/cartUtils';
 import './CustomerShop.css';
-
-const CART_KEY = 'seims_customer_cart';
-
-function getCart() {
-  try {
-    const raw = localStorage.getItem(CART_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch { return []; }
-}
-
-function saveCart(cart) {
-  localStorage.setItem(CART_KEY, JSON.stringify(cart));
-}
-
-function addToCart(product) {
-  const cart = getCart();
-  // Find existing item with same id AND same storeId
-  const existing = cart.find(item => item.id === product.id && item.storeId === product.storeId);
-  if (existing) {
-    existing.quantity += 1;
-  } else {
-    cart.push({ ...product, quantity: 1 });
-  }
-  saveCart(cart);
-  window.dispatchEvent(new Event('seims-cart-updated'));
-}
 
 function Toast({ message, visible }) {
   if (!visible) return null;

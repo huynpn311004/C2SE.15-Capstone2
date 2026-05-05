@@ -3,21 +3,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { getProductImageUrl } from '../../services/staffApi';
 import { fetchCustomerProductDetail, createMultiStoreOrder, fetchAvailableCoupons, confirmCustomerOrder } from '../../services/customerApi';
 import { LocationModal } from '../../components/map';
+import { getCart, clearCart } from '../../services/cartUtils';
 import './CustomerCheckout.css';
-
-const CART_KEY = 'seims_customer_cart';
-
-function getCart() {
-  try {
-    const raw = localStorage.getItem(CART_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch { return []; }
-}
-
-function clearCart() {
-  localStorage.removeItem(CART_KEY);
-  window.dispatchEvent(new Event('seims-cart-updated'));
-}
 
 function Toast({ message, visible }) {
   if (!visible) return null;
