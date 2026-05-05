@@ -9,7 +9,6 @@ from app.models.donation_offer import DonationOffer
 from app.models.donation_request import DonationRequest
 from app.models.donation_request_item import DonationRequestItem
 from app.models.inventory_lot import InventoryLot
-from app.models.notification import Notification
 from app.models.order import Order
 from app.models.order_item import OrderItem
 from app.models.product import Product
@@ -30,7 +29,6 @@ __all__ = [
 	"DonationRequest",
 	"DonationRequestItem",
 	"Delivery",
-	"Notification",
 	"AuditLog",
 	"Category",
 	"Product",

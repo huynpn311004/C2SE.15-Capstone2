@@ -15,7 +15,6 @@ from app.schemas.staff_schemas import (
     OrdersListResponse,
     UpdateOrderStatusRequest,
     OrderDetailResponse,
-    NotificationsListResponse,
     CategoriesListResponse,
     CategoryStatsResponse,
     CreateCategoryRequest,
@@ -107,24 +106,6 @@ def get_staff_order_detail(
 ):
     scope = staff_service._get_staff_scope(db, current_user.id)
     return staff_service.get_staff_order_detail(db, order_id, scope["store_id"])
-
-
-# ========== Notifications ==========
-@router.get("/notifications", response_model=NotificationsListResponse)
-def list_staff_notifications(
-	current_user: User = Depends(get_current_user),
-	db: Session = Depends(get_db),
-):
-    return staff_service.list_staff_notifications(db, current_user.id)
-
-
-@router.put("/notifications/{notification_id}/read")
-def mark_notification_as_read(
-    notification_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    return staff_service.mark_notification_as_read(db, notification_id, current_user.id)
 
 
 # ========== Categories ==========

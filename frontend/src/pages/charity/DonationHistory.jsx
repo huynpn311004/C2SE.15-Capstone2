@@ -20,13 +20,13 @@ const statusLabel = {
 export default function DonationHistory() {
   const [requests, setRequests] = useState([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [filter, setFilter] = useState('all')
-  const [confirmingId, setConfirmingId] = useState(null)
-  const [confirmSuccess, setConfirmSuccess] = useState('')
   const [selectedRequest, setSelectedRequest] = useState(null)
+  const [showModal, setShowModal] = useState(false)
   const [detailLoading, setDetailLoading] = useState(false)
-  const [detailError, setDetailError] = useState('')
+  const [confirmingId, setConfirmingId] = useState(null)
+  const [filter, setFilter] = useState('all')
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
 
   useEffect(() => {
     loadRequests()
@@ -52,11 +52,9 @@ export default function DonationHistory() {
     if (req.reqQty || req.total_items || req.totalItems) {
       return req.reqQty || req.total_items || req.totalItems
     }
-
     if (!req.items?.length) {
       return 0
     }
-
     return req.items.reduce((sum, item) => {
       const qty = item.quantity ?? item.qty ?? 1
       const parsed = typeof qty === 'number' ? qty : parseInt(qty, 10)
@@ -71,45 +69,60 @@ export default function DonationHistory() {
       return
     }
     setConfirmingId(requestId)
-    setConfirmSuccess('')
+    setSuccess('')
+    setError('')
     try {
       await confirmDonationReceived(requestId)
-      setConfirmSuccess(`Xác nhận thành công yêu cầu YC-${requestId}`)
+      setSuccess(`Xác nhận thành công yêu cầu YC-${requestId}`)
       await loadRequests()
+      setTimeout(() => {
+        setShowModal(false)
+        setSelectedRequest(null)
+        setSuccess('')
+      }, 800)
     } catch (err) {
-      alert(err?.response?.data?.detail || err.message || 'Xác nhận thất bại')
+      setError(err?.response?.data?.detail || err.message || 'Xác nhận thất bại')
     } finally {
       setConfirmingId(null)
     }
   }
 
-  async function openRequestDetail(req) {
+  function openDetail(req) {
     const requestId = req.dbId || req.id
-    setDetailError('')
-    setSelectedRequest(null)
+    setSelectedRequest(req)
+    setError('')
+    setSuccess('')
     setDetailLoading(true)
-    try {
-      const detail = await fetchCharityDonationRequestDetail(requestId)
-      setSelectedRequest(detail)
-    } catch (err) {
-      setDetailError(err?.response?.data?.detail || err.message || 'Không thể tải chi tiết yêu cầu')
-    } finally {
-      setDetailLoading(false)
-    }
+    setShowModal(true)
+    fetchCharityDonationRequestDetail(requestId)
+      .then((detail) => {
+        setSelectedRequest((prev) => prev ? { ...prev, ...detail } : prev)
+      })
+      .catch((err) => {
+        setError(err?.response?.data?.detail || err.message || 'Không tải được chi tiết yêu cầu')
+      })
+      .finally(() => {
+        setDetailLoading(false)
+      })
   }
 
-  function closeRequestDetail() {
+  function closeDetail() {
+    setShowModal(false)
     setSelectedRequest(null)
-    setDetailError('')
+    setError('')
+    setSuccess('')
+    setDetailLoading(false)
   }
 
   return (
     <CharityLayout>
-      <div className="chhistory-page">
+      <div className="orders-page">
         {/* TOOLBAR */}
-        <div className="chhistory-toolbar">
+        <div className="orders-toolbar">
+          <div className="orders-toolbar-info">
+            Hiển thị {filtered.length} yêu cầu
+          </div>
           <div className="chhistory-filter-group">
-            <label>Lọc theo trạng thái:</label>
             <select className="chhistory-filter-select" value={filter} onChange={e => setFilter(e.target.value)}>
               <option value="all">Tất Cả</option>
               <option value="pending">Đang Chờ</option>
@@ -118,137 +131,185 @@ export default function DonationHistory() {
               <option value="rejected">Từ Chối</option>
             </select>
           </div>
-          <div className="chhistory-toolbar-info">Hiển thị {filtered.length} yêu cầu</div>
         </div>
 
-        {/* CONFIRM SUCCESS */}
-        {confirmSuccess && (
-          <div className="chhistory-success-banner">{confirmSuccess}</div>
-        )}
+        {error && <div className="orders-alert orders-alert-error">{error}</div>}
+        {success && <div className="orders-alert orders-alert-success">{success}</div>}
 
-        {/* LOADING / ERROR */}
-        {loading && (
-          <div className="chhistory-loading">
-            <div className="spinner"></div>
-            <span>Đang tải dữ liệu...</span>
-          </div>
-        )}
-
-        {!loading && error && (
-          <div className="chhistory-error-banner">
-            <p>{error}</p>
-            <button onClick={loadRequests} className="chhistory-retry-btn">Thử lại</button>
-          </div>
-        )}
-
-        {/* TABLE */}
-        {!loading && !error && (
-          <div className="chhistory-card">
-            <div className="table-responsive">
-              <table className="chhistory-table">
-                <thead>
+        {/* CARD + TABLE */}
+        <div className="orders-card">
+          <div className="orders-table-wrapper">
+            <table className="orders-table">
+              <thead>
+                <tr>
+                  <th>STT</th>
+                  <th>Mã Đơn</th>
+                  <th>Số Lượng</th>
+                  <th>Trạng Thái</th>
+                  <th>Thao Tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
                   <tr>
-                    <th>Mã đơn</th>
-                    <th>Số lượng sản phẩm</th>
-                    <th>Trạng thái</th>
-                    <th>Thao tác</th>
+                    <td colSpan="5" className="orders-empty-cell">
+                      Đang tải danh sách yêu cầu...
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {filtered.length > 0 ? (
-                    filtered.map(req => {
-                      const requestId = req.dbId || req.id
-                      const reqQty = getRequestQuantity(req)
-                      const statusKey = req.status || 'pending'
+                ) : filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan="5" className="orders-empty-cell">
+                      Chưa có yêu cầu nào.
+                    </td>
+                  </tr>
+                ) : (
+                  filtered.map((req, index) => {
+                    const requestId = req.dbId || req.id
+                    const reqQty = getRequestQuantity(req)
+                    const statusKey = req.status || 'pending'
 
-                      return (
-                        <tr key={requestId}>
-                          <td className="chhistory-order-code">YC-{requestId}</td>
-                          <td className="chhistory-qty">{reqQty}</td>
-                          <td>
-                            <span className={`badge ${statusBadge[statusKey]}`}>{statusLabel[statusKey]}</span>
-                          </td>
-                          <td className="chhistory-action-cell">
+                    return (
+                      <tr key={requestId}>
+                        <td>{index + 1}</td>
+                        <td>
+                          <span className="orders-id-badge">YC-{requestId}</span>
+                        </td>
+                        <td className="chhistory-qty">{reqQty}</td>
+                        <td>
+                          <span className={`badge ${statusBadge[statusKey]}`}>
+                            {statusLabel[statusKey]}
+                          </span>
+                        </td>
+                        <td className="orders-actions">
+                          <button
+                            className="orders-btn-view"
+                            onClick={() => openDetail(req)}
+                          >
+                            <svg className="orders-icon" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+                            </svg>
+                            Xem
+                          </button>
+                          {statusKey === 'approved' && (
                             <button
-                              type="button"
-                              className="chhistory-btn-view"
-                              onClick={() => openRequestDetail(req)}
+                              className="orders-btn-update"
+                              onClick={() => handleConfirmReceived(req)}
+                              disabled={confirmingId === requestId}
                             >
-                              Xem
+                              <svg className="orders-icon" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                              </svg>
+                              {confirmingId === requestId ? 'Đang xử lý...' : 'Xác Nhận'}
                             </button>
-                            {statusKey === 'approved' && (
-                              <button
-                                type="button"
-                                onClick={() => handleConfirmReceived(req)}
-                                disabled={confirmingId === requestId}
-                                className="chhistory-btn-confirm"
-                              >
-                                {confirmingId === requestId ? 'Đang xử lý...' : 'Xác nhận'}
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      )
-                    })
-                  ) : (
-                    <tr>
-                      <td colSpan="4" className="chhistory-empty-cell">Không có dữ liệu</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-              {selectedRequest && (
-                <div className="chhistory-modal-backdrop" onClick={closeRequestDetail}>
-                  <div className="chhistory-modal" onClick={e => e.stopPropagation()}>
-                    <div className="chhistory-modal-header">
-                      <h3>Chi tiết yêu cầu YC-{selectedRequest.id}</h3>
-                      <button className="chhistory-modal-close" onClick={closeRequestDetail}>×</button>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* Modal Chi tiết yêu cầu */}
+      {showModal && selectedRequest && (
+        <div className="orders-modal-overlay" onClick={closeDetail}>
+          <div className="orders-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="orders-modal-header">
+              <h3>Chi Tiết Yêu Cầu</h3>
+              <button className="orders-modal-close" onClick={closeDetail}>×</button>
+            </div>
+            <div className="orders-modal-body">
+              {detailLoading ? (
+                <div className="orders-modal-loading">
+                  <div className="orders-spinner"></div>
+                  <span>Đang tải chi tiết yêu cầu...</span>
+                </div>
+              ) : (
+                <>
+                  <div className="orders-detail-grid">
+                    <div className="orders-detail-field">
+                      <label>Mã Đơn</label>
+                      <div className="orders-detail-value">
+                        <span className="orders-id-badge">YC-{selectedRequest.id}</span>
+                      </div>
                     </div>
-                    <div className="chhistory-modal-body">
-                      {detailLoading ? (
-                        <div className="chhistory-loading">
-                          <div className="spinner"></div>
-                          <span>Đang tải chi tiết...</span>
-                        </div>
-                      ) : detailError ? (
-                        <div className="chhistory-error-banner">{detailError}</div>
-                      ) : (
-                        <div className="chhistory-detail-grid">
-                          <div><strong>Mã đơn:</strong> YC-{selectedRequest.id}</div>
-                          <div><strong>Trạng thái:</strong> {selectedRequest.status}</div>
-                          <div><strong>Ngày tạo:</strong> {selectedRequest.createdAt || selectedRequest.created_at}</div>
-                          <div><strong>SL sản phẩm:</strong> {selectedRequest.total_items || selectedRequest.totalItems || selectedRequest.items?.length || 0}</div>
-                          <div className="chhistory-detail-items">
-                            <h4>Danh sách sản phẩm</h4>
-                            <table className="chhistory-detail-table">
-                              <thead>
-                                <tr>
-                                  <th>Sản phẩm</th>
-                                  <th>Số lượng</th>
-                                  <th>Trạng thái</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {(selectedRequest.items || []).map(item => (
-                                  <tr key={item.id}>
-                                    <td>{item.product_name || item.product || ''}</td>
-                                    <td>{item.quantity || item.qty || ''}</td>
-                                    <td>{item.status}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      )}
+                    <div className="orders-detail-field">
+                      <label>Trạng Thái</label>
+                      <div className="orders-detail-value">
+                        <span className={`badge ${statusBadge[selectedRequest.status]}`}>
+                          {statusLabel[selectedRequest.status]}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="orders-detail-field">
+                      <label>Ngày Tạo</label>
+                      <div className="orders-detail-value">
+                        {selectedRequest.createdAt || selectedRequest.created_at || '—'}
+                      </div>
+                    </div>
+                    <div className="orders-detail-field">
+                      <label>Số Lượng Sản Phẩm</label>
+                      <div className="orders-detail-value">
+                        {selectedRequest.total_items || selectedRequest.totalItems || selectedRequest.items?.length || 0}
+                      </div>
                     </div>
                   </div>
-                </div>
+
+                  {/* Danh sách sản phẩm */}
+                  {selectedRequest.items && selectedRequest.items.length > 0 && (
+                    <div className="orders-items-section">
+                      <h4 className="orders-items-title">Danh Sách Sản Phẩm</h4>
+                      <table className="orders-items-table">
+                        <thead>
+                          <tr>
+                            <th>STT</th>
+                            <th>Sản Phẩm</th>
+                            <th>Số Lượng</th>
+                            <th>Trạng Thái</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {selectedRequest.items.map((item, idx) => (
+                            <tr key={item.id || idx}>
+                              <td>{idx + 1}</td>
+                              <td>{item.product_name || item.product || '—'}</td>
+                              <td>{item.quantity || item.qty || '—'}</td>
+                              <td>
+                                <span className={`badge ${statusBadge[item.status] || 'badge-muted'}`}>
+                                  {statusLabel[item.status] || item.status || '—'}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {error && <p className="orders-error">{error}</p>}
+                </>
               )}
             </div>
+            <div className="orders-modal-footer">
+              {selectedRequest.status === 'approved' && (
+                <button
+                  className="orders-btn-confirm"
+                  onClick={() => handleConfirmReceived(selectedRequest)}
+                  disabled={confirmingId === (selectedRequest.dbId || selectedRequest.id)}
+                >
+                  {confirmingId === (selectedRequest.dbId || selectedRequest.id) ? 'Đang xử lý...' : 'Xác Nhận Đã Nhận'}
+                </button>
+              )}
+              <button className="orders-btn-cancel" onClick={closeDetail}>
+                Đóng
+              </button>
+            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </CharityLayout>
   )
 }

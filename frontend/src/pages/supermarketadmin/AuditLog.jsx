@@ -208,7 +208,6 @@ export default function AuditLog() {
                     <td className="saaudit-action">{log.action}</td>
                     <td className="saaudit-entity">{log.entityType}</td>
                     <td className="saaudit-detail-cell">
-                      <div className="saaudit-detail-text">{log.detail}</div>
                       <button
                         type="button"
                         className="btn-view"

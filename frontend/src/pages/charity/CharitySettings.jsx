@@ -12,6 +12,7 @@ export default function CharitySettings() {
   const [error, setError] = useState('')
 
   const [formData, setFormData] = useState({
+    username: '',
     fullName: '',
     orgName: '',
     email: '',
@@ -19,6 +20,7 @@ export default function CharitySettings() {
     address: '',
   })
   const [originalData, setOriginalData] = useState({
+    username: '',
     fullName: '',
     orgName: '',
     email: '',
@@ -52,6 +54,7 @@ export default function CharitySettings() {
     try {
       const data = await fetchCharityProfile()
       const profile = {
+        username: data.username || '',
         fullName: data.fullName || '',
         orgName: data.orgName || '',
         email: data.email || '',
@@ -154,6 +157,18 @@ export default function CharitySettings() {
         <form className="chsettings-card" onSubmit={handleSave}>
           <h3 className="chsettings-section-title">Thông Tin Tài Khoản</h3>
           <div className="chsettings-grid">
+            <label className="chsettings-field chsettings-field-disabled">
+              <span>Tên Đăng Nhập</span>
+              <input
+                type="text"
+                name="username"
+                value={formData.username}
+                readOnly
+                disabled
+                placeholder="Không thể chỉnh sửa"
+              />
+            </label>
+
             <label className="chsettings-field">
               <span>Họ Và Tên</span>
               <input

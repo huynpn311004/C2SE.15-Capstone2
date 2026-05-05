@@ -138,20 +138,6 @@ export async function fetchOrderDetail(orderId) {
   return response.data
 }
 
-export async function fetchNotifications() {
-  requireStaff()
-  const response = await API.get('/staff/notifications')
-  return response.data.items || []
-}
-
-export async function markNotificationRead(notificationId) {
-  requireStaff()
-  const response = await API.put(
-    `/staff/notifications/${notificationId}/read`
-  )
-  return response.data
-}
-
 export async function fetchCategoryStats() {
   requireStaff()
   const response = await API.get('/staff/category-stats')
