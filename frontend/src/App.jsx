@@ -15,7 +15,6 @@ import InventoryLots from './pages/staff/InventoryLots.jsx';
 import ExpiryTracking from './pages/staff/ExpiryTracking.jsx';
 import OrdersManagement from './pages/staff/OrdersManagement.jsx';
 import DonationManagement from './pages/staff/DonationManagement.jsx';
-import Notifications from './pages/staff/Notifications.jsx';
 import StaffSetting from './pages/staff/StaffSetting.jsx';
 import CategoryManagement from './pages/staff/CategoryManagement.jsx';
 import ProductManagement from './pages/staff/ProductManagement.jsx';
@@ -87,7 +86,6 @@ function App() {
           <Route path="/staff/expiry-tracking" element={<ExpiryTracking />} />
           <Route path="/staff/orders" element={<OrdersManagement />} />
           <Route path="/staff/donations" element={<DonationManagement />} />
-          <Route path="/staff/notifications" element={<Notifications />} />
           <Route path="/staff/settings" element={<StaffSetting />} />
           <Route path="/staff/categories" element={<CategoryManagement />} />
           <Route path="/staff/products" element={<ProductManagement />} />

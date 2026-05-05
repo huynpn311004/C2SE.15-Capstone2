@@ -88,10 +88,6 @@
   box-shadow: 0 2px 8px rgba(15, 118, 110, 0.06);
 }
 
-.sad-stat-card-secondary {
-  border-left: 3px solid var(--sa-border);
-}
-
 .sadashboard-stat-header-row {
   display: flex;
   align-items: center;

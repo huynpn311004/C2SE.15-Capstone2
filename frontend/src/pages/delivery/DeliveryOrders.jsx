@@ -385,7 +385,7 @@ export default function DeliveryOrders() {
                       <span className="dp-location-address">{selectedOrder.store_address}</span>
                     </div>
                     <button
-                      className="dp-nav-btn"
+                      className="dp-action-btn dp-btn-map"
                       onClick={() => openNavigation(selectedOrder.store_address)}
                     >
                       Chỉ đường
@@ -411,7 +411,7 @@ export default function DeliveryOrders() {
                         Gọi
                       </a>
                       <button
-                        className="dp-nav-btn"
+                        className="dp-action-btn dp-btn-map"
                         onClick={() => openNavigation(selectedOrder.customer_address)}
                       >
                         Chỉ đường

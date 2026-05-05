@@ -73,11 +73,15 @@ def get_order_items_detail(db: Session, order_id: int) -> tuple:
 def get_donation_items_detail(db: Session, donation_request_id: int) -> tuple:
     """Get donation request items details."""
     from app.models.donation_offer import DonationOffer
-    
+    from app.models.donation_request_item import DonationRequestItem
+    from app.models.inventory_lot import InventoryLot
+
     items = (
-        db.query(DonationOffer, Product)
-        .join(Product, DonationOffer.product_id == Product.id)
-        .filter(DonationOffer.donation_request_id == donation_request_id)
+        db.query(DonationRequestItem, Product)
+        .join(DonationOffer, DonationRequestItem.offer_id == DonationOffer.id)
+        .join(InventoryLot, DonationOffer.lot_id == InventoryLot.id)
+        .join(Product, InventoryLot.product_id == Product.id)
+        .filter(DonationRequestItem.request_id == donation_request_id)
         .all()
     )
 
@@ -176,8 +180,8 @@ def format_delivery_data(delivery: Delivery, db: Session, include_order_detail: 
         if not donation:
             return None
         
-        # Get charity organization info
-        charity = db.query(CharityOrganization).filter(CharityOrganization.id == donation.charity_id).first()
+        # Get charity organization info (donation.charity_id is user_id, not charity_organization.id)
+        charity = db.query(CharityOrganization).filter(CharityOrganization.user_id == donation.charity_id).first()
         store = db.query(Store).filter(Store.id == delivery.store_id).first()
         
         # Get supermarket name
@@ -195,12 +199,17 @@ def format_delivery_data(delivery: Delivery, db: Session, include_order_detail: 
             "id": delivery.id,
             "delivery_code": delivery.delivery_code,
             "delivery_type": "donation",
+            "order_id": None,
+            "customer_id": donation.charity_id,
+            "customer_name": delivery.receiver_name or (charity.org_name if charity else "Không có"),
+            "customer_phone": delivery.receiver_phone or (charity.phone if charity else ""),
+            "customer_address": delivery.receiver_address or (charity.address if charity else "Không có địa chỉ"),
             "donation_request_id": donation.id,
             "charity_id": donation.charity_id,
-            "charity_name": charity.name if charity else "Không có",
+            "charity_name": charity.org_name if charity else "Không có",
             "charity_phone": delivery.receiver_phone or (charity.phone if charity else ""),
-            "charity_address": delivery.receiver_address or "Không có địa chỉ",
-            "receiver_name": delivery.receiver_name or (charity.name if charity else ""),
+            "charity_address": delivery.receiver_address or (charity.address if charity else "Không có địa chỉ"),
+            "receiver_name": delivery.receiver_name or (charity.org_name if charity else ""),
             "store_id": store.id if store else 0,
             "store_name": store.name if store else "Không có",
             "store_address": store.location if store else "Không có",
@@ -209,6 +218,10 @@ def format_delivery_data(delivery: Delivery, db: Session, include_order_detail: 
             "items": items_str,
             "items_list": items_list,
             "quantity": total_quantity,
+            "total_amount": 0,
+            "payment_method": "donation",
+            "payment_status": "N/A",
+            "order_status": donation.status,
             "donation_status": donation.status,
             "status": delivery.status,
             "assigned_at": delivery.assigned_at.strftime("%Y-%m-%d %H:%M:%S") if delivery.assigned_at else "",

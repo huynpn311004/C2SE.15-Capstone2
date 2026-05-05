@@ -140,14 +140,6 @@ export default function StaffLayout({ children }) {
               </li>
               <li>
                 <NavLink
-                  to="/staff/notifications"
-                  className={({ isActive }) => `staff-nav-link${isActive ? ' active' : ''}`}
-                >
-                  <span className="staff-nav-label">Thông Báo</span>
-                </NavLink>
-              </li>
-              <li>
-                <NavLink
                   to="/staff/settings"
                   className={({ isActive }) => `staff-nav-link${isActive ? ' active' : ''}`}
                 >

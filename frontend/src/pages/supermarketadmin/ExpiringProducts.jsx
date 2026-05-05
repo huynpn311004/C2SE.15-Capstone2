@@ -125,7 +125,6 @@ export default function ExpiringProducts() {
             <table className="expprod-table">
               <thead>
                 <tr>
-                  <th>Ảnh</th>
                   <th>Sản phẩm</th>
                   <th>SKU</th>
                   <th>Cửa hàng</th>
@@ -138,7 +137,7 @@ export default function ExpiringProducts() {
               <tbody>
                 {products.length === 0 && (
                   <tr>
-                    <td colSpan="8" style={{ textAlign: 'center', padding: '2rem' }}>
+                    <td colSpan="7" style={{ textAlign: 'center', padding: '2rem' }}>
                       Không có sản phẩm nào sắp hết hạn trong {days} ngày tới.
                     </td>
                   </tr>
@@ -147,18 +146,6 @@ export default function ExpiringProducts() {
                   const cfg = urgencyConfig[p.urgency] || urgencyConfig.caution
                   return (
                     <tr key={`${p.lotId}-${p.productId}`}>
-                      <td>
-                        {p.productImage ? (
-                          <img
-                            src={p.productImage}
-                            alt={p.productName}
-                            className="expprod-product-img"
-                            onError={e => { e.target.style.display = 'none' }}
-                          />
-                        ) : (
-                          <div className="expprod-product-placeholder">No Image</div>
-                        )}
-                      </td>
                       <td>
                         <div className="expprod-product-name">{p.productName}</div>
                         <div className="expprod-product-category">{p.category}</div>
