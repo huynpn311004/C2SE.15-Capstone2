@@ -4,8 +4,9 @@ from jose import jwt
 import os
 from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+# Always load backend/.env regardless of current working directory.
+_BACKEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+load_dotenv(os.path.join(_BACKEND_DIR, ".env"))
 
 SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")

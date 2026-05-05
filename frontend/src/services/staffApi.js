@@ -270,6 +270,24 @@ export async function deleteProduct(productId) {
   return response.data
 }
 
+export async function adjustProductStock(productId, payload) {
+  requireStaff()
+  const response = await API.put(`/staff/products/${productId}/stock`, payload)
+  return response.data
+}
+
+export async function previewAdjustProductStock(productId, payload) {
+  requireStaff()
+  const response = await API.post(`/staff/products/${productId}/stock/preview`, payload)
+  return response.data
+}
+
+export async function fetchAuditLogs(params = {}) {
+  requireStaff()
+  const response = await API.get('/staff/audit-logs', { params })
+  return response.data.items || []
+}
+
 export async function importProducts(file) {
   requireStaff()
   const formData = new FormData()

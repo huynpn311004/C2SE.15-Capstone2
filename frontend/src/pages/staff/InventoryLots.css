@@ -127,6 +127,17 @@
   cursor: not-allowed;
 }
 
+.inventory-hint {
+  margin: 0;
+  padding: 0.5rem 0.7rem;
+  border: 1px dashed var(--seims-border);
+  border-radius: 8px;
+  background: rgba(15, 118, 110, 0.04);
+  color: var(--seims-muted);
+  font-size: 0.77rem;
+  line-height: 1.4;
+}
+
 /* CARD */
 .inventory-card {
   background: var(--seims-card);

@@ -35,7 +35,19 @@ def run_migration():
                 print(f"  ✗ Lỗi: {e}")
 
         # Thêm cột vào bảng users
-        print("\nThêm cột latitude, longitude vào bảng users...")
+        print("\nThêm cột address, latitude, longitude vào bảng users...")
+        try:
+            conn.execute(text("""
+                ALTER TABLE users
+                ADD COLUMN address VARCHAR(255) NULL AFTER phone
+            """))
+            print("  ✓ Đã thêm cột address vào users")
+        except Exception as e:
+            if "Duplicate column" in str(e):
+                print("  ○ Cột address đã tồn tại trong users")
+            else:
+                print(f"  ✗ Lỗi: {e}")
+
         try:
             conn.execute(text("""
                 ALTER TABLE users

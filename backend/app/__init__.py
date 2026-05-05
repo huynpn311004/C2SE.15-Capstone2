@@ -6,7 +6,8 @@ from dotenv import load_dotenv
 from apscheduler.schedulers.background import BackgroundScheduler
 import logging
 
-load_dotenv()
+_BACKEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+load_dotenv(os.path.join(_BACKEND_DIR, ".env"))
 
 from app.core.database import Base, engine, get_db
 from app import models

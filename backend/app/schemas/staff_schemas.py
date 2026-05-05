@@ -127,6 +127,25 @@ class UpdateProductRequest(BaseModel):
     imageUrl: str | None = None
 
 
+class AdjustProductStockRequest(BaseModel):
+    targetQuantity: int = Field(..., ge=0)
+    reason: str = ""
+
+
+class AdjustProductStockPreviewItem(BaseModel):
+    lotId: int | None
+    lotCode: str | None
+    oldQty: int
+    newQty: int
+    note: str | None = None
+
+
+class AdjustProductStockPreviewResponse(BaseModel):
+    items: list[AdjustProductStockPreviewItem]
+    oldTotal: int
+    newTotal: int
+
+
 class ProductCategoryItem(BaseModel):
     id: int
     name: str
@@ -202,6 +221,7 @@ class ImportInventoryLotsResponse(BaseModel):
     productsUpdated: int
     lotsCreated: int
     lotsUpdated: int
+    categoriesCreated: int = 0
 
 
 class ImportProductsResponse(BaseModel):
@@ -210,6 +230,7 @@ class ImportProductsResponse(BaseModel):
     productsUpdated: int
     lotsCreated: int
     lotsUpdated: int
+    categoriesCreated: int = 0
     failed: int
     errors: list[ImportErrorItem]
 
@@ -217,6 +238,24 @@ class ImportProductsResponse(BaseModel):
 class UploadImageResponse(BaseModel):
     url: str
     image_url: str
+
+
+class AuditLogItem(BaseModel):
+    id: int
+    user_id: int
+    store_id: int
+    user_name: str | None = None
+    product_name: str | None = None
+    action: str
+    entity_type: str
+    entity_id: int
+    old_value: dict | None
+    new_value: dict | None
+    created_at: str | None
+
+
+class AuditLogsResponse(BaseModel):
+    items: list[AuditLogItem]
 
 
 # ========== Donation Offers & Requests ==========

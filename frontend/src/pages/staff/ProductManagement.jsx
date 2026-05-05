@@ -6,6 +6,7 @@ import {
   createProduct,
   updateProduct,
   deleteProduct,
+  adjustProductStock,
   importProducts,
   uploadProductImage,
 } from '../../services/staffApi'
@@ -19,10 +20,18 @@ export default function ProductManagement() {
   const [showModal, setShowModal] = useState(false)
   const [editingProduct, setEditingProduct] = useState(null)
   const [deleteConfirm, setDeleteConfirm] = useState(null)
+  const [adjustStockTarget, setAdjustStockTarget] = useState(null)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [saving, setSaving] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
+  const [isAdjustingStock, setIsAdjustingStock] = useState(false)
+  const [previewPlan, setPreviewPlan] = useState(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [auditModalOpen, setAuditModalOpen] = useState(false)
+  const [auditLogs, setAuditLogs] = useState([])
+  const [auditLoading, setAuditLoading] = useState(false)
+  const [auditFilterProductId, setAuditFilterProductId] = useState(null)
 
   const [searchTerm, setSearchTerm] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
@@ -36,6 +45,10 @@ export default function ProductManagement() {
   })
   const [selectedImage, setSelectedImage] = useState(null)
   const [imagePreview, setImagePreview] = useState('')
+  const [stockForm, setStockForm] = useState({
+    targetQuantity: '',
+    reason: '',
+  })
 
   useEffect(() => {
     loadData()
@@ -203,6 +216,98 @@ export default function ProductManagement() {
     setDeleteConfirm(null)
   }
 
+  function openAdjustStockModal(product) {
+    setAdjustStockTarget(product)
+    setStockForm({
+      targetQuantity: String(product.totalStock || 0),
+      reason: '',
+    })
+    setError('')
+    setSuccess('')
+  }
+
+  function openAuditModal(productId = null) {
+    setAuditFilterProductId(productId)
+    setAuditModalOpen(true)
+    loadAuditLogs(productId)
+  }
+
+  function closeAuditModal() {
+    setAuditModalOpen(false)
+    setAuditLogs([])
+    setAuditFilterProductId(null)
+  }
+
+  async function loadAuditLogs(productId = null) {
+    try {
+      setAuditLoading(true)
+      setError('')
+      const params = { action: 'UPDATE_STOCK', entity_type: 'product' }
+      if (productId) params.entity_id = productId
+      const items = await import('../../services/staffApi').then(m => m.fetchAuditLogs(params))
+      setAuditLogs(items)
+    } catch (err) {
+      setError(err.response?.data?.detail || err.message || 'Không tải được lịch sử')
+      setAuditLogs([])
+    } finally {
+      setAuditLoading(false)
+    }
+  }
+
+  function closeAdjustStockModal() {
+    setAdjustStockTarget(null)
+    setStockForm({ targetQuantity: '', reason: '' })
+    setPreviewPlan(null)
+    setPreviewLoading(false)
+  }
+
+  async function handleAdjustStockSubmit(e) {
+    e.preventDefault()
+    if (!adjustStockTarget) return
+
+    const nextQuantity = Number(stockForm.targetQuantity)
+    if (!Number.isFinite(nextQuantity) || nextQuantity < 0) {
+      setError('Số lượng mục tiêu phải là số >= 0')
+      return
+    }
+
+    try {
+      setIsAdjustingStock(true)
+      setError('')
+      const result = await adjustProductStock(adjustStockTarget.id, {
+        targetQuantity: nextQuantity,
+        reason: stockForm.reason,
+      })
+      await loadData()
+      setSuccess(result?.message || 'Điều chỉnh tồn kho thành công')
+      closeAdjustStockModal()
+    } catch (err) {
+      setError(err.response?.data?.detail || err.message || 'Điều chỉnh tồn kho thất bại')
+    } finally {
+      setIsAdjustingStock(false)
+    }
+  }
+
+  async function handlePreviewAllocation() {
+    if (!adjustStockTarget) return
+    const nextQuantity = Number(stockForm.targetQuantity)
+    if (!Number.isFinite(nextQuantity) || nextQuantity < 0) {
+      setError('Số lượng mục tiêu phải là số >= 0')
+      return
+    }
+    try {
+      setPreviewLoading(true)
+      setError('')
+      const { items, oldTotal, newTotal } = await import('../../services/staffApi').then(m => m.previewAdjustProductStock(adjustStockTarget.id, { targetQuantity: nextQuantity, reason: stockForm.reason }))
+      setPreviewPlan({ items, oldTotal, newTotal })
+    } catch (err) {
+      setError(err.response?.data?.detail || err.message || 'Xem trước phân bổ thất bại')
+      setPreviewPlan(null)
+    } finally {
+      setPreviewLoading(false)
+    }
+  }
+
   async function handleImportFile(event) {
     const selectedFile = event.target.files?.[0]
     event.target.value = ''
@@ -292,10 +397,19 @@ export default function ProductManagement() {
             <button className="product-btn-create product-toolbar-btn" onClick={openAddModal}>
               Thêm Sản Phẩm
             </button>
+            <button className="product-btn" onClick={() => openAuditModal(null)} style={{ marginLeft: '8px' }}>
+              Xem Lịch Sử Chỉnh Sửa
+            </button>
           </div>
           <div className="product-toolbar-info">
             Hiển thị {filteredProducts.length} sản phẩm
           </div>
+        </div>
+
+        <div className="product-import-hint">
+          <strong>Mẫu cột import:</strong> <code>ten_san_pham</code>, <code>sku</code>, <code>base_price</code>, <code>danh_muc</code>, <code>image_url</code>.
+          Có thể dùng thêm các tên thay thế như <code>product_name</code>, <code>ma_sku</code>, <code>gia_ban</code>, <code>ten_danh_muc</code>, <code>hinh</code>, <code>anh</code>.
+          Nếu muốn hiện hình ngay sau import, cột <code>image_url</code> nên là link ảnh trực tiếp hoặc đường dẫn nội bộ dạng <code>/uploads/products/ten_file.jpg</code>.
         </div>
 
         {error && <div className="product-alert product-alert-error">{error}</div>}
@@ -377,6 +491,15 @@ export default function ProductManagement() {
                               <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
                             </svg>
                             Sửa
+                          </button>
+                          <button
+                            className="product-btn-adjust"
+                            onClick={() => openAdjustStockModal(product)}
+                          >
+                            <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+                              <path d="M13 3h-2v8H3v2h8v8h2v-8h8v-2h-8z" />
+                            </svg>
+                            Chỉnh Tồn
                           </button>
                           <button
                             className="product-btn-delete"
@@ -550,6 +673,157 @@ export default function ProductManagement() {
               >
                 Xóa
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Điều Chỉnh Tồn Kho */}
+      {adjustStockTarget && (
+        <div className="product-modal-overlay" onClick={closeAdjustStockModal}>
+          <div className="product-modal product-modal-sm" onClick={(e) => e.stopPropagation()}>
+            <div className="product-modal-header">
+              <h3>Điều Chỉnh Tồn Kho</h3>
+              <button className="product-modal-close" onClick={closeAdjustStockModal}>×</button>
+            </div>
+            <form onSubmit={handleAdjustStockSubmit}>
+              <div className="product-modal-body">
+                <p className="product-delete-text">
+                  Sản phẩm: <strong>{adjustStockTarget.name}</strong>
+                </p>
+                <p className="product-warning">
+                  Tồn kho hiện tại: {adjustStockTarget.totalStock}
+                </p>
+                <label className="product-field">
+                  <span>Số lượng mục tiêu <em>*</em></span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={stockForm.targetQuantity}
+                    onChange={(e) => setStockForm((prev) => ({ ...prev, targetQuantity: e.target.value }))}
+                    placeholder="Nhập tổng tồn kho mới"
+                  />
+                </label>
+                <label className="product-field">
+                  <span>Lý do điều chỉnh</span>
+                  <input
+                    type="text"
+                    value={stockForm.reason}
+                    onChange={(e) => setStockForm((prev) => ({ ...prev, reason: e.target.value }))}
+                    placeholder="Ví dụ: kiểm kê cuối ngày"
+                  />
+                </label>
+                <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                  <button type="button" className="product-btn" onClick={handlePreviewAllocation} disabled={previewLoading}>
+                    {previewLoading ? 'Đang xem trước...' : 'Xem trước phân bổ'}
+                  </button>
+                  <span style={{ alignSelf: 'center', color: '#666' }}>(Xem phân bổ per-lô trước khi xác nhận)</span>
+                </div>
+
+                {previewPlan && (
+                  <div className="product-preview-box">
+                    <h4>Preview phân bổ</h4>
+                    <p>Old total: {previewPlan.oldTotal} → New total: {previewPlan.newTotal}</p>
+                    <table className="product-preview-table">
+                      <thead>
+                        <tr><th>Mã Lô</th><th>Old</th><th>New</th><th>Ghi chú</th></tr>
+                      </thead>
+                      <tbody>
+                        {previewPlan.items.map((it, idx) => (
+                          <tr key={idx}>
+                            <td>{it.lotCode || '(new)'}</td>
+                            <td>{it.oldQty}</td>
+                            <td>{it.newQty}</td>
+                            <td>{it.note}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+              <div className="product-modal-footer">
+                <button
+                  type="button"
+                  className="product-btn-cancel"
+                  onClick={closeAdjustStockModal}
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="product-btn-save"
+                  disabled={isAdjustingStock}
+                >
+                  {isAdjustingStock ? 'Đang cập nhật...' : 'Cập nhật tồn kho'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* Modal Lịch Sử Audit */}
+      {auditModalOpen && (
+        <div className="product-modal-overlay" onClick={closeAuditModal}>
+          <div className="product-modal audit-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="product-modal-header">
+              <h3>Lịch Sử Chỉnh Sửa Tồn Kho</h3>
+              <button className="product-modal-close" onClick={closeAuditModal}>×</button>
+            </div>
+            <div className="product-modal-body">
+              {auditLoading ? (
+                <p>Đang tải...</p>
+              ) : auditLogs.length === 0 ? (
+                <p>Không có bản ghi nào</p>
+              ) : (
+                <div className="audit-list">
+                  {auditLogs.map((log) => {
+                    const oldv = log.old_value || {}
+                    const newv = log.new_value || {}
+                    const nv = { ...oldv, ...newv }
+                    const perLot = newv.per_lot || newv.perLot || oldv.per_lot || oldv.perLot || []
+                    return (
+                      <div className="audit-card" key={log.id}>
+                        <div className="audit-card-header">
+                          <div className="audit-time">{new Date(log.created_at).toLocaleString()}</div>
+                          <div className="audit-meta">
+                            <span className="badge">Nhân viên: {log.user_name || 'Không rõ'}</span>
+                            <span className="badge">Sản phẩm: {log.product_name || 'Không rõ'}</span>
+                            <span className="badge">{log.action}</span>
+                          </div>
+                        </div>
+                        <div className="audit-card-body">
+                          {nv.reason && <div className="audit-reason">Lý do: {nv.reason}</div>}
+                          {Array.isArray(perLot) && perLot.length > 0 ? (
+                            <table className="audit-lot-table">
+                              <thead>
+                                <tr><th>Lô</th><th>Old</th><th>New</th><th>Ghi chú</th></tr>
+                              </thead>
+                              <tbody>
+                                {perLot.map((p, i) => (
+                                  <tr key={i}>
+                                    <td>{p.lotCode || p.lot_code || '(new)'}</td>
+                                    <td>{p.oldQty ?? p.old ?? p.old_qty ?? ''}</td>
+                                    <td>{p.newQty ?? p.new ?? p.new_qty ?? ''}</td>
+                                    <td>{p.note || ''}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          ) : (newv.total_stock !== undefined || oldv.total_stock !== undefined) ? (
+                            <div className="audit-summary">Tổng: {oldv.total_stock ?? '-'} → {newv.total_stock ?? '-'}</div>
+                          ) : (
+                            nv.reason ? null : <div className="audit-json">{JSON.stringify(nv, null, 2)}</div>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+            <div className="product-modal-footer">
+              <button className="product-btn-cancel" onClick={closeAuditModal}>Đóng</button>
             </div>
           </div>
         </div>
