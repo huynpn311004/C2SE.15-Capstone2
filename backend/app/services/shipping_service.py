@@ -83,6 +83,8 @@ async def estimate_shipping_for_store(
     lng: float = None,
     order_amount: float = 0,
 ) -> dict:
+    import logging
+    logger = logging.getLogger(__name__)
     from app.models.store import Store
 
     store = db.query(Store).filter(Store.id == store_id).first()
@@ -94,13 +96,18 @@ async def estimate_shipping_for_store(
             "fee": None,
         }
 
+    logger.info(f"[SHIPPING] estimate_shipping_for_store called - store_id={store_id}, address={address}, lat={lat}, lng={lng}")
+
     if not store.latitude or not store.longitude:
+        logger.warning(f"[SHIPPING] Store {store_id} has no coordinates")
         return {
             "deliverable": False,
             "zone": "blocked",
             "message": "Cửa hàng chưa có tọa độ",
             "fee": None,
         }
+
+    logger.info(f"[SHIPPING] Store coordinates: lat={store.latitude}, lng={store.longitude}")
 
     # Nếu chưa có tọa độ → geocode từ address
     if lat is None or lng is None:
@@ -112,6 +119,7 @@ async def estimate_shipping_for_store(
                 "fee": None,
             }
         geo = await geocode_address(address)
+        logger.info(f"[SHIPPING] Geocoding result for '{address}': {geo}")
         if not geo:
             return {
                 "deliverable": False,
@@ -122,6 +130,7 @@ async def estimate_shipping_for_store(
         lat, lng = geo["latitude"], geo["longitude"]
 
     distance = calculate_distance(store.latitude, store.longitude, lat, lng)
+    logger.info(f"[SHIPPING] Distance calculated: {distance}km")
     result = calculate_shipping_fee(distance, order_amount)
 
     # Bổ sung thông tin store

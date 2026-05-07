@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { getProductImageUrl } from '../../services/staffApi';
-import { fetchCustomerProductDetail, createMultiStoreOrder, fetchAvailableCoupons, confirmCustomerOrder, initiatePayment } from '../../services/customerApi';
+import { fetchCustomerProductDetail, createMultiStoreOrder, fetchAvailableCoupons, confirmCustomerOrder, estimateShipping } from '../../services/customerApi';
 import { LocationModal } from '../../components/map';
 import { getCart, clearCart } from '../../services/cartUtils';
 import './CustomerCheckout.css';
@@ -107,7 +107,9 @@ const CustomerCheckout = () => {
   const [showCouponModal, setShowCouponModal] = useState(false);
   const [availableCoupons, setAvailableCoupons] = useState([]);
   const [selectedCoupon, setSelectedCoupon] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState('cod');  // 'cod' or 'vnpay'
+  const [shippingData, setShippingData] = useState({});
+  const [shippingLoading, setShippingLoading] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState('cod');
 
   const getProfile = () => {
     try {
@@ -203,23 +205,88 @@ const CustomerCheckout = () => {
     loadCoupons();
   }, []);
 
+  // Estimate shipping fee when address is available
+  useEffect(() => {
+    async function loadShippingEstimates() {
+      const address = formData.address;
+      if (!address || address.trim() === '') return;
+
+      // Get unique store IDs from cart or orderGroups
+      let storeIds = [];
+      if (isMultiStore && orderGroups.length > 0) {
+        storeIds = [...new Set(orderGroups.map(g => g.storeId))];
+      } else if (isMultiStore && cartItems.length > 0) {
+        storeIds = [...new Set(cartItems.map(i => i.storeId || i.store_id))];
+      } else if (cart.length > 0) {
+        storeIds = [...new Set(cart.map(i => i.storeId || i.store_id))];
+      }
+
+      if (storeIds.length === 0) return;
+
+      setShippingLoading(true);
+      const newShippingData = {};
+
+      for (const storeId of storeIds) {
+        if (!storeId) continue;
+        try {
+          const result = await estimateShipping(storeId, address, 0);
+          newShippingData[storeId] = result;
+        } catch (err) {
+          console.warn(`Shipping estimate failed for store ${storeId}:`, err);
+          newShippingData[storeId] = { fee: 0, zone: 'normal', deliverable: true, message: 'Miễn phí vận chuyển', distanceKm: 0 };
+        }
+      }
+
+      setShippingData(newShippingData);
+      setShippingLoading(false);
+    }
+
+    if (!loading) {
+      loadShippingEstimates();
+    }
+  }, [formData.address, loading]);
+
   const handleSelectCoupon = (coupon) => {
     setSelectedCoupon(coupon);
     setShowCouponModal(false);
   };
 
-  // Calculate coupon discount
-  const subtotal = cart.reduce((sum, item) => {
-    const price = item.salePrice || item.bestPrice || 0;
-    return sum + price * item.quantity;
+  // Calculate total shipping fee from all stores
+  const totalShippingFee = Object.values(shippingData).reduce((sum, data) => {
+    return sum + (data.fee || 0);
   }, 0);
 
-  const couponDiscount = selectedCoupon
-    ? Math.round((isMultiStore ? totalAmount : subtotal) * selectedCoupon.discountPercent / 100)
+  // Check if any store is blocked
+  const hasBlockedStore = Object.values(shippingData).some(d => !d.deliverable);
+  const hasWarningStore = Object.values(shippingData).some(d => d.zone === 'warning');
+
+  const backendShippingIncluded = (isMultiStore && orderGroups.length > 0)
+    ? orderGroups.reduce((sum, g) => sum + (g.shippingFee || 0), 0)
     : 0;
 
-  // Final total after discount
-  const finalTotal = (isMultiStore ? totalAmount : subtotal) - couponDiscount;
+  const cartSubtotal = cart.length > 0 
+    ? cart.reduce((sum, item) => sum + (item.salePrice || item.bestPrice || 0) * item.quantity, 0)
+    : cartItems.reduce((sum, item) => sum + (item.salePrice || item.bestPrice || 0) * item.quantity, 0);
+
+  const productSubtotal = (isMultiStore && orderGroups.length > 0)
+    ? orderGroups.reduce((sum, group) => sum + group.items.reduce((s, item) => s + (item.unitPrice * item.quantity), 0), 0)
+    : cartSubtotal;
+
+  // Prevent negative subtotal (edge case for old orders)
+  const safeProductSubtotal = Math.max(0, productSubtotal);
+
+  // Calculate coupon discount based on product subtotal only
+  const couponDiscount = selectedCoupon
+    ? Math.round(safeProductSubtotal * selectedCoupon.discountPercent / 100)
+    : 0;
+
+  // Final total: product subtotal - coupon + shipping (from frontend estimate)
+  // For orderGroups flow: backend already calculated shipping, use that
+  // For new cart flow: use frontend estimate
+  const effectiveShippingFee = (isMultiStore && orderGroups.length > 0)
+    ? backendShippingIncluded
+    : totalShippingFee;
+  const finalTotal = safeProductSubtotal - couponDiscount + effectiveShippingFee;
 
   const totalSavings = cart.reduce((sum, item) => {
     const original = item.originalPrice || 0;
@@ -245,6 +312,13 @@ const CustomerCheckout = () => {
     if (cart.length === 0 && orderGroups.length === 0 && itemsForOrder.length === 0) {
       setToast({ visible: true, message: 'Giỏ hàng trống! Vui lòng thêm sản phẩm.' });
       setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 2500);
+      return;
+    }
+
+    // Block if any store is out of delivery range
+    if (hasBlockedStore) {
+      setToast({ visible: true, message: '⚠️ Một số cửa hàng nằm ngoài phạm vi giao hàng. Vui lòng kiểm tra lại địa chỉ.' });
+      setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 3000);
       return;
     }
 
@@ -516,7 +590,7 @@ const CustomerCheckout = () => {
                   <div className="customer-checkout-totals-row">
                     <span className="customer-checkout-totals-label">Tạm tính</span>
                     <span className="customer-checkout-totals-value">
-                      {(isMultiStore ? totalAmount : subtotal).toLocaleString()}đ
+                      {safeProductSubtotal.toLocaleString()}đ
                     </span>
                   </div>
                   {couponDiscount > 0 && (
@@ -527,9 +601,42 @@ const CustomerCheckout = () => {
                   )}
                   <div className="customer-checkout-totals-row">
                     <span className="customer-checkout-totals-label">Phí vận chuyển</span>
-                    <span className="customer-checkout-totals-value" style={{ color: 'var(--seims-success)' }}>Miễn phí</span>
+                    <span className="customer-checkout-totals-value" style={{ color: hasBlockedStore ? '#ff4d4f' : effectiveShippingFee > 0 ? 'var(--seims-warning)' : 'var(--seims-success)' }}>
+                      {shippingLoading ? 'Đang tính...' : hasBlockedStore ? 'Không hỗ trợ' : effectiveShippingFee > 0 ? `${effectiveShippingFee.toLocaleString()}đ` : 'Miễn phí'}
+                    </span>
                   </div>
                 </div>
+
+                {/* Shipping warnings */}
+                {hasBlockedStore && (
+                  <div style={{ background: '#fff3f3', border: '1px solid #ff4d4f', borderRadius: '8px', padding: '0.75rem 1rem', marginBottom: '0.75rem' }}>
+                    <p style={{ color: '#ff4d4f', fontWeight: 600, fontSize: '0.85rem', margin: 0 }}>
+                      ⚠️ Một số cửa hàng nằm ngoài phạm vi giao hàng (&gt;15km). Vui lòng thay đổi địa chỉ.
+                    </p>
+                  </div>
+                )}
+                {hasWarningStore && !hasBlockedStore && (
+                  <div style={{ background: '#fffbe6', border: '1px solid #faad14', borderRadius: '8px', padding: '0.75rem 1rem', marginBottom: '0.75rem' }}>
+                    <p style={{ color: '#d48806', fontWeight: 500, fontSize: '0.85rem', margin: 0 }}>
+                      ⚡ Khoảng cách giao hàng xa (10-15km). Thời gian giao hàng có thể lâu hơn.
+                    </p>
+                  </div>
+                )}
+
+                {/* Shipping breakdown per store */}
+                {Object.keys(shippingData).length > 1 && (
+                  <div style={{ background: 'var(--seims-bg-card, #f8f9fa)', borderRadius: '8px', padding: '0.75rem 1rem', marginBottom: '0.75rem' }}>
+                    <p style={{ fontWeight: 600, fontSize: '0.8rem', marginBottom: '0.5rem', color: 'var(--seims-text)' }}>Chi tiết phí ship:</p>
+                    {Object.entries(shippingData).map(([storeId, data]) => (
+                      <div key={storeId} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '0.25rem', color: 'var(--seims-muted)' }}>
+                        <span>{data.storeName || `Cửa hàng`} ({data.distanceKm?.toFixed(1)}km)</span>
+                        <span style={{ color: data.fee > 0 ? 'var(--seims-warning)' : 'var(--seims-success)' }}>
+                          {!data.deliverable ? 'Ngoài phạm vi' : data.fee > 0 ? `${data.fee.toLocaleString()}đ` : 'Miễn phí'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 <div className="customer-checkout-grand-total">
                   <span className="customer-checkout-grand-total-label">Tổng thanh toán</span>
@@ -673,10 +780,9 @@ const CustomerCheckout = () => {
             <button
               type="submit"
               className="customer-checkout-submit"
-              disabled={(cart.length === 0 && orderGroups.length === 0 && itemsForOrder.length === 0) || submitting}
-              style={{ background: paymentMethod === 'vnpay' ? 'linear-gradient(135deg, #005baa, #0077d9)' : 'var(--seims-teal)' }}
+              disabled={(cart.length === 0 && orderGroups.length === 0 && itemsForOrder.length === 0) || submitting || hasBlockedStore || shippingLoading}
             >
-              {submitting ? 'Đang xử lý...' : (orderGroups.length > 0 ? `Thanh toán ${paymentMethod.toUpperCase()}` : `Đặt hàng ${paymentMethod.toUpperCase()}`)}
+              {submitting ? 'Đang xử lý...' : shippingLoading ? 'Đang tính phí ship...' : hasBlockedStore ? 'Ngoài phạm vi giao hàng' : (orderGroups.length > 0 ? 'Xác nhận thanh toán' : 'Xác nhận đặt hàng')}
             </button>
           </form>
         </div>
@@ -697,7 +803,7 @@ const CustomerCheckout = () => {
         coupons={availableCoupons}
         selectedCoupon={selectedCoupon}
         onSelectCoupon={handleSelectCoupon}
-        orderTotal={isMultiStore ? totalAmount : subtotal}
+        orderTotal={safeProductSubtotal}
       />
     </div>
   );

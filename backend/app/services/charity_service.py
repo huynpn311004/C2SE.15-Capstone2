@@ -134,7 +134,6 @@ def update_charity_profile(db: Session, user_id: int, full_name: str, email: str
 
 def change_charity_password(db: Session, user_id: int, current_password: str, new_password: str) -> dict:
     user = _get_charity_user(db, user_id)
-
     current_password = current_password or ""
     new_password = new_password or ""
 

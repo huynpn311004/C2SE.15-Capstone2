@@ -1,6 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
-from sqlalchemy import BigInteger, DECIMAL, DateTime, Enum, ForeignKey, Integer, String, func
+from sqlalchemy import BigInteger, DECIMAL, DateTime, Enum, Float, ForeignKey, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 
@@ -54,6 +54,8 @@ class Order(Base):
         DateTime(timezone=False),
         nullable=True,
     )
+    shipping_fee: Mapped[Decimal | None] = mapped_column(DECIMAL(12, 2), nullable=True, default=0)
+    delivery_distance: Mapped[float | None] = mapped_column(Float, nullable=True)
     shipping_address: Mapped[str | None] = mapped_column(String(500), nullable=True)
     shipping_phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
 

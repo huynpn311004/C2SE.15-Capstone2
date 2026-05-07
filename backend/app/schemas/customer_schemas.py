@@ -247,6 +247,8 @@ class OrderGroup(BaseModel):
 	orderCode: str
 	items: List[OrderGroupItem]
 	totalAmount: float
+	shippingFee: Optional[float] = 0
+	deliveryDistance: Optional[float] = None
 	shippingAddress: Optional[str] = None
 
 
@@ -324,20 +326,18 @@ class CouponListResponse(BaseModel):
 
 class EstimateShippingRequest(BaseModel):
 	storeId: int
-	address: Optional[str] = None
-	latitude: Optional[float] = None
-	longitude: Optional[float] = None
-	orderAmount: float = 0
+	address: str
+	orderAmount: Optional[float] = 0
 
 
 class EstimateShippingResponse(BaseModel):
-	deliverable: bool
-	zone: str  # "normal" | "warning" | "blocked"
 	fee: Optional[float] = None
 	originalFee: Optional[float] = None
-	distanceKm: Optional[float] = None
+	distanceKm: float
+	zone: str
+	deliverable: bool
 	freeShipping: bool = False
-	freeShippingThreshold: float = 100000
+	freeShippingThreshold: Optional[float] = None
 	message: str
 	storeId: Optional[int] = None
 	storeName: Optional[str] = None

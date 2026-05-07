@@ -26,6 +26,8 @@ from app.schemas.customer_schemas import (
 	ValidateCartRequest,
 	ValidateCartResponse,
 	CouponListResponse,
+	EstimateShippingRequest,
+	EstimateShippingResponse,
 )
 from app.services.customer_service import (
 	get_customer_profile,
@@ -270,3 +272,38 @@ def list_available_coupons(
 	from app.services.customer_service import list_available_coupons
 
 	return list_available_coupons(db)
+
+
+# ========== Shipping Estimation Endpoints ==========
+
+@router.post("/estimate-shipping", response_model=EstimateShippingResponse)
+async def estimate_shipping(
+	data: EstimateShippingRequest,
+	current_user: User = Depends(get_current_user),
+	db: Session = Depends(get_db),
+):
+	"""
+	Ước tính phí vận chuyển từ cửa hàng đến địa chỉ khách hàng.
+	Sử dụng geocoding để tính khoảng cách và áp dụng bảng phí theo bậc.
+	"""
+	from app.services.shipping_service import estimate_shipping_for_store
+
+	result = await estimate_shipping_for_store(
+		db,
+		store_id=data.storeId,
+		address=data.address,
+		order_amount=data.orderAmount or 0,
+	)
+
+	return EstimateShippingResponse(
+		fee=result.get("fee"),
+		originalFee=result.get("original_fee"),
+		distanceKm=result.get("distance_km", 0),
+		zone=result.get("zone", "blocked"),
+		deliverable=result.get("deliverable", False),
+		freeShipping=result.get("free_shipping", False),
+		freeShippingThreshold=result.get("free_shipping_threshold"),
+		message=result.get("message", ""),
+		storeId=result.get("store_id"),
+		storeName=result.get("store_name"),
+	)

@@ -86,12 +86,30 @@ def create_customer_order(
         if not order_items_data:
             raise ValueError("No valid items")
 
+        # ===== CALCULATE SHIPPING FEE =====
+        shipping_fee_value = Decimal("0")
+        delivery_distance_value = None
+        if shipping_address:
+            try:
+                from app.services.shipping_service import calculate_shipping_fee_sync
+                shipping_result = calculate_shipping_fee_sync(
+                    db, store_id, shipping_address, float(total_amount)
+                )
+                if shipping_result.get("deliverable", True):
+                    shipping_fee_value = Decimal(str(shipping_result.get("fee", 0) or 0))
+                    delivery_distance_value = shipping_result.get("distance_km")
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"Shipping calc failed: {e}")
+
         # ===== CREATE ORDER =====
         order = Order(
             store_id=store_id,
             customer_id=customer_id,
             coupon_id=coupon_id,
-            total_amount=total_amount,
+            total_amount=total_amount + shipping_fee_value,
+            shipping_fee=shipping_fee_value,
+            delivery_distance=delivery_distance_value,
             payment_method=payment_method,
             payment_status="paid" if payment_method == "cod" else "pending",
             shipping_address=shipping_address,
@@ -125,7 +143,9 @@ def create_customer_order(
         return {
             "orderId": order.id,
             "orderCode": f"SEIMS-{order.id:06d}",
-            "totalAmount": float(total_amount)
+            "totalAmount": float(total_amount + shipping_fee_value),
+            "shippingFee": float(shipping_fee_value),
+            "deliveryDistance": delivery_distance_value
         }
 
     except Exception as e:
@@ -202,15 +222,20 @@ def create_multi_store_order(
             "orderId": order["orderId"],
             "orderCode": order["orderCode"],
             "totalAmount": order["totalAmount"],
+            "shippingFee": order.get("shippingFee", 0),
+            "deliveryDistance": order.get("deliveryDistance"),
             "items": items_response
         })
+
+    total_shipping = sum(o.get("shippingFee", 0) for o in results)
 
     return {
         "success": True,
         "message": "Create multi-store order successfully",
         "orderGroups": results,
         "totalOrders": len(results),
-        "totalAmount": sum(o["totalAmount"] for o in results)
+        "totalAmount": sum(o["totalAmount"] for o in results),
+        "totalShippingFee": total_shipping
     }
 
 # =======================
