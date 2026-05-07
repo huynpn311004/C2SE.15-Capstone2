@@ -1,7 +1,3 @@
-"""
-Geocoding Service - Chuyển đổi địa chỉ <-> tọa độ
-Sử dụng Nominatim (OpenStreetMap) API
-"""
 import math
 from typing import Optional
 import httpx
@@ -10,7 +6,6 @@ NOMINATIM_URL = "https://nominatim.openstreetmap.org"
 
 
 def calculate_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    """Tính khoảng cách Haversine (km)"""
     R = 6371  # Bán kính trái đất (km)
 
     lat1_rad = math.radians(lat1)
@@ -26,9 +21,6 @@ def calculate_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> fl
 
 
 async def geocode_address(address: str, country_code: str = "vn") -> Optional[dict]:
-    """
-    Chuyển địa chỉ thành tọa độ (lat, lng)
-    """
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.get(
@@ -55,9 +47,6 @@ async def geocode_address(address: str, country_code: str = "vn") -> Optional[di
 
 
 async def reverse_geocode(lat: float, lng: float) -> Optional[str]:
-    """
-    Chuyển tọa độ (lat, lng) thành địa chỉ
-    """
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.get(
@@ -79,5 +68,4 @@ async def reverse_geocode(lat: float, lng: float) -> Optional[str]:
 
 
 def is_in_vietnam(lat: float, lng: float) -> bool:
-    """Kiểm tra tọa độ có trong Việt Nam không"""
     return 8.4 <= lat <= 23.4 and 102.1 <= lng <= 109.5

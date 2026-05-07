@@ -21,7 +21,6 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 
 
 def require_admin(current_user: User = Depends(get_current_user)) -> User:
-    """Verify user has system admin role"""
     if current_user.role != "system_admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -268,8 +267,4 @@ def cleanup_expired_reservations(
 	db: Session = Depends(get_db),
 	_: None = Depends(require_admin),
 ):
-	"""
-	Manual trigger to restore expired reserved stock for unpaid orders.
-	This runs automatically every 5 minutes, but can be triggered manually if needed.
-	"""
 	return restore_expired_reserved_stock(db, timeout_minutes)

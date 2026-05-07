@@ -1,5 +1,3 @@
-"""Product service layer with business logic."""
-
 import re
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -20,7 +18,6 @@ from app.core.audit_actions import (
 
 # ========== Helper Functions ==========
 def _build_product_sku(name: str) -> str:
-    """Build SKU from product name."""
     base = re.sub(r"[^a-z0-9]+", "", name.strip().lower())
     if not base:
         base = "product"
@@ -28,7 +25,6 @@ def _build_product_sku(name: str) -> str:
 
 
 def _generate_unique_sku(db: Session, supermarket_id: int, product_name: str) -> str:
-    """Generate unique SKU for product within supermarket."""
     base = _build_product_sku(product_name)
     candidate = base
     index = 1
@@ -52,7 +48,6 @@ def _ensure_unique_sku_for_product(
     sku: str,
     current_product_id: int | None = None,
 ) -> None:
-    """Check SKU uniqueness within supermarket."""
     query = db.query(Product).filter(
         Product.supermarket_id == supermarket_id,
         Product.sku == sku
@@ -68,7 +63,6 @@ def _ensure_unique_sku_for_product(
 
 
 def _resolve_or_create_product(db: Session, supermarket_id: int, product_name: str) -> int:
-    """Get or create product by name."""
     name = product_name.strip()
     product = db.query(Product.id).filter(
         Product.supermarket_id == supermarket_id,
@@ -93,7 +87,6 @@ def _resolve_or_create_product(db: Session, supermarket_id: int, product_name: s
 
 
 def _resolve_or_create_category(db: Session, category_name: object) -> int | None:
-    """Get or create category by name."""
     name = str(category_name or "").strip()
     if not name:
         return None
@@ -113,7 +106,6 @@ def _resolve_or_create_category(db: Session, category_name: object) -> int | Non
 
 # ========== Product CRUD Services ==========
 def list_products(db: Session, supermarket_id: int, category_filter: int | None, search: str | None) -> dict:
-    """List products with optional category and search filters."""
     query = db.query(
         Product.id,
         Product.sku,
@@ -167,7 +159,6 @@ def list_products(db: Session, supermarket_id: int, category_filter: int | None,
 def create_product(db: Session, supermarket_id: int, store_id: int, user_id: int,
                    name: str, sku: str, base_price: float,
                    category_id: int | None, image_url: str | None) -> dict:
-    """Create new product and log the action."""
     name = name.strip()
     sku = sku.strip()
     image_url = (image_url or "").strip() or None
@@ -208,7 +199,6 @@ def create_product(db: Session, supermarket_id: int, store_id: int, user_id: int
 def update_product(db: Session, product_id: int, supermarket_id: int, store_id: int, user_id: int,
                    name: str, base_price: float,
                    category_id: int | None, image_url: str | None) -> dict:
-    """Update product information and log the action."""
     name = name.strip()
     image_url = (image_url or "").strip() or None
 
@@ -247,7 +237,6 @@ def update_product(db: Session, product_id: int, supermarket_id: int, store_id: 
 
 def delete_product(db: Session, product_id: int, supermarket_id: int,
                    store_id: int, user_id: int) -> dict:
-    """Delete product if no inventory lots reference it, then log the action."""
     product = db.query(Product).filter(
         Product.id == product_id,
         Product.supermarket_id == supermarket_id
@@ -275,8 +264,6 @@ def delete_product(db: Session, product_id: int, supermarket_id: int,
 
 
 def list_product_categories(db: Session, supermarket_id: int) -> dict:
-    """List all categories used by products."""
-    # Get all distinct categories used by products in this supermarket
     categories = db.query(
         Category.id, Category.name
     ).filter(

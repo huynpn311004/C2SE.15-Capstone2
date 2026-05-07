@@ -143,7 +143,6 @@ def login_user(db: Session, payload: LoginRequest) -> tuple[User, str]:
 
 
 def forgot_password(db: Session, email: str, frontend_reset_url: str = None) -> dict:
-	"""Generate password reset token and send email to user."""
 	from app.utils.email import send_reset_password_email
 	
 	user = db.query(User).filter(User.email == email.lower()).first()

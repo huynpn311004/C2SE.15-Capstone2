@@ -55,7 +55,6 @@ def update_coupon(
     db: Session = Depends(get_db),
     current_user=Depends(require_supermarket_admin),
 ):
-    """Update a coupon."""
     return coupon_service.update_coupon(
         db,
         coupon_id,
@@ -77,7 +76,6 @@ def delete_coupon(
     db: Session = Depends(get_db),
     current_user=Depends(require_supermarket_admin),
 ):
-    """Delete a coupon."""
     return coupon_service.delete_coupon(db, coupon_id, current_user.supermarket_id)
 
 
@@ -87,5 +85,4 @@ def toggle_coupon(
     db: Session = Depends(get_db),
     current_user=Depends(require_supermarket_admin),
 ):
-    """Toggle coupon active/inactive status."""
     return coupon_service.toggle_coupon(db, coupon_id, current_user.supermarket_id)

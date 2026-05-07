@@ -1,5 +1,3 @@
-"""Discount policy service layer with business logic."""
-
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from sqlalchemy import update, func, text
@@ -14,7 +12,6 @@ from app.models.category import Category
 
 # ========== Helper Functions ==========
 def _check_supermarket_admin(db: Session, user_id: int) -> int:
-    """Check if user is supermarket admin and return supermarket_id."""
     user = db.query(User).filter(User.id == user_id).first()
 
     if not user:
@@ -37,7 +34,6 @@ def _check_supermarket_admin(db: Session, user_id: int) -> int:
 
 
 def _validate_category_id(db: Session, category_id: int | None) -> None:
-    """Validate category exists if provided."""
     if category_id is None:
         return
     
@@ -48,7 +44,6 @@ def _validate_category_id(db: Session, category_id: int | None) -> None:
 
 
 def _validate_product_id(db: Session, product_id: int | None) -> None:
-    """Validate product exists if provided."""
     if product_id is None:
         return
     
@@ -67,16 +62,6 @@ def _check_policy_overlap(
     product_id: int | None = None,
     exclude_policy_id: int | None = None,
 ) -> dict:
-    """
-    Check for overlapping discount policies.
-    
-    Overlap occurs when:
-    1. Same supermarket
-    2. Same scope (product_id, category_id, or both None)
-    3. Days range overlaps: min_days <= other_max_days AND max_days >= other_min_days
-    
-    Returns dict with overlapping policies if found, empty dict if none.
-    """
     query = db.query(
         DiscountPolicy.id,
         DiscountPolicy.name,
@@ -133,7 +118,6 @@ def _check_policy_overlap(
 
 # ========== Discount Policies CRUD ==========
 def list_discount_policies(db: Session, user_id: int | None = None, supermarket_id: int | None = None) -> dict:
-    """List discount policies with optional filters."""
     if user_id:
         scope = db.query(User.role, User.supermarket_id).filter(User.id == user_id).first()
         if scope:
@@ -195,7 +179,6 @@ def list_discount_policies(db: Session, user_id: int | None = None, supermarket_
 
 
 def get_discount_policy(db: Session, policy_id: int) -> dict:
-    """Get discount policy details."""
     row = db.query(
         DiscountPolicy.id,
         DiscountPolicy.supermarket_id,
@@ -245,7 +228,6 @@ def create_discount_policy(
     product_id: int | None = None,
     is_active: bool = True,
 ) -> dict:
-    """Create new discount policy with optional category or product scope."""
     supermarket_id_scope = _check_supermarket_admin(db, user_id)
 
     name = (name or "").strip()
@@ -280,9 +262,6 @@ def create_discount_policy(
     if product_id is not None:
         _validate_product_id(db, product_id)
 
-    # Note: overlapping policies are allowed; calculate_discount will use
-    # the highest discount_percent among all active overlapping policies.
-
     new_policy = DiscountPolicy(
         supermarket_id=supermarket_id,
         category_id=category_id,
@@ -311,7 +290,6 @@ def update_discount_policy(
     product_id: int | None = None,
     is_active: bool | None = None,
 ) -> dict:
-    """Update discount policy."""
     _check_supermarket_admin(db, user_id)
 
     if name is not None:
@@ -343,8 +321,6 @@ def update_discount_policy(
     if product_id is not None:
         _validate_product_id(db, product_id)
 
-    # CHECK FOR OVERLAPPING POLICIES when updating scope or days (Option A: Strict)
-    # Only check if we're changing min_days, max_days, product_id, or category_id
     if min_days is not None or max_days is not None or category_id is not None or product_id is not None:
         # Use current values if not being updated
         check_min_days = min_days if min_days is not None else policy.min_days_left
@@ -401,7 +377,6 @@ def update_discount_policy(
 
 
 def delete_discount_policy(db: Session, policy_id: int, user_id: int) -> dict:
-    """Delete discount policy."""
     _check_supermarket_admin(db, user_id)
     result = db.query(DiscountPolicy).filter(
         DiscountPolicy.id == policy_id
@@ -415,7 +390,6 @@ def delete_discount_policy(db: Session, policy_id: int, user_id: int) -> dict:
 
 
 def toggle_discount_policy(db: Session, policy_id: int, user_id: int) -> dict:
-    """Toggle discount policy active status."""
     _check_supermarket_admin(db, user_id)
     
     policy = db.query(DiscountPolicy).filter(
@@ -439,15 +413,6 @@ def calculate_discount(
     supermarket_id: int | None = None,
     product_id: int | None = None,
 ) -> dict:
-    """
-    Calculate discount for a product based on expiry date.
-    
-    Business Rules:
-    1. Each product gets ONLY ONE discount policy at a time
-    2. Product-specific policy overrides category-specific policy
-    3. Category-specific policy overrides supermarket default
-    4. Policies must be active and match days range
-    """
     try:
         expiry = datetime.strptime(expiry_date, "%Y-%m-%d").date()
     except (ValueError, TypeError):

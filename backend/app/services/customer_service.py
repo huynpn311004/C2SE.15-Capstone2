@@ -31,22 +31,15 @@ def _get_or_create_order_group(
 	coupon_info: dict = None,
 	shipping_phone: str = None
 ) -> dict:
-	"""
-	Helper: Create an order for a single store group.
-	Returns dict with order info and item details.
-	Uses pessimistic locking (SELECT FOR UPDATE) to prevent over-selling.
-	
-	DEADLOCK PREVENTION: Lock ALL inventory lots in a SINGLE query sorted by lot.id
-	to ensure consistent lock ordering across concurrent transactions.
-	"""
+
 	import logging
 	logger = logging.getLogger(__name__)
 	
 	# Auto-cleanup expired reservations BEFORE creating new order
 	# This releases stock from timed-out reservations so it can be reused
-	cleanup_result = _auto_cleanup_expired_reservations(db, timeout_minutes=15)
-	if cleanup_result["cleanedOrders"] > 0:
-		logger.info(f"Auto-cleanup before order: {cleanup_result['cleanedOrders']} expired orders")
+	cleanup_result = restore_expired_reserved_stock(db, timeout_minutes=3)
+	if cleanup_result["restoredCount"] > 0:
+		logger.info(f"Auto-cleanup before order: {cleanup_result['restoredCount']} expired orders released")
 	
 	total_amount = Decimal("0")
 	order_item_data = []
@@ -280,10 +273,6 @@ def create_multi_store_order(
 	coupon_id: int = None,
 	shipping_phone: str = None
 ) -> dict:
-	"""
-	Create separate orders for each store in the customer cart.
-	This endpoint no longer creates a fake master/group order.
-	"""
 	if not items or len(items) == 0:
 		raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Gio hang trong")
 
@@ -411,12 +400,10 @@ def create_multi_store_order(
 # ========== Helper Functions ==========
 
 def _dict_row(row) -> dict:
-	"""Convert SQLAlchemy row to dictionary"""
 	return dict(row._mapping)
 
 
 def _status_label(expiry_date: date) -> str:
-	"""Determine product status based on expiry date"""
 	today = date.today()
 	if expiry_date < today:
 		return "Het Han"
@@ -426,19 +413,6 @@ def _status_label(expiry_date: date) -> str:
 
 
 def _validate_and_calculate_coupon(db: Session, coupon_id: int, store_id: int, total_amount: Decimal) -> dict:
-	"""
-	Validate coupon and calculate discount amount.
-	
-	Returns:
-		{
-			"valid": True/False,
-			"error": "error message" (if invalid),
-			"coupon_id": int,
-			"coupon_code": str,
-			"discount_percent": float,
-			"discount_amount": Decimal
-		}
-	"""
 	from datetime import datetime
 	
 	if not coupon_id:
@@ -486,10 +460,6 @@ def _validate_and_calculate_coupon(db: Session, coupon_id: int, store_id: int, t
 
 
 def _increment_coupon_usage(db: Session, coupon_id: int) -> bool:
-	"""
-	Increment coupon usage count atomically.
-	Returns True if successful, False if coupon limit reached.
-	"""
 	if not coupon_id:
 		return True
 	
@@ -507,9 +477,7 @@ def _increment_coupon_usage(db: Session, coupon_id: int) -> bool:
 
 
 def _calculate_discount(base_price: float, expiry_date: date, supermarket_id: int = None, product_id: int = None, db: Session = None) -> tuple[float, float]:
-	"""Calculate sale price and discount percentage using supermarket's discount policies with 3-level priority"""
 	if db is None or supermarket_id is None:
-		# Fallback to default calculation if no db or supermarket_id
 		today = date.today()
 		days_left = (expiry_date - today).days
 		if days_left < 0:
@@ -525,7 +493,6 @@ def _calculate_discount(base_price: float, expiry_date: date, supermarket_id: in
 		sale_price = base_price * (1 - discount_percent / 100)
 		return round(sale_price, 0), discount_percent
 	
-	# Use discount policy service to get configured discount with 3-level priority
 	result = discount_policy_service.calculate_discount(
 		db, 
 		base_price, 
@@ -541,7 +508,6 @@ def _calculate_discount(base_price: float, expiry_date: date, supermarket_id: in
 # ========== Profile Services ==========
 
 def get_customer_profile(db: Session, user_id: int) -> dict:
-	"""Get customer profile by user_id"""
 	user = db.query(
 		User.id, User.username, User.email, User.full_name, User.phone, User.role, User.created_at, User.address,
 		User.latitude, User.longitude
@@ -565,7 +531,6 @@ def get_customer_profile(db: Session, user_id: int) -> dict:
 
 
 def update_customer_profile(db: Session, user_id: int, full_name: str, email: str, phone: str, address: str = "") -> dict:
-	"""Update customer profile"""
 	if not full_name:
 		raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ho ten khong duoc trong")
 
@@ -591,7 +556,6 @@ def update_customer_profile(db: Session, user_id: int, full_name: str, email: st
 
 
 def change_customer_password(db: Session, user_id: int, current_password: str, new_password: str) -> dict:
-	"""Change customer password"""
 	if len(new_password) < 6:
 		raise HTTPException(
 			status_code=status.HTTP_400_BAD_REQUEST,
@@ -632,7 +596,6 @@ def list_customer_products(
 	customer_lng: float = None,
 	radius_km: float = 10.0
 ) -> dict:
-	"""List available products. If customer coords provided, only show products from stores within radius_km."""
 	base_query = db.query(
 		Product.id, Product.sku, Product.name, Product.base_price, Product.image_url,
 		Product.supermarket_id, Category.id.label("category_id"), Category.name.label("category_name"),
@@ -700,7 +663,6 @@ def list_customer_products(
 
 
 def get_customer_product_detail(db: Session, product_id: int) -> dict:
-	"""Get detailed information for a specific product"""
 	rows = db.query(
 		Product.id,
 		Product.name,
@@ -786,7 +748,6 @@ def list_near_expiry_products(
 	supermarket_id: int = None,
 	max_days: int = 7
 ) -> dict:
-	"""List products that are expiring soon"""
 	cutoff_date = date.today() + timedelta(days=max_days)
 
 	base_query = db.query(
@@ -835,7 +796,6 @@ def list_near_expiry_products(
 # ========== Category & Supermarket Services ==========
 
 def list_customer_categories(db: Session, supermarket_id: int = None) -> dict:
-	"""List all product categories"""
 	base_query = db.query(Category.id, Category.name)\
 	 .distinct()\
 	 .join(Product, Product.category_id == Category.id)\
@@ -852,7 +812,6 @@ def list_customer_categories(db: Session, supermarket_id: int = None) -> dict:
 
 
 def list_customer_supermarkets(db: Session) -> dict:
-	"""List all active supermarkets"""
 	rows = db.query(
 		Supermarket.id, Supermarket.name, User.phone, User.address
 	).outerjoin(
@@ -880,7 +839,6 @@ def list_customer_stores(
 	customer_lng: float = None,
 	radius_km: float = 10.0
 ) -> dict:
-	"""List stores with products within radius_km from customer, sorted by distance"""
 	rows = db.query(
 		Store.id, Store.name, Store.supermarket_id,
 		Supermarket.name.label("supermarket_name"),
@@ -938,7 +896,6 @@ def list_customer_orders(
 	user_id: int,
 	status_filter: str = "all"
 ) -> dict:
-	"""List all orders for a customer"""
 	base_query = db.query(
 		Order.id, Order.status, Order.total_amount, Order.discount_amount, Order.coupon_id,
 		Order.payment_method, Order.payment_status, Order.created_at,
@@ -1001,7 +958,6 @@ def list_customer_orders(
 
 
 def get_customer_order_detail(db: Session, order_id: int, user_id: int) -> dict:
-	"""Get detailed information for a specific order"""
 	order = db.query(
 		Order.id,
 		Order.status,
@@ -1099,14 +1055,13 @@ def create_customer_order(
 	coupon_id: int = None,
 	shipping_phone: str = None
 ) -> dict:
-	"""Create a new order - DEADLOCK PREVENTION: Lock ALL lots in single query sorted by ID"""
 	import logging
 	logger = logging.getLogger(__name__)
 	
 	# Auto-cleanup expired reservations BEFORE creating new order
-	cleanup_result = _auto_cleanup_expired_reservations(db, timeout_minutes=3)
-	if cleanup_result["cleanedOrders"] > 0:
-		logger.info(f"Auto-cleanup before order: {cleanup_result['cleanedOrders']} expired orders")
+	cleanup_result = restore_expired_reserved_stock(db, timeout_minutes=3)
+	if cleanup_result["restoredCount"] > 0:
+		logger.info(f"Auto-cleanup before order: {cleanup_result['restoredCount']} expired orders released")
 	
 	if not items or len(items) == 0:
 		raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Gio hang trong")
@@ -1301,7 +1256,6 @@ def create_customer_order(
 
 
 def cancel_customer_order(db: Session, order_id: int, user_id: int) -> dict:
-	"""Cancel single order only"""
 	order = db.query(Order).filter(
 		Order.id == order_id,
 		Order.customer_id == user_id
@@ -1347,7 +1301,6 @@ def cancel_customer_order(db: Session, order_id: int, user_id: int) -> dict:
 
 
 def customer_dashboard_summary(db: Session, user_id: int) -> dict:
-	"""Get customer dashboard summary"""
 	# Use ORM aggregations
 	total_orders = db.query(func.count(Order.id)).filter(
 		Order.customer_id == user_id
@@ -1379,11 +1332,6 @@ def customer_dashboard_summary(db: Session, user_id: int) -> dict:
 # ========== Inventory Reserved Stock Management ==========
 
 def confirm_customer_order(db: Session, order_id: int, user_id: int) -> dict:
-
-	"""
-	Confirm order after payment - convert reserved stock to actual deduction
-	Called when payment is confirmed (payment_status changes to 'paid')
-	"""
 	order = db.query(Order).filter(
 		Order.id == order_id,
 		Order.customer_id == user_id
@@ -1433,15 +1381,6 @@ def confirm_customer_order(db: Session, order_id: int, user_id: int) -> dict:
 
 
 def restore_expired_reserved_stock(db: Session, timeout_minutes: int = 3) -> dict:
-	"""
-	Restore reserved stock for orders that haven't been paid within timeout period.
-	Should be called periodically (e.g., every 5 minutes via scheduled task).
-
-	Only restores orders where:
-	- payment_status == 'pending' (stock is still in qty_reserved, not deducted from qty_on_hand)
-	- status == 'pending' (order not yet processed)
-	- reserved_at <= cutoff_time (exceeded timeout)
-	"""
 	cutoff_time = datetime.now() - timedelta(minutes=timeout_minutes)
 
 	# Find expired pending orders
@@ -1506,16 +1445,6 @@ def restore_expired_reserved_stock(db: Session, timeout_minutes: int = 3) -> dic
 
 
 def validate_cart_stock(db: Session, items: list, user_id: int = None) -> dict:
-	"""
-	Validate cart items stock availability in real-time.
-	Uses pessimistic locking to check accurate stock levels.
-	
-	DEADLOCK PREVENTION: Lock ALL lots in a single query sorted by lot_id
-	to ensure consistent lock ordering across concurrent transactions.
-	
-	This should be called before adding items to cart or during checkout
-	to prevent overselling when multiple customers add the same product.
-	"""
 	import logging
 	logger = logging.getLogger(__name__)
 	
@@ -1631,13 +1560,6 @@ def validate_cart_stock(db: Session, items: list, user_id: int = None) -> dict:
 # ========== Coupon Services ==========
 
 def list_available_coupons(db: Session) -> dict:
-	"""
-	List all available coupons for customers.
-	Returns coupons that are:
-	- Active (is_active = True)
-	- Not expired (valid_to >= now)
-	- Have remaining uses (current_uses < max_uses or max_uses is None/unlimited)
-	"""
 	from app.models.coupon import Coupon
 	from datetime import datetime
 

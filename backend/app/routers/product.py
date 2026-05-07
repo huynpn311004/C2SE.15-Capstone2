@@ -1,5 +1,3 @@
-"""Product router - handles product CRUD operations for staff."""
-
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 

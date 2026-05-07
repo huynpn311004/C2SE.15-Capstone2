@@ -1,5 +1,3 @@
-"""Delivery service layer with business logic."""
-
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session, joinedload
 from fastapi import HTTPException, status
@@ -20,7 +18,6 @@ from app.core.security import get_password_hash, verify_password
 
 # ========== Helper Functions ==========
 def get_delivery_partner_user(db: Session, user_id: int):
-    """Get delivery partner info and validate role."""
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(
@@ -45,7 +42,6 @@ def get_delivery_partner_user(db: Session, user_id: int):
 
 
 def get_order_items_detail(db: Session, order_id: int) -> tuple:
-    """Get order items details."""
     items = (
         db.query(OrderItem, Product)
         .join(Product, OrderItem.product_id == Product.id)
@@ -71,7 +67,6 @@ def get_order_items_detail(db: Session, order_id: int) -> tuple:
 
 
 def get_donation_items_detail(db: Session, donation_request_id: int) -> tuple:
-    """Get donation request items details."""
     from app.models.donation_offer import DonationOffer
     from app.models.donation_request_item import DonationRequestItem
     from app.models.inventory_lot import InventoryLot
@@ -102,7 +97,6 @@ def get_donation_items_detail(db: Session, donation_request_id: int) -> tuple:
 
 
 def calculate_reward(total_amount: float) -> float:
-    """Calculate delivery reward based on order amount."""
     if not total_amount or total_amount < 50000:
         return 15000.0
     elif total_amount < 100000:
@@ -114,9 +108,6 @@ def calculate_reward(total_amount: float) -> float:
 
 
 def format_delivery_data(delivery: Delivery, db: Session, include_order_detail: bool = True) -> dict:
-    """Format delivery data from database - handles both orders and donations."""
-    
-    # Determine delivery type and get relevant info
     delivery_type = None
     entity_id = None
     entity_data = {}
@@ -239,7 +230,6 @@ def format_delivery_data(delivery: Delivery, db: Session, include_order_detail: 
 
 # ========== Delivery Orders ==========
 def get_delivery_orders(db: Session, user_id: int) -> dict:
-    """Get all delivery orders for delivery partner."""
     dp = get_delivery_partner_user(db, user_id)
 
     deliveries = (
@@ -264,7 +254,6 @@ def get_delivery_orders(db: Session, user_id: int) -> dict:
 
 
 def get_active_deliveries(db: Session, user_id: int) -> dict:
-    """Get active delivery orders (not completed)."""
     dp = get_delivery_partner_user(db, user_id)
 
     deliveries = (
@@ -292,7 +281,6 @@ def get_active_deliveries(db: Session, user_id: int) -> dict:
 
 
 def get_delivery_history(db: Session, user_id: int, filter: str = "all") -> dict:
-    """Get completed delivery history with optional date filter."""
     dp = get_delivery_partner_user(db, user_id)
 
     query = (
@@ -327,7 +315,6 @@ def get_delivery_history(db: Session, user_id: int, filter: str = "all") -> dict
 
 
 def update_delivery_status(db: Session, delivery_id: int, new_status: str, user_id: int) -> dict:
-    """Update delivery status with validation."""
     dp = get_delivery_partner_user(db, user_id)
 
     delivery = (
@@ -375,7 +362,6 @@ def update_delivery_status(db: Session, delivery_id: int, new_status: str, user_
 
 
 def get_delivery_detail(db: Session, delivery_id: int, user_id: int) -> dict:
-    """Get delivery order details."""
     dp = get_delivery_partner_user(db, user_id)
 
     delivery = (
@@ -407,7 +393,6 @@ def get_delivery_detail(db: Session, delivery_id: int, user_id: int) -> dict:
 
 # ========== Delivery Statistics ==========
 def get_delivery_stats(db: Session, user_id: int) -> dict:
-    """Get delivery partner statistics."""
     dp = get_delivery_partner_user(db, user_id)
 
     deliveries = db.query(Delivery).filter(Delivery.delivery_partner_id == dp.id).all()
@@ -436,7 +421,6 @@ def get_delivery_stats(db: Session, user_id: int) -> dict:
 
 # ========== Donation Deliveries ==========
 def get_donation_deliveries(db: Session, user_id: int) -> dict:
-    """Get all donation deliveries for delivery partner."""
     dp = get_delivery_partner_user(db, user_id)
 
     deliveries = (
@@ -460,7 +444,6 @@ def get_donation_deliveries(db: Session, user_id: int) -> dict:
 
 
 def get_active_donation_deliveries(db: Session, user_id: int) -> dict:
-    """Get active donation deliveries (not completed)."""
     dp = get_delivery_partner_user(db, user_id)
 
     deliveries = (
@@ -488,7 +471,6 @@ def get_active_donation_deliveries(db: Session, user_id: int) -> dict:
 
 
 def get_donation_delivery_history(db: Session, user_id: int, filter: str = "all") -> dict:
-    """Get completed donation delivery history."""
     dp = get_delivery_partner_user(db, user_id)
 
     query = (
@@ -526,7 +508,6 @@ def get_donation_delivery_history(db: Session, user_id: int, filter: str = "all"
 
 
 def get_donation_delivery_detail(db: Session, delivery_id: int, user_id: int) -> dict:
-    """Get donation delivery details."""
     dp = get_delivery_partner_user(db, user_id)
 
     delivery = (
@@ -561,7 +542,6 @@ def get_donation_delivery_detail(db: Session, delivery_id: int, user_id: int) ->
 
 # ========== Profile Management ==========
 def get_delivery_profile(db: Session, user_id: int) -> dict:
-    """Get delivery partner profile."""
     user = db.query(User).filter(User.id == user_id).first()
     if not user or user.role != "delivery_partner":
         raise HTTPException(
@@ -585,7 +565,6 @@ def get_delivery_profile(db: Session, user_id: int) -> dict:
 
 
 def update_delivery_profile(db: Session, user_id: int, full_name: str, email: str, phone: str) -> dict:
-    """Update delivery partner profile."""
     user = db.query(User).filter(User.id == user_id).first()
     if not user or user.role != "delivery_partner":
         raise HTTPException(
@@ -624,7 +603,6 @@ def update_delivery_profile(db: Session, user_id: int, full_name: str, email: st
 
 
 def change_delivery_password(db: Session, user_id: int, current_password: str, new_password: str) -> dict:
-    """Change delivery partner password."""
     user = db.query(User).filter(User.id == user_id).first()
     if not user or user.role != "delivery_partner":
         raise HTTPException(

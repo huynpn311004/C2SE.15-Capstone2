@@ -31,12 +31,10 @@ from app.models.charity_organization import CharityOrganization
 
 # ========== Helper Functions ==========
 def _dict_row(row) -> dict:
-    """Convert SQLAlchemy row to dictionary."""
     return dict(row._mapping)
 
 
 def _status_label(expiry_date: date) -> str:
-    """Determine status based on expiry date."""
     today = date.today()
     if expiry_date < today:
         return "Het Han"
@@ -46,7 +44,6 @@ def _status_label(expiry_date: date) -> str:
 
 
 def _parse_date_input(value) -> date:
-    """Parse date from various formats."""
     if isinstance(value, date) and not isinstance(value, datetime):
         return value
     if isinstance(value, datetime):
@@ -64,7 +61,6 @@ def _parse_date_input(value) -> date:
 
 
 def _normalize_header(header: object) -> str:
-    """Normalize Excel/CSV headers to snake_case."""
     if header is None:
         return ""
     value = unicodedata.normalize("NFKD", str(header).strip().lower())
@@ -75,7 +71,6 @@ def _normalize_header(header: object) -> str:
 
 
 def _normalize_status_value(raw_status: object, expiry_date: date) -> str:
-    """Normalize status value (Moi, Sap Het Han, Het Han)."""
     if raw_status is None:
         return _status_label(expiry_date)
 
@@ -92,7 +87,6 @@ def _normalize_status_value(raw_status: object, expiry_date: date) -> str:
 
 
 def _parse_non_negative_float(value: object, field_name: str) -> float | None:
-    """Parse non-negative float from various formats."""
     if value is None:
         return None
     if isinstance(value, str) and not value.strip():
@@ -114,7 +108,6 @@ def _parse_non_negative_float(value: object, field_name: str) -> float | None:
 
 
 def _pick_field(row: dict[str, object], *keys: str) -> object:
-    """Pick first non-empty field from row dictionary."""
     for key in keys:
         if key in row and row[key] not in (None, ""):
             return row[key]
@@ -122,7 +115,6 @@ def _pick_field(row: dict[str, object], *keys: str) -> object:
 
 
 def _build_product_sku(name: str) -> str:
-    """Build SKU from product name."""
     base = re.sub(r"[^a-z0-9]+", "", name.strip().lower())
     if not base:
         base = "product"
@@ -130,7 +122,6 @@ def _build_product_sku(name: str) -> str:
 
 
 def _generate_unique_sku(db: Session, supermarket_id: int, product_name: str) -> str:
-    """Generate unique SKU for product within supermarket."""
     base = _build_product_sku(product_name)
     candidate = base
     index = 1
@@ -149,7 +140,6 @@ def _generate_unique_sku(db: Session, supermarket_id: int, product_name: str) ->
 
 
 def _get_staff_scope(db: Session, user_id: int) -> dict[str, int]:
-    """Get staff's store_id and supermarket_id, validate role."""
     user = db.query(User).filter(User.id == user_id).first()
 
     if not user:
@@ -172,7 +162,6 @@ def _get_staff_scope(db: Session, user_id: int) -> dict[str, int]:
 
 
 def _resolve_or_create_category(db: Session, category_name: object) -> int | None:
-    """Get or create category by name."""
     name = str(category_name or "").strip()
     if not name:
         return None
@@ -196,7 +185,6 @@ def _ensure_unique_sku_for_product(
     sku: str,
     current_product_id: int | None = None,
 ) -> None:
-    """Check SKU uniqueness within supermarket."""
     query = db.query(Product.id).filter(
         Product.supermarket_id == supermarket_id,
         Product.sku == sku
@@ -212,7 +200,6 @@ def _ensure_unique_sku_for_product(
 
 
 def _resolve_or_create_product(db: Session, supermarket_id: int, product_name: str) -> int:
-    """Get or create product by name."""
     name = product_name.strip()
     product = db.query(Product.id).filter(
         Product.supermarket_id == supermarket_id,
@@ -245,7 +232,6 @@ def _upsert_product_from_import(
     base_price_raw: object = None,
     category_name_raw: object = None,
 ) -> tuple[int, str]:
-    """Create or update product during import."""
     product_name = str(product_name_raw or "").strip()
     if not product_name:
         raise ValueError("Ten san pham khong duoc trong")
@@ -319,7 +305,6 @@ def _upsert_inventory_lot(
     manual_status: object = None,
     product_id: int | None = None,
 ) -> str:
-    """Create or update inventory lot."""
     lot = db.query(InventoryLot.id).filter(
         InventoryLot.store_id == store_id,
         InventoryLot.lot_code == lot_code
@@ -357,7 +342,6 @@ def _upsert_inventory_lot(
 
 
 def _extract_rows_from_xlsx(file_bytes: bytes) -> list[dict[str, object]]:
-    """Extract data rows from Excel file."""
     workbook = load_workbook(filename=BytesIO(file_bytes), data_only=True)
     sheet = workbook.active
     rows = list(sheet.iter_rows(values_only=True))
@@ -378,7 +362,6 @@ def _extract_rows_from_xlsx(file_bytes: bytes) -> list[dict[str, object]]:
 
 
 def _extract_rows_from_csv(file_bytes: bytes) -> list[dict[str, object]]:
-    """Extract data rows from CSV file."""
     text_stream = StringIO(file_bytes.decode("utf-8-sig"))
     reader = csv.DictReader(text_stream)
     rows = []
@@ -390,7 +373,6 @@ def _extract_rows_from_csv(file_bytes: bytes) -> list[dict[str, object]]:
 
 
 def _read_import_rows(upload: UploadFile, file_bytes: bytes) -> list[dict[str, object]]:
-    """Read and parse import file (.xlsx or .csv)."""
     filename = (upload.filename or "").lower()
     if filename.endswith(".xlsx"):
         return _extract_rows_from_xlsx(file_bytes)
@@ -405,7 +387,6 @@ def _read_import_rows(upload: UploadFile, file_bytes: bytes) -> list[dict[str, o
 
 # ========== Profile Business Logic ==========
 def get_staff_profile(db: Session, user_id: int) -> dict:
-    """Get staff profile by user ID."""
     user = db.query(
         User.id,
         User.username,
@@ -437,7 +418,6 @@ def get_staff_profile(db: Session, user_id: int) -> dict:
 
 
 def update_staff_profile(db: Session, user_id: int, full_name: str, email: str, phone: str) -> dict:
-    """Update staff profile information."""
     full_name = full_name.strip()
     email = email.strip().lower()
     phone = phone.strip()
@@ -469,7 +449,6 @@ def update_staff_profile(db: Session, user_id: int, full_name: str, email: str, 
 
 
 def change_staff_password(db: Session, user_id: int, current_password: str, new_password: str) -> dict:
-    """Change staff password with validation."""
     current_password = current_password or ""
     new_password = new_password or ""
 
@@ -510,7 +489,6 @@ def change_staff_password(db: Session, user_id: int, current_password: str, new_
 
 # ========== Orders Business Logic ==========
 def list_staff_orders(db: Session, store_id: int) -> dict:
-    """List all orders for staff's store."""
     rows = db.query(
         Order.id, Order.status, Order.total_amount, Order.payment_status, Order.created_at, Order.delivered_at,
         User.full_name.label('customer_name')
@@ -541,10 +519,6 @@ def list_staff_orders(db: Session, store_id: int) -> dict:
 
 # ========== Delivery Assignment Functions ==========
 def _find_available_delivery_partner(db: Session, store_id: int):
-    """Find an available delivery partner for order assignment.
-    
-    Strategy: Get delivery partners ordered by least active deliveries.
-    """
     partner = db.query(
         DeliveryPartner.id,
         DeliveryPartner.user_id,
@@ -570,7 +544,6 @@ def _find_available_delivery_partner(db: Session, store_id: int):
 
 
 def _generate_delivery_code(db: Session) -> str:
-    """Generate unique delivery code."""
     timestamp = datetime.now().strftime("%Y%m%d")
     count = db.query(func.count(Delivery.id)).filter(
         Delivery.delivery_code.like(f"GH-{timestamp}-%")
@@ -579,13 +552,6 @@ def _generate_delivery_code(db: Session) -> str:
 
 
 def _create_delivery_for_order(db: Session, order_id: int, store_id: int) -> dict:
-    """Create delivery record when order is ready.
-    
-    Steps:
-    1. Fetch order and customer details
-    2. Find available delivery partner
-    3. Create Delivery record
-    """
     # Get order and customer
     order_row = db.query(
         Order.id,
@@ -650,13 +616,6 @@ def _create_delivery_for_order(db: Session, order_id: int, store_id: int) -> dic
 
 
 def _create_delivery_for_donation_request(db: Session, donation_request_id: int, store_id: int) -> dict:
-    """Create delivery record when donation request is approved.
-    
-    Steps:
-    1. Fetch donation request items, charity organization, offer, and lot details
-    2. Find available delivery partner
-    3. Create Delivery record
-    """
     # Get donation request with related details (via DonationRequestItem)
     # Include charity's address for delivery destination
     request_row = db.query(
@@ -722,16 +681,6 @@ def _create_delivery_for_donation_request(db: Session, donation_request_id: int,
 
 
 def update_staff_order_status(db: Session, order_id: int, store_id: int, new_status: str, user_id: int = None) -> dict:
-    """Update order status - Staff can only update to 'ready'.
-
-    Staff workflow:
-    - pending/preparing → ready (chuẩn bị xong, lấy hàng xong)
-
-    Delivery partner will handle:
-    - ready → picking_up → delivering → completed/cancelled
-
-    When status -> 'ready': Automatically create Delivery and notify delivery partner.
-    """
     new_status = (new_status or "").strip().lower()
 
     # Staff chỉ được update thành "ready" - đúng nghiệp vụ
@@ -792,7 +741,6 @@ def update_staff_order_status(db: Session, order_id: int, store_id: int, new_sta
 
 
 def get_staff_order_detail(db: Session, order_id: int, store_id: int) -> dict:
-    """Get order detail with items."""
     # Lấy thông tin đơn hàng + khách hàng
     order_row = db.query(
         Order.id, Order.status, Order.total_amount, Order.payment_method, Order.payment_status,
@@ -843,7 +791,6 @@ def get_staff_order_detail(db: Session, order_id: int, store_id: int) -> dict:
 
 # ========== Categories Business Logic ==========
 def staff_category_stats(db: Session, store_id: int) -> dict:
-    """Get inventory stats by category for near-expiry items."""
     rows = db.query(
         func.coalesce(Category.name, 'Khác').label('category_name'),
         func.count(InventoryLot.id).label('lot_count')
@@ -873,7 +820,6 @@ def staff_category_stats(db: Session, store_id: int) -> dict:
 
 
 def list_categories(db: Session, supermarket_id: int) -> dict:
-    """List all categories."""
     rows = db.query(
         Category.id,
         Category.name,
@@ -895,7 +841,6 @@ def list_categories(db: Session, supermarket_id: int) -> dict:
 
 
 def create_category(db: Session, name: str, user_id: int = None, store_id: int = None) -> dict:
-    """Create new category."""
     name = name.strip()
     if not name:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tên danh mục không được trống")
@@ -923,7 +868,6 @@ def create_category(db: Session, name: str, user_id: int = None, store_id: int =
 
 
 def update_category(db: Session, category_id: int, name: str, user_id: int = None, store_id: int = None) -> dict:
-    """Update category name."""
     name = name.strip()
     if not name:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tên danh mục không được trống")
@@ -956,8 +900,6 @@ def update_category(db: Session, category_id: int, name: str, user_id: int = Non
 
 
 def delete_category(db: Session, category_id: int, user_id: int = None, store_id: int = None) -> dict:
-    """Delete category if no products use it."""
-    # Get old value before delete
     old_category = db.query(Category).filter(Category.id == category_id).first()
     old_name = old_category.name if old_category else None
 
@@ -986,7 +928,6 @@ def delete_category(db: Session, category_id: int, user_id: int = None, store_id
 
 # ========== Products Business Logic ==========
 def list_products(db: Session, supermarket_id: int, category_filter: int | None, search: str | None) -> dict:
-    """List products with optional category and search filters."""
     base_query = db.query(
         Product.id, Product.sku, Product.name, Product.base_price, Product.image_url,
         Category.name.label("category_name"), Category.id.label("category_id"),
@@ -1028,7 +969,6 @@ def list_products(db: Session, supermarket_id: int, category_filter: int | None,
 def create_product(db: Session, supermarket_id: int, store_id: int, user_id: int,
                   name: str, sku: str, base_price: float,
                   category_id: int | None, image_url: str | None) -> dict:
-    """Create new product."""
     name = name.strip()
     sku = sku.strip()
     image_url = (image_url or "").strip() or None
@@ -1078,7 +1018,6 @@ def update_product(db: Session, product_id: int, supermarket_id: int,
                   store_id: int, user_id: int,
                   name: str, base_price: float,
                   category_id: int | None, image_url: str | None) -> dict:
-    """Update product information."""
     name = name.strip()
     image_url = (image_url or "").strip() or None
 
@@ -1132,7 +1071,6 @@ def update_product(db: Session, product_id: int, supermarket_id: int,
 
 def delete_product(db: Session, product_id: int, supermarket_id: int,
                   store_id: int, user_id: int) -> dict:
-    """Delete product if no inventory lots reference it."""
     product = db.query(Product).filter(
         Product.id == product_id,
         Product.supermarket_id == supermarket_id
@@ -1170,7 +1108,6 @@ def delete_product(db: Session, product_id: int, supermarket_id: int,
 
 
 def list_product_categories(db: Session, supermarket_id: int) -> dict:
-    """List all categories used by products."""
     rows = db.query(Category.id, Category.name).distinct().join(
         Product, Product.category_id == Category.id
     ).filter(
@@ -1183,7 +1120,6 @@ def list_product_categories(db: Session, supermarket_id: int) -> dict:
 
 # ========== Dashboard Business Logic ==========
 def staff_dashboard_summary(db: Session, store_id: int) -> dict:
-    """Get dashboard summary statistics."""
     total_lots = db.query(func.count(InventoryLot.id)).filter(
         InventoryLot.store_id == store_id
     ).scalar() or 0
@@ -1243,7 +1179,6 @@ def staff_dashboard_summary(db: Session, store_id: int) -> dict:
 
 # ========== Donation Offers Business Logic ==========
 def list_near_expiry_lots(db: Session, store_id: int) -> dict:
-    """List inventory lots that are near expiry (3-7 days left) and have stock."""
     today = date.today()
     rows = db.query(
         InventoryLot.id,
@@ -1282,7 +1217,6 @@ def list_near_expiry_lots(db: Session, store_id: int) -> dict:
 
 
 def create_donation_offer(db: Session, user_id: int, lot_id: int, offered_qty: int) -> dict:
-    """Create a new donation offer from an inventory lot."""
     scope = _get_staff_scope(db, user_id)
     store_id = scope["store_id"]
 
@@ -1341,7 +1275,6 @@ def create_donation_offer(db: Session, user_id: int, lot_id: int, offered_qty: i
 
 
 def create_bulk_donation_offers(db: Session, user_id: int, items: list[dict]) -> dict:
-    """Create multiple donation offers from inventory lots in bulk."""
     scope = _get_staff_scope(db, user_id)
     store_id = scope["store_id"]
 
@@ -1427,7 +1360,6 @@ def create_bulk_donation_offers(db: Session, user_id: int, items: list[dict]) ->
 
 
 def list_staff_donation_offers(db: Session, user_id: int, status_filter: str = "all") -> dict:
-    """List donation offers for staff's store."""
     scope = _get_staff_scope(db, user_id)
     store_id = scope["store_id"]
 
@@ -1491,7 +1423,6 @@ def list_staff_donation_offers(db: Session, user_id: int, status_filter: str = "
 
 
 def update_donation_offer_status(db: Session, user_id: int, offer_id: int, new_status: str) -> dict:
-    """Update donation offer status (approve/reject)."""
     scope = _get_staff_scope(db, user_id)
     store_id = scope["store_id"]
 
@@ -1530,7 +1461,6 @@ def update_donation_offer_status(db: Session, user_id: int, offer_id: int, new_s
 
 
 def update_donation_offer(db: Session, user_id: int, offer_id: int, offered_qty: int) -> dict:
-    """Update donation offer quantity."""
     scope = _get_staff_scope(db, user_id)
     store_id = scope["store_id"]
 
@@ -1581,7 +1511,6 @@ def update_donation_offer(db: Session, user_id: int, offer_id: int, offered_qty:
 
 
 def delete_donation_offer(db: Session, user_id: int, offer_id: int) -> dict:
-    """Delete a donation offer and restore stock to inventory."""
     scope = _get_staff_scope(db, user_id)
     store_id = scope["store_id"]
 
@@ -1617,7 +1546,6 @@ def delete_donation_offer(db: Session, user_id: int, offer_id: int) -> dict:
 
 # ========== Donation Requests Business Logic (New Architecture) ==========
 def list_staff_donation_requests(db: Session, user_id: int, status_filter: str = "all") -> dict:
-    """List donation requests for staff's store (grouped by request, not by item)."""
     scope = _get_staff_scope(db, user_id)
     store_id = scope["store_id"]
 
@@ -1668,7 +1596,6 @@ def list_staff_donation_requests(db: Session, user_id: int, status_filter: str =
 
 
 def get_staff_donation_request_detail(db: Session, user_id: int, request_id: int) -> dict:
-    """Get detailed donation request with items."""
     scope = _get_staff_scope(db, user_id)
     store_id = scope["store_id"]
 
@@ -1746,7 +1673,6 @@ def get_staff_donation_request_detail(db: Session, user_id: int, request_id: int
 
 
 def update_donation_request_status(db: Session, user_id: int, request_id: int, new_status: str) -> dict:
-    """Update donation request status (approve/reject all items)."""
     scope = _get_staff_scope(db, user_id)
     store_id = scope["store_id"]
 
@@ -1857,7 +1783,6 @@ def update_donation_request_status(db: Session, user_id: int, request_id: int, n
 
 # ========== File Upload & Import Business Logic ==========
 def list_inventory_lots(db: Session, store_id: int, status_filter: str = "all") -> dict:
-    """List inventory lots with optional status filter + pricing from discount policies."""
     from app.services import discount_policy_service
     from datetime import date, timedelta
     
@@ -1927,7 +1852,6 @@ def list_inventory_lots(db: Session, store_id: int, status_filter: str = "all") 
 
 def create_inventory_lot(db: Session, store_id: int, supermarket_id: int, lot_code: str, product_name: str,
                         quantity: int, expiry_date: date, manual_status: object, action_note: str) -> dict:
-    """Create new inventory lot."""
     lot_code = lot_code.strip()
     product_name = product_name.strip()
 
@@ -1951,7 +1875,6 @@ def create_inventory_lot(db: Session, store_id: int, supermarket_id: int, lot_co
 
 def update_inventory_lot(db: Session, lot_id: int, store_id: int, supermarket_id: int, lot_code: str,
                         product_name: str, quantity: int, expiry_date: date, manual_status: object) -> dict:
-    """Update inventory lot."""
     lot_code = lot_code.strip()
     product_name = product_name.strip()
 
@@ -1987,7 +1910,6 @@ def update_inventory_lot(db: Session, lot_id: int, store_id: int, supermarket_id
 
 
 def delete_inventory_lot(db: Session, lot_id: int, store_id: int) -> dict:
-    """Delete inventory lot - check if any qty is reserved first."""
     lot = db.query(InventoryLot).filter(
         InventoryLot.id == lot_id,
         InventoryLot.store_id == store_id
@@ -2015,7 +1937,6 @@ def delete_inventory_lot(db: Session, lot_id: int, store_id: int) -> dict:
 # ========== File Upload & Import Business Logic ==========
 async def import_inventory_lots_from_excel(db: Session, store_id: int, supermarket_id: int,
                                           file: UploadFile) -> dict:
-    """Import inventory lots from Excel file."""
     file_bytes = await file.read()
     if not file_bytes:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File trong")
@@ -2116,7 +2037,6 @@ async def import_inventory_lots_from_excel(db: Session, store_id: int, supermark
 
 async def import_products_from_excel(db: Session, store_id: int, supermarket_id: int,
                                     file: UploadFile) -> dict:
-    """Import products from Excel file, optionally creating inventory lots."""
     file_bytes = await file.read()
     if not file_bytes:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File trong")
@@ -2219,7 +2139,6 @@ async def import_products_from_excel(db: Session, store_id: int, supermarket_id:
 
 
 async def upload_product_image(db: Session, user_id: int, file: UploadFile) -> dict:
-    """Upload product image and return URL."""
     _get_staff_scope(db, user_id)
 
     if not file.content_type or not file.content_type.startswith("image/"):

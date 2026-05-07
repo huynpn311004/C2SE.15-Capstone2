@@ -1,6 +1,3 @@
-"""
-API Routes cho Location - Geocoding và Stores
-"""
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -63,7 +60,6 @@ class NearbyStoresResponse(BaseModel):
 
 @router.post("/geocode", response_model=GeocodeResponse)
 async def geocode_address_endpoint(request: GeocodeRequest):
-    """Chuyển địa chỉ thành tọa độ (lat, lng)"""
     result = await geocode_address(request.address)
     if not result:
         raise HTTPException(status_code=404, detail="Không tìm thấy địa chỉ")
@@ -72,7 +68,6 @@ async def geocode_address_endpoint(request: GeocodeRequest):
 
 @router.post("/reverse-geocode", response_model=ReverseGeocodeResponse)
 async def reverse_geocode_endpoint(request: ReverseGeocodeRequest):
-    """Chuyển tọa độ (lat, lng) thành địa chỉ"""
     if not is_in_vietnam(request.latitude, request.longitude):
         raise HTTPException(status_code=400, detail="Tọa độ không nằm trong Việt Nam")
 
@@ -91,7 +86,6 @@ async def get_all_stores_with_location(
     radius_km: Optional[float] = 50,
     db: Session = Depends(get_db),
 ):
-    """Lấy danh sách cửa hàng có tọa độ"""
     stores = db.query(Store).filter(
         Store.latitude.isnot(None),
         Store.longitude.isnot(None),
@@ -168,7 +162,6 @@ async def update_store_location(
     request: UpdateStoreLocationRequest,
     db: Session = Depends(get_db),
 ):
-    """Cập nhật tọa độ cửa hàng"""
     store = db.query(Store).filter(Store.id == store_id).first()
     if not store:
         raise HTTPException(status_code=404, detail="Cửa hàng không tồn tại")
@@ -205,15 +198,9 @@ async def update_user_location(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Cập nhật tọa độ user (customer).
-    - Nếu gửi latitude/longitude: lưu trực tiếp
-    - Nếu chỉ gửi address: tự động geocode để lấy tọa độ
-    """
     lat = request.latitude
     lng = request.longitude
 
-    # Nếu không có tọa độ nhưng có địa chỉ, tự động geocode
     if (lat is None or lng is None) and request.address:
         geocode_result = await geocode_address(request.address)
         if geocode_result:
@@ -270,7 +257,6 @@ class DistanceResponse(BaseModel):
 
 @router.post("/distance", response_model=DistanceResponse)
 async def calculate_distance_endpoint(request: DistanceRequest):
-    """Tính khoảng cách giữa 2 điểm"""
     distance = calculate_distance(
         request.lat1, request.lng1,
         request.lat2, request.lng2,

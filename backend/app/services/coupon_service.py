@@ -1,5 +1,3 @@
-"""Coupon service layer with business logic."""
-
 from datetime import datetime
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
@@ -8,7 +6,6 @@ from app.models.coupon import Coupon
 
 
 def list_coupons(db: Session, supermarket_id: int) -> dict:
-    """List all coupons for a supermarket."""
     coupons = db.query(
         Coupon.id,
         Coupon.code,
@@ -60,7 +57,6 @@ def create_coupon(
     valid_from: str,
     valid_to: str,
 ) -> dict:
-    """Create a new coupon."""
     # Validate discount
     if discount_percent is None or discount_percent < 0 or discount_percent > 100:
         return {"error": "Phần trăm giảm giá phải từ 0 đến 100"}
@@ -117,7 +113,6 @@ def update_coupon(
     valid_to: str | None = None,
     is_active: bool | None = None,
 ) -> dict:
-    """Update a coupon."""
     coupon = db.query(Coupon).filter(
         and_(
             Coupon.id == coupon_id,
@@ -150,7 +145,6 @@ def update_coupon(
     if is_active is not None:
         coupon.is_active = is_active
 
-    # Update dates if provided
     if valid_from or valid_to:
         try:
             if valid_from:
@@ -171,7 +165,6 @@ def update_coupon(
 
 
 def delete_coupon(db: Session, coupon_id: int, supermarket_id: int) -> dict:
-    """Delete a coupon."""
     result = db.query(Coupon).filter(
         and_(
             Coupon.id == coupon_id,
@@ -187,7 +180,6 @@ def delete_coupon(db: Session, coupon_id: int, supermarket_id: int) -> dict:
 
 
 def toggle_coupon(db: Session, coupon_id: int, supermarket_id: int) -> dict:
-    """Toggle coupon active status."""
     coupon = db.query(Coupon).filter(
         and_(
             Coupon.id == coupon_id,

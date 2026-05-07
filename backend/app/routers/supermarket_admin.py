@@ -126,7 +126,6 @@ def list_all_products(
 	current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Get all products for supermarket admin (no inventory filtering)"""
     scope = supermarket_admin_service._get_supermarket_scope(db, current_user.id)
     return product_service.list_products(db, scope, None, None)
 
@@ -137,7 +136,6 @@ def list_all_categories(
 	current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Get all categories for supermarket admin"""
     scope = supermarket_admin_service._get_supermarket_scope(db, current_user.id)
     return product_service.list_product_categories(db, scope)
 

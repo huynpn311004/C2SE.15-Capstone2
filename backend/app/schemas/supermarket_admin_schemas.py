@@ -1,5 +1,3 @@
-"""Supermarket admin endpoint request and response schemas."""
-
 from pydantic import BaseModel, Field
 
 

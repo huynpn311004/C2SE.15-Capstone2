@@ -1,5 +1,3 @@
-"""Charity service layer with business logic."""
-
 from datetime import datetime
 from sqlalchemy import func, and_
 from sqlalchemy.exc import SQLAlchemyError
@@ -20,12 +18,10 @@ from app.models.supermarket import Supermarket
 
 # ========== Helper Functions ==========
 def _dict_row(row) -> dict:
-    """Convert SQLAlchemy row to dictionary."""
     return dict(row._mapping)
 
 
 def _format_datetime(value) -> str | None:
-    """Format datetime to string."""
     if not value:
         return None
     if isinstance(value, datetime):
@@ -34,7 +30,6 @@ def _format_datetime(value) -> str | None:
 
 
 def _format_date(value) -> str:
-    """Format date to string."""
     if not value:
         return datetime.now().strftime("%d/%m/%Y")
     if isinstance(value, datetime):
@@ -43,7 +38,6 @@ def _format_date(value) -> str:
 
 
 def _get_charity_user(db: Session, user_id: int):
-    """Get and validate charity user."""
     user = db.query(User.id, User.role, User.full_name, User.email, User.phone).filter(
         User.id == user_id,
         User.role == 'charity'
@@ -55,7 +49,6 @@ def _get_charity_user(db: Session, user_id: int):
 
 # ========== Profile Management ==========
 def get_charity_profile(db: Session, user_id: int) -> dict:
-    """Get charity organization profile."""
     user = _get_charity_user(db, user_id)
 
     charity = db.query(
@@ -98,7 +91,6 @@ def get_charity_profile(db: Session, user_id: int) -> dict:
 
 
 def update_charity_profile(db: Session, user_id: int, full_name: str, email: str, phone: str, org_name: str, address: str = "") -> dict:
-    """Update charity profile information."""
     user = _get_charity_user(db, user_id)
 
     full_name = (full_name or "").strip()
@@ -141,7 +133,6 @@ def update_charity_profile(db: Session, user_id: int, full_name: str, email: str
 
 
 def change_charity_password(db: Session, user_id: int, current_password: str, new_password: str) -> dict:
-    """Change charity account password."""
     user = _get_charity_user(db, user_id)
 
     current_password = current_password or ""
@@ -177,7 +168,6 @@ def change_charity_password(db: Session, user_id: int, current_password: str, ne
 
 # ========== Dashboard ==========
 def get_charity_dashboard_summary(db: Session, user_id: int) -> dict:
-    """Get charity dashboard statistics."""
     _get_charity_user(db, user_id)
 
     total_received = db.query(func.count(DonationRequest.id)).filter(
@@ -276,7 +266,6 @@ def get_charity_dashboard_summary(db: Session, user_id: int) -> dict:
 
 # ========== Donation Offers ==========
 def list_charity_donation_offers(db: Session, user_id: int) -> dict:
-    """List available donation offers for charity."""
     _get_charity_user(db, user_id)
 
     # Subquery to check if charity has pending/approved request for this offer
@@ -342,10 +331,6 @@ def list_charity_donation_offers(db: Session, user_id: int) -> dict:
 
 # ========== Donation Requests (New Architecture) ==========
 def create_charity_donation_request(db: Session, user_id: int, items: list) -> dict:
-    """Create donation requests, splitting by store (1 request per store).
-    
-    If charity selects items from 2 different stores, creates 2 separate requests.
-    """
     _get_charity_user(db, user_id)
 
     if not items or len(items) == 0:
@@ -482,7 +467,6 @@ def create_charity_donation_request(db: Session, user_id: int, items: list) -> d
 
 
 def list_charity_donation_requests_new(db: Session, user_id: int) -> dict:
-    """List charity's donation requests (new architecture - grouped by request, not by item)."""
     _get_charity_user(db, user_id)
 
     rows = db.query(DonationRequest).filter(
@@ -547,7 +531,6 @@ def list_charity_donation_requests_new(db: Session, user_id: int) -> dict:
 
 
 def list_charity_donation_requests(db: Session, user_id: int) -> dict:
-    """List charity's donation requests (legacy format for backward compatibility)."""
     _get_charity_user(db, user_id)
 
     rows = db.query(
@@ -604,7 +587,6 @@ def list_charity_donation_requests(db: Session, user_id: int) -> dict:
 
 
 def confirm_received_donation(db: Session, user_id: int, request_id: int) -> dict:
-    """Confirm received donation request."""
     _get_charity_user(db, user_id)
 
     request = db.query(
@@ -643,7 +625,6 @@ def confirm_received_donation(db: Session, user_id: int, request_id: int) -> dic
 
 
 def get_charity_donation_request_detail(db: Session, user_id: int, request_id: int) -> dict:
-    """Get detailed donation request for charity."""
     _get_charity_user(db, user_id)
 
     request = db.query(DonationRequest).filter(

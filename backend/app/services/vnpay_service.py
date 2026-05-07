@@ -23,18 +23,6 @@ def create_vnpay_payment(
     order_info: str = "",
     ip_address: str = "127.0.0.1",
 ) -> Dict[str, Any]:
-    """
-    Tạo URL thanh toán VNPay.
-
-    Args:
-        order_id: ID đơn hàng
-        amount: Số tiền (VND)
-        order_info: Mô tả đơn hàng
-        ip_address: IP của khách hàng
-
-    Returns:
-        Dict chứa payment_url
-    """
     vnp_Version = "2.1.0"
     vnp_Command = "pay"
     vnp_TmnCode = VNPAY_TMN_CODE
@@ -94,15 +82,6 @@ def create_vnpay_payment(
 
 
 def verify_vnpay_callback(params: Dict[str, str]) -> bool:
-    """
-    Xác thực callback từ VNPay bằng cách kiểm tra chữ ký.
-
-    Args:
-        params: Dict các tham số VNPay trả về
-
-    Returns:
-        True nếu chữ ký hợp lệ
-    """
     if "vnp_SecureHash" not in params:
         return False
 
@@ -125,16 +104,6 @@ def verify_vnpay_callback(params: Dict[str, str]) -> bool:
 
 
 def handle_vnpay_return(db: Session, params: Dict[str, str]) -> Dict[str, Any]:
-    """
-    Xử lý callback return URL từ VNPay.
-
-    Args:
-        db: Database session
-        params: Query params từ VNPay redirect
-
-    Returns:
-        Dict kết quả
-    """
     vnp_ResponseCode = params.get("vnp_ResponseCode", "")
     vnp_TxnRef = params.get("vnp_TxnRef", "")
     vnp_TransactionNo = params.get("vnp_TransactionNo", "")
@@ -188,16 +157,6 @@ def handle_vnpay_return(db: Session, params: Dict[str, str]) -> Dict[str, Any]:
 
 
 def handle_vnpay_ipn(db: Session, params: Dict[str, str]) -> Dict[str, Any]:
-    """
-    Xử lý IPN (Instant Payment Notification) từ VNPay.
-
-    Args:
-        db: Database session
-        params: IPN params từ VNPay
-
-    Returns:
-        Dict kết quả trả về cho VNPay
-    """
     vnp_ResponseCode = params.get("vnp_ResponseCode", "")
     vnp_TxnRef = params.get("vnp_TxnRef", "")
     vnp_TransactionNo = params.get("vnp_TransactionNo", "")
@@ -237,7 +196,6 @@ def handle_vnpay_ipn(db: Session, params: Dict[str, str]) -> Dict[str, Any]:
 # STOCK HELPERS
 # =======================
 def _deduct_stock_for_order(db: Session, order_id: int):
-    """Chuyển từ giữ chỗ sang trừ kho thực tế."""
     item_rows = db.query(
         OrderItem.lot_id, OrderItem.quantity
     ).filter(OrderItem.order_id == order_id).all()
@@ -251,7 +209,6 @@ def _deduct_stock_for_order(db: Session, order_id: int):
 
 
 def _release_reserved_for_order(db: Session, order_id: int):
-    """Hoàn trả giữ chỗ khi hủy/thất bại."""
     item_rows = db.query(
         OrderItem.lot_id, OrderItem.quantity
     ).filter(OrderItem.order_id == order_id).all()

@@ -1,5 +1,3 @@
-"""Charity endpoint request and response schemas."""
-
 from pydantic import BaseModel
 
 

@@ -1,5 +1,3 @@
-"""Supermarket admin service layer with business logic."""
-
 import re
 from datetime import datetime, timedelta
 from sqlalchemy import func, and_, Integer, case
@@ -27,12 +25,10 @@ from app.services.audit_service import log_action
 
 # ========== Helper Functions ==========
 def _dict_row(row) -> dict:
-    """Convert SQLAlchemy row to dictionary."""
     return dict(row._mapping)
 
 
 def _get_supermarket_scope(db: Session, user_id: int) -> int:
-    """Get supermarket_id for supermarket admin."""
     user = db.query(User).filter(User.id == user_id).first()
 
     if not user:
@@ -54,7 +50,6 @@ def _get_supermarket_scope(db: Session, user_id: int) -> int:
 
 
 def _build_store_code(name: str) -> str:
-    """Generate store code from name."""
     base = re.sub(r"[^a-z0-9]+", "", name.strip().lower())
     if not base:
         base = "store"
@@ -62,7 +57,6 @@ def _build_store_code(name: str) -> str:
 
 
 def _generate_unique_store_code(db: Session, supermarket_id: int, name: str) -> str:
-    """Generate unique store code within supermarket."""
     candidate = _build_store_code(name)
     index = 1
 
@@ -81,7 +75,6 @@ def _generate_unique_store_code(db: Session, supermarket_id: int, name: str) -> 
 
 # ========== Supermarket Profile ==========
 def get_supermarket_profile(db: Session, user_id: int) -> dict:
-    """Get supermarket profile for the current admin."""
     supermarket_id = _get_supermarket_scope(db, user_id)
 
     sm = db.query(Supermarket).filter(Supermarket.id == supermarket_id).first()
@@ -97,7 +90,6 @@ def get_supermarket_profile(db: Session, user_id: int) -> dict:
 
 
 def update_supermarket_profile(db: Session, user_id: int, name: str, address: str) -> dict:
-    """Update supermarket profile (name and address)."""
     supermarket_id = _get_supermarket_scope(db, user_id)
 
     name = (name or "").strip()
@@ -114,7 +106,6 @@ def update_supermarket_profile(db: Session, user_id: int, name: str, address: st
 
 # ========== Store Management ==========
 def list_stores(db: Session, user_id: int) -> dict:
-    """List all stores for supermarket admin."""
     supermarket_id = _get_supermarket_scope(db, user_id)
 
     u_alias = aliased(User)
@@ -275,7 +266,6 @@ def update_store(db: Session, user_id: int, store_id: int, name: str, address: s
 
 
 def delete_store(db: Session, user_id: int, store_id: int) -> dict:
-    """Delete store if no staff assigned."""
     supermarket_id = _get_supermarket_scope(db, user_id)
 
     # Check if store has staff
@@ -324,7 +314,6 @@ def delete_store(db: Session, user_id: int, store_id: int) -> dict:
 
 # ========== Staff Management ==========
 def list_supermarket_staff(db: Session, user_id: int) -> dict:
-    """List all staff for supermarket admin."""
     supermarket_id = _get_supermarket_scope(db, user_id)
 
     rows = db.query(
@@ -378,14 +367,6 @@ def list_supermarket_audit_logs(
     limit: int = 200,
     offset: int = 0,
 ) -> dict:
-    """List audit logs for supermarket admin's scope.
-
-    Logs are scoped to:
-      - Actions performed by staff in stores belonging to this supermarket
-      - Optionally filtered by specific store_id
-
-    Results are sorted newest-first.
-    """
 
     supermarket_id = _get_supermarket_scope(db, user_id)
 
@@ -454,10 +435,6 @@ def list_supermarket_audit_logs(
 
 # ========== Dashboard ==========
 def get_dashboard_summary(db: Session, user_id: int, period: str = "daily") -> dict:
-    """
-    Get dashboard summary for supermarket admin.
-    period: 'daily', 'weekly', 'monthly'
-    """
     supermarket_id = _get_supermarket_scope(db, user_id)
 
     # Time range
@@ -620,7 +597,6 @@ def get_dashboard_summary(db: Session, user_id: int, period: str = "daily") -> d
 
 
 def list_expiring_products(db: Session, user_id: int, days: int = 7, store_id: int | None = None) -> dict:
-    """List inventory lots expiring within specified days for supermarket admin."""
     from app.models.category import Category
 
     supermarket_id = _get_supermarket_scope(db, user_id)
@@ -712,7 +688,6 @@ def list_expiring_products(db: Session, user_id: int, days: int = 7, store_id: i
 
 # ========== Donation Monitoring ==========
 def list_donation_monitoring(db: Session, user_id: int, status_filter: str = "all") -> dict:
-    """List donation requests that have offers from stores in this supermarket."""
     from app.models.charity_organization import CharityOrganization
 
     supermarket_id = _get_supermarket_scope(db, user_id)
@@ -767,7 +742,6 @@ def list_donation_monitoring(db: Session, user_id: int, status_filter: str = "al
 
 
 def get_donation_detail(db: Session, user_id: int, request_id: int) -> dict:
-    """Get detailed info for a single donation request with all items."""
     from app.models.charity_organization import CharityOrganization
 
     supermarket_id = _get_supermarket_scope(db, user_id)

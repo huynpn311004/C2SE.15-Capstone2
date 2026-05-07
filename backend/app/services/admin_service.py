@@ -20,12 +20,10 @@ from app.models.delivery import Delivery
 # ========== Helper Functions ==========
 
 def _dict_row(row) -> dict:
-	"""Convert SQLAlchemy row to dictionary"""
 	return dict(row._mapping)
 
 
 def _format_datetime(value) -> str | None:
-	"""Format datetime to readable string"""
 	if not value:
 		return None
 	if isinstance(value, datetime):
@@ -34,7 +32,6 @@ def _format_datetime(value) -> str | None:
 
 
 def _format_date(value) -> str:
-	"""Format date to readable string"""
 	if not value:
 		return datetime.now().strftime("%Y-%m-%d")
 	if isinstance(value, datetime):
@@ -43,7 +40,6 @@ def _format_date(value) -> str:
 
 
 def _bool_from_db(value) -> bool:
-	"""Convert database value to boolean"""
 	if isinstance(value, bool):
 		return value
 	if value is None:
@@ -52,7 +48,6 @@ def _bool_from_db(value) -> bool:
 
 
 def _display_role(role: str | None) -> str:
-	"""Display user-friendly role name"""
 	role_map = {
 		"system_admin": "System Admin",
 		"supermarket_admin": "Supermarket Admin",
@@ -65,7 +60,6 @@ def _display_role(role: str | None) -> str:
 
 
 def _generate_username(db: Session, email: str, suffix: str) -> str:
-	"""Generate unique username based on email and suffix"""
 	base = email.split("@", 1)[0].strip().lower() or "user"
 	candidate = f"{base}_{suffix}".replace(" ", "")
 	index = 1
@@ -79,7 +73,6 @@ def _generate_username(db: Session, email: str, suffix: str) -> str:
 
 
 def _get_supermarket_admin(db: Session, supermarket_id: int):
-	"""Get supermarket admin user"""
 	return db.query(User.id, User.full_name, User.email, User.phone, User.is_active).filter(
 		User.supermarket_id == supermarket_id,
 		User.role == 'supermarket_admin'
@@ -89,7 +82,6 @@ def _get_supermarket_admin(db: Session, supermarket_id: int):
 # ========== Dashboard ==========
 
 def get_dashboard_summary(db: Session) -> dict:
-	"""Get dashboard summary statistics"""
 	supermarkets_count = db.query(func.count(Supermarket.id)).scalar() or 0
 	charities_count = db.query(func.count(CharityOrganization.id)).scalar() or 0
 	users_count = db.query(func.count(User.id)).filter(User.role != 'system_admin').scalar() or 0
@@ -118,7 +110,6 @@ def get_dashboard_summary(db: Session) -> dict:
 
 
 def get_reports(db: Session, days: int = 30) -> dict:
-	"""Get reports and analytics"""
 	current_from = datetime.now() - timedelta(days=days)
 	previous_from = datetime.now() - timedelta(days=days * 2)
 
@@ -237,7 +228,6 @@ def get_reports(db: Session, days: int = 30) -> dict:
 # ========== User Management ==========
 
 def list_users(db: Session) -> dict:
-	"""List all non-admin users"""
 	rows = db.query(
 		User.id,
 		User.username,
@@ -285,7 +275,6 @@ def list_users(db: Session) -> dict:
 
 
 def toggle_user_lock(db: Session, user_id: int) -> dict:
-	"""Toggle user lock status"""
 	user = db.query(
 		User.id, User.is_active, User.role
 	).filter(User.id == user_id).first()
@@ -315,7 +304,6 @@ def toggle_user_lock(db: Session, user_id: int) -> dict:
 
 def update_user(db: Session, user_id: int, username: str = None, full_name: str = None, 
 				email: str = None, phone: str = None) -> dict:
-	"""Update user information"""
 	row = db.query(
 		User.id, User.username
 	).filter(User.id == user_id).first()
@@ -365,7 +353,6 @@ def update_user(db: Session, user_id: int, username: str = None, full_name: str 
 
 
 def change_user_password(db: Session, user_id: int, current_password: str, new_password: str) -> dict:
-	"""Change user password"""
 	if len(new_password) < 6:
 		raise HTTPException(
 			status_code=status.HTTP_400_BAD_REQUEST,
@@ -394,7 +381,6 @@ def change_user_password(db: Session, user_id: int, current_password: str, new_p
 
 
 def delete_user(db: Session, user_id: int) -> dict:
-	"""Delete a user"""
 	user = db.query(
 		User.id, User.role
 	).filter(User.id == user_id).first()
@@ -413,8 +399,6 @@ def delete_user(db: Session, user_id: int) -> dict:
 # ========== Supermarket Management ==========
 
 def list_supermarkets(db: Session) -> dict:
-	"""List all supermarkets"""
-	# Get supermarkets with their admin users
 	supermarkets = db.query(Supermarket).order_by(
 		Supermarket.created_at.desc(), Supermarket.id.desc()
 	).all()
@@ -458,7 +442,6 @@ def list_supermarkets(db: Session) -> dict:
 def update_supermarket(db: Session, supermarket_id: int, name: str, director: str,
 					   email: str, phone: str, address: str, latitude: float = None, 
 					   longitude: float = None) -> dict:
-	"""Update supermarket information"""
 	if not name or not email or not director:
 		raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid data")
 
@@ -483,7 +466,6 @@ def update_supermarket(db: Session, supermarket_id: int, name: str, director: st
 
 def create_supermarket_account(db: Session, supermarket_id: int, name: str, director: str, 
 							   email: str, phone: str, password: str, activity_status: str) -> dict:
-	"""Create or update supermarket account"""
 	if not name or not director or not email or len(password) < 6:
 		raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid data")
 
@@ -535,7 +517,6 @@ def create_supermarket_account(db: Session, supermarket_id: int, name: str, dire
 def create_supermarket_with_account(db: Session, name: str, director: str, email: str, 
 						 phone: str, address: str, password: str, activity_status: str,
 						 latitude: float = None, longitude: float = None) -> dict:
-	"""Create new supermarket with account"""
 	if not name or not director or not email or len(password) < 6:
 		raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid data")
 
@@ -582,7 +563,6 @@ def create_supermarket_with_account(db: Session, name: str, director: str, email
 
 
 def toggle_supermarket_lock(db: Session, supermarket_id: int) -> dict:
-	"""Toggle supermarket lock status"""
 	users = db.query(
 		User.id, User.is_active
 	).filter(
@@ -617,7 +597,6 @@ def toggle_supermarket_lock(db: Session, supermarket_id: int) -> dict:
 
 
 def delete_supermarket(db: Session, supermarket_id: int) -> dict:
-	"""Delete supermarket"""
 	try:
 		db.query(User).filter(User.supermarket_id == supermarket_id).delete()
 		db.query(Supermarket).filter(Supermarket.id == supermarket_id).delete()
@@ -634,7 +613,6 @@ def delete_supermarket(db: Session, supermarket_id: int) -> dict:
 # ========== Charity Management ==========
 
 def list_charities(db: Session) -> dict:
-	"""List all charities"""
 	rows = db.query(
 		CharityOrganization.id,
 		CharityOrganization.org_name,
@@ -681,7 +659,6 @@ def list_charities(db: Session) -> dict:
 
 def update_charity(db: Session, charity_id: int, name: str, director: str, email: str, 
 				   phone: str, address: str, latitude: float = None, longitude: float = None) -> dict:
-	"""Update charity information"""
 	if not name or not director or not email:
 		raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid data")
 
@@ -712,7 +689,6 @@ def update_charity(db: Session, charity_id: int, name: str, director: str, email
 
 def create_charity_account(db: Session, charity_id: int, name: str, director: str, 
 						   email: str, phone: str, address: str, password: str, password_status: str) -> dict:
-	"""Create or update charity account"""
 	if not name or not director or not email or len(password) < 6:
 		raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid data")
 
@@ -774,7 +750,6 @@ def create_charity_account(db: Session, charity_id: int, name: str, director: st
 def create_charity_with_account(db: Session, name: str, director: str, email: str, 
 								phone: str, address: str, password: str, password_status: str,
 								latitude: float = None, longitude: float = None) -> dict:
-	"""Create new charity with account"""
 	if not name or not director or not email or len(password) < 6:
 		raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid data")
 
@@ -821,7 +796,6 @@ def create_charity_with_account(db: Session, name: str, director: str, email: st
 
 
 def toggle_charity_lock(db: Session, charity_id: int) -> dict:
-	"""Toggle charity lock status"""
 	row = db.query(
 		User.id, User.is_active
 	).join(
@@ -844,7 +818,6 @@ def toggle_charity_lock(db: Session, charity_id: int) -> dict:
 
 
 def delete_charity(db: Session, charity_id: int) -> dict:
-	"""Delete charity"""
 	charity = db.query(CharityOrganization).filter(CharityOrganization.id == charity_id).first()
 	if charity and charity.user_id:
 		db.query(User).filter(User.id == charity.user_id).delete()
@@ -856,7 +829,6 @@ def delete_charity(db: Session, charity_id: int) -> dict:
 # ========== Delivery Partner Management ==========
 
 def list_delivery_partners(db: Session) -> dict:
-	"""List all delivery partners"""
 	rows = db.query(
 		DeliveryPartner.id,
 		DeliveryPartner.phone,
@@ -899,7 +871,6 @@ def list_delivery_partners(db: Session) -> dict:
 
 def update_delivery_partner(db: Session, delivery_id: int, manager: str, email: str, 
 							 phone: str, vehicle_type: str, license_plate: str) -> dict:
-	"""Update delivery partner information"""
 	if not manager or not email or not phone:
 		raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid data")
 
@@ -929,7 +900,6 @@ def update_delivery_partner(db: Session, delivery_id: int, manager: str, email: 
 def create_delivery_account(db: Session, delivery_id: int, manager: str, email: str, 
 							 phone: str, vehicle_type: str, license_plate: str, 
 							 password: str, password_status: str) -> dict:
-	"""Create or update delivery account"""
 	if not manager or not email or not phone or len(password) < 6:
 		raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid data")
 
@@ -991,7 +961,6 @@ def create_delivery_account(db: Session, delivery_id: int, manager: str, email: 
 def create_delivery_with_account(db: Session, manager: str, email: str, 
 								 phone: str, vehicle_type: str, license_plate: str,
 								 password: str, password_status: str) -> dict:
-	"""Create new delivery partner with account"""
 	if not manager or not email or not phone or len(password) < 6:
 		raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid data")
 
@@ -1033,7 +1002,6 @@ def create_delivery_with_account(db: Session, manager: str, email: str,
 
 
 def toggle_delivery_lock(db: Session, delivery_id: int) -> dict:
-	"""Toggle delivery partner lock status"""
 	row = db.query(
 		User.id, User.is_active
 	).join(
@@ -1056,7 +1024,6 @@ def toggle_delivery_lock(db: Session, delivery_id: int) -> dict:
 
 
 def delete_delivery_partner(db: Session, delivery_id: int) -> dict:
-	"""Delete delivery partner"""
 	delivery = db.query(DeliveryPartner).filter(DeliveryPartner.id == delivery_id).first()
 	if delivery and delivery.user_id:
 		db.query(User).filter(User.id == delivery.user_id).delete()

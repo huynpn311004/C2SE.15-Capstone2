@@ -1,5 +1,3 @@
-"""Staff endpoint request and response schemas."""
-
 from datetime import date, datetime
 from pydantic import BaseModel, Field
 

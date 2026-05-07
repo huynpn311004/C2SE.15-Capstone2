@@ -1,15 +1,4 @@
-"""
-Shipping Fee Calculation Service
-Thiết kế cho nội thành Đà Nẵng — thực phẩm sắp hết hạn, giao bằng xe máy.
-
-3 vùng giao hàng:
-  🟢 Bình thường (0-10km): phí theo bậc, miễn phí cho đơn >= 100k
-  🟡 Cảnh báo (10-15km): 40k, có warning banner
-  🔴 Chặn (>15km): không cho đặt hàng
-"""
-
 from app.services.geocoding_service import calculate_distance, geocode_address
-
 
 # ===== CẤU HÌNH PHÍ VẬN CHUYỂN =====
 
@@ -28,19 +17,6 @@ FREE_SHIPPING_THRESHOLD = 100000  # Miễn phí ship cho đơn >= 100.000đ
 
 
 def calculate_shipping_fee(distance_km: float, order_amount: float = 0) -> dict:
-    """
-    Tính phí vận chuyển dựa trên khoảng cách.
-    
-    Returns:
-        dict với keys:
-        - fee: phí vận chuyển cuối cùng (VND) hoặc None nếu chặn
-        - original_fee: phí trước khi áp dụng miễn phí
-        - distance_km: khoảng cách (km)
-        - zone: "normal" | "warning" | "blocked"
-        - deliverable: True/False
-        - free_shipping: True nếu đơn đủ lớn để miễn phí
-        - message: thông báo cho user
-    """
     distance_km = round(distance_km, 2)
 
     # --- Vùng Chặn: > 15km ---
@@ -107,11 +83,6 @@ async def estimate_shipping_for_store(
     lng: float = None,
     order_amount: float = 0,
 ) -> dict:
-    """
-    Ước tính phí ship từ store đến địa chỉ/tọa độ khách hàng.
-    
-    Dùng cho API estimate-shipping endpoint.
-    """
     from app.models.store import Store
 
     store = db.query(Store).filter(Store.id == store_id).first()
@@ -167,10 +138,6 @@ def calculate_shipping_fee_sync(
     shipping_address: str,
     order_amount: float = 0,
 ) -> dict:
-    """
-    Phiên bản SYNC để dùng trong flow tạo đơn hàng (customer_service).
-    Geocode synchronously bằng httpx.
-    """
     import httpx
     from app.models.store import Store
     from app.models.user import User

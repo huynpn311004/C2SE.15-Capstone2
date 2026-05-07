@@ -1,5 +1,3 @@
-"""Discount policy router - delegates to service layer."""
-
 from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -67,7 +65,6 @@ def update_discount_policy(
     current_user: User = Depends(require_supermarket_admin),
     db: Session = Depends(get_db),
 ):
-    """Update discount policy."""
     return discount_policy_service.update_discount_policy(
         db,
         policy_id,
@@ -111,6 +108,3 @@ def calculate_discount(
     return discount_policy_service.calculate_discount(
         db, base_price, expiry_date, supermarket_id, product_id
     )
-
-
-

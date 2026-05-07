@@ -1,5 +1,3 @@
-"""Discount policy endpoint request and response schemas."""
-
 from pydantic import BaseModel
 
 
@@ -27,4 +25,4 @@ class DiscountCalculationResponse(BaseModel):
     originalPrice: float
     discountAmount: float
     finalPrice: float
-    appliedLevel: str = "none"  # product, category, supermarket_default, or none
+    appliedLevel: str = "none"

@@ -249,7 +249,6 @@ def cancel_customer_order(db: Session, order_id: int, customer_id: int):
 # VNPAY PAYMENT
 # =======================
 def initiate_vnpay_payment(db: Session, data, ip_address: str = "127.0.0.1") -> Dict:
-    """Khởi tạo thanh toán VNPay cho order."""
     from app.services.vnpay_service import create_vnpay_payment
     from app.schemas.payment_schemas import PaymentResponse
 
@@ -276,12 +275,10 @@ def initiate_vnpay_payment(db: Session, data, ip_address: str = "127.0.0.1") -> 
 
 
 def handle_vnpay_ipn_handler(db: Session, params: dict) -> Dict:
-    """Xử lý IPN callback từ VNPay."""
     from app.services.vnpay_service import handle_vnpay_ipn
     return handle_vnpay_ipn(db, params)
 
 
 def handle_vnpay_return_handler(db: Session, params: dict) -> Dict:
-    """Xử lý return URL từ VNPay."""
     from app.services.vnpay_service import handle_vnpay_return
     return handle_vnpay_return(db, params)

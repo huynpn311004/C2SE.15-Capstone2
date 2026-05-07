@@ -28,7 +28,6 @@ def initiate_payment(
     db: Session = Depends(get_db),
     request: Request = None,
 ):
-    """Khởi tạo thanh toán online cho order"""
     if data.order_id != order_id:
         raise HTTPException(status_code=400, detail="Order ID mismatch")
     
@@ -59,7 +58,6 @@ def vnpay_return(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    """VNPay redirect URL sau thanh toán (user browser)"""
     try:
         params = dict(request.query_params)
         result = handle_vnpay_return_handler(db, params)
@@ -73,10 +71,7 @@ async def vnpay_ipn(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    """VNPay server-to-server IPN callback (background).
-    VNPay sends IPN as GET with query params in URL."""
     try:
-        # VNPay IPN gửi dữ liệu qua query string trên URL
         params = dict(request.query_params)
         result = handle_vnpay_ipn_handler(db, params)
         return result
@@ -90,7 +85,6 @@ def get_payment_status(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Kiểm tra trạng thái thanh toán order"""
     order = db.query(Order).filter(
         Order.id == order_id,
         Order.customer_id == current_user.id
@@ -107,4 +101,3 @@ def get_payment_status(
         transaction_id=getattr(order, 'transaction_id', None),
         message="Đã thanh toán COD" if order.payment_method == "cod" else None
     )
-

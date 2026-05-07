@@ -1,5 +1,3 @@
-"""Charity router - delegates to service layer."""
-
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
@@ -13,9 +11,7 @@ from app.schemas.donation_request_schemas import (
     DonationRequestDetailResponse,
 )
 
-
 router = APIRouter(prefix="/charity", tags=["charity"])
-
 
 # ========== Profile Management ==========
 @router.get("/profile")
@@ -85,7 +81,6 @@ def list_charity_donation_requests(
 	current_user: User = Depends(get_current_user),
 	db: Session = Depends(get_db),
 ):
-    """List charity's donation requests (grouped by request, not by item)."""
     return charity_service.list_charity_donation_requests_new(db, current_user.id)
 
 
@@ -95,7 +90,6 @@ def get_charity_donation_request_detail(
 	current_user: User = Depends(get_current_user),
 	db: Session = Depends(get_db),
 ):
-    """Get detail of a specific donation request."""
     return charity_service.get_charity_donation_request_detail(db, current_user.id, request_id)
 
 
@@ -105,5 +99,4 @@ def confirm_received_donation(
 	current_user: User = Depends(get_current_user),
 	db: Session = Depends(get_db),
 ):
-    """Confirm received donation request."""
     return charity_service.confirm_received_donation(db, current_user.id, request_id)
