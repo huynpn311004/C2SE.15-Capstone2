@@ -37,6 +37,7 @@ import CustomerLayout from './components/layout/CustomerLayout.jsx';
 import CustomerDashboard from './pages/customer/CustomerDashboard.jsx';
 import CustomerCart from './pages/customer/CustomerCart.jsx';
 import CustomerCheckout from './pages/customer/CustomerCheckout.jsx';
+import PaymentReturn from './pages/customer/PaymentReturn.jsx';
 import CustomerOrders from './pages/customer/CustomerOrders.jsx';
 import CustomerProductDetail from './pages/customer/CustomerProductDetail.jsx';
 import CustomerSetting from './pages/customer/CustomerSetting.jsx';
@@ -106,6 +107,10 @@ function App() {
           <Route path="/customer/orders" element={<CustomerLayout><CustomerOrders /></CustomerLayout>} />
           <Route path="/customer/product/:id" element={<CustomerLayout><CustomerProductDetail /></CustomerLayout>} />
           <Route path="/customer/profile" element={<CustomerLayout><CustomerSetting /></CustomerLayout>} />
+
+          {/* Payment Return Routes */}
+          <Route path="/payment/vnpay/return" element={<PaymentReturn />} />
+          <Route path="/payment/vnpay-return" element={<PaymentReturn />} />
 
           {/* Delivery Partner Routes */}
           <Route path="/delivery" element={<Navigate to="/delivery/dashboard" replace />} />

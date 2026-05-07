@@ -366,9 +366,11 @@ export default function InventoryLots() {
               <tr>
                 <th>Mã Lô</th>
                 <th>Tên Sản Phẩm</th>
-                <th>Số Lượng</th>
-                <th>Ngày Sản Xuất</th>
-                <th>Ngày Hết Hạn</th>
+                <th>Tổng</th>
+                <th>Đã Giữ</th>
+                <th>Còn Lại</th>
+                <th>Ngày SX</th>
+                <th>Ngày HH</th>
                 <th>Trạng Thái</th>
                 <th>Thao Tác</th>
               </tr>
@@ -382,6 +384,12 @@ export default function InventoryLots() {
                     </td>
                     <td>{lot.productName}</td>
                     <td>{lot.quantity}</td>
+                    <td style={{ color: (lot.reserved || 0) > 0 ? '#e67e22' : 'inherit', fontWeight: (lot.reserved || 0) > 0 ? 600 : 400 }}>
+                      {lot.reserved || 0}
+                    </td>
+                    <td style={{ color: (lot.available ?? lot.quantity) === 0 ? '#e74c3c' : '#27ae60', fontWeight: 600 }}>
+                      {lot.available ?? lot.quantity}
+                    </td>
                     <td>
                       {lot.manufacturingDate
                         ? new Date(lot.manufacturingDate).toLocaleDateString('vi-VN')
@@ -419,7 +427,7 @@ export default function InventoryLots() {
                 ))
               ) : (
                   <tr>
-                  <td colSpan="7" className="empty-cell">
+                  <td colSpan="9" className="empty-cell">
                     Không có dữ liệu
                   </td>
                 </tr>

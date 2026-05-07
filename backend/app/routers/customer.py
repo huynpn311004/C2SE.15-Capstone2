@@ -40,9 +40,10 @@ from app.services.customer_service import (
 	list_customer_orders,
 	get_customer_order_detail,
 	customer_dashboard_summary,
+	confirm_customer_order,
 )
 
-from app.services.order_service import create_customer_order, create_multi_store_order, confirm_customer_order, cancel_customer_order
+from app.services.order_service import create_customer_order, create_multi_store_order, cancel_customer_order
 
 router = APIRouter(prefix="/customer", tags=["customer"])
 
@@ -185,22 +186,6 @@ def create_order(
 		data.shippingPhone or ''
 	)
 
-@router.post("/orders/{order_id}/pay")
-def pay_order(
-	order_id: int,
-	data: PaymentRequest,
-	current_user: User = Depends(get_current_user),
-	db: Session = Depends(get_db)
-):
-	"""Chuyển hướng đến payment gateway"""
-	from app.services.order_service import initiate_momo_payment
-	from app.schemas.payment_schemas import PaymentResponse
-	
-	payment_result = initiate_momo_payment(db, data)
-	
-	# Redirect to Momo (in production use frontend redirect)
-	return {"redirect_url": payment_result.payment_url, "message": "Redirecting to Momo..."}
-
 
 @router.post("/orders/multi-store", response_model=CreateMultiStoreOrderResponse)
 def create_multi_store(
@@ -216,7 +201,7 @@ def create_multi_store(
 		db,
 		current_user.id,
 		data.items,
-		data.paymentMethod or 'cod',
+		data.paymentMethod,
 		data.shippingAddress or '',
 		data.couponId,
 		data.shippingPhone or ''

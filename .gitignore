@@ -26,3 +26,4 @@ REVIEW.md
 backend\seed_all_data.py
 backend\seed_coupons.py
 backend\seed_inventory.py
+.env.example
