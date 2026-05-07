@@ -215,7 +215,7 @@ class OrderItemCreateRequest(BaseModel):
 class CreateOrderRequest(BaseModel):
 	items: List[OrderItemCreateRequest]
 	storeId: Optional[int] = None  # Optional for multi-store orders
-	paymentMethod: str = Field(default="cod")
+	paymentMethod: Optional[str] = Field(default=None)
 	shippingAddress: Optional[str] = None
 	couponId: Optional[int] = None  # ID của coupon được áp dụng
 	shippingPhone: Optional[str] = Field(default=None, max_length=20)  # Số điện thoại liên hệ khi giao hàng
@@ -318,3 +318,26 @@ class CouponItemResponse(BaseModel):
 
 class CouponListResponse(BaseModel):
 	items: List[CouponItemResponse]
+
+
+# ========== Shipping Schemas ==========
+
+class EstimateShippingRequest(BaseModel):
+	storeId: int
+	address: Optional[str] = None
+	latitude: Optional[float] = None
+	longitude: Optional[float] = None
+	orderAmount: float = 0
+
+
+class EstimateShippingResponse(BaseModel):
+	deliverable: bool
+	zone: str  # "normal" | "warning" | "blocked"
+	fee: Optional[float] = None
+	originalFee: Optional[float] = None
+	distanceKm: Optional[float] = None
+	freeShipping: bool = False
+	freeShippingThreshold: float = 100000
+	message: str
+	storeId: Optional[int] = None
+	storeName: Optional[str] = None

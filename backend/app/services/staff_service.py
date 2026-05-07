@@ -517,7 +517,8 @@ def list_staff_orders(db: Session, store_id: int) -> dict:
     ).join(
         User, User.id == Order.customer_id
     ).filter(
-        Order.store_id == store_id
+        Order.store_id == store_id,
+        Order.payment_status == 'paid'
     ).order_by(
         Order.created_at.desc()
     ).limit(100).all()
@@ -832,7 +833,7 @@ def get_staff_order_detail(db: Session, order_id: int, store_id: int) -> dict:
         "amount": f"{float(order_row.total_amount or 0):,.0f} VNĐ" if order_row.total_amount else "0 VNĐ",
         "paymentMethod": order_row.payment_method or "—",
         "paymentMethodText": "Tiền mặt" if order_row.payment_method == "cod"
-                             else ("MoMo" if order_row.payment_method == "momo" else "—"),
+                             else ("VNPay" if order_row.payment_method == "vnpay" else "—"),
         "paymentStatus": order_row.payment_status,
         "createdAt": order_row.created_at.strftime("%d/%m/%Y %H:%M"),
         "deliveredAt": order_row.delivered_at.strftime("%d/%m/%Y %H:%M") if order_row.delivered_at else None,
@@ -1864,6 +1865,7 @@ def list_inventory_lots(db: Session, store_id: int, status_filter: str = "all") 
         InventoryLot.id,
         InventoryLot.lot_code,
         InventoryLot.qty_on_hand,
+        InventoryLot.qty_reserved,
         InventoryLot.expiry_date,
         InventoryLot.manufacturing_date,
         InventoryLot.status,
@@ -1908,6 +1910,8 @@ def list_inventory_lots(db: Session, store_id: int, status_filter: str = "all") 
                 "lotCode": item["lot_code"],
                 "productName": item["product_name"],
                 "quantity": int(item["qty_on_hand"] or 0),
+                "reserved": int(item["qty_reserved"] or 0),
+                "available": max(0, int(item["qty_on_hand"] or 0) - int(item["qty_reserved"] or 0)),
                 "manufacturingDate": item["manufacturing_date"].strftime("%Y-%m-%d") if item["manufacturing_date"] else None,
                 "expiryDate": expiry_date.strftime("%Y-%m-%d"),
                 "status": current_status,

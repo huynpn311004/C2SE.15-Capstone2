@@ -29,9 +29,10 @@ class Order(Base):
         default="pending",
     )
     total_amount: Mapped[Decimal | None] = mapped_column(DECIMAL(10, 2), nullable=True)
+    shipping_fee: Mapped[Decimal | None] = mapped_column(DECIMAL(10, 2), nullable=True, default=0)
     discount_amount: Mapped[Decimal | None] = mapped_column(DECIMAL(10, 2), nullable=True, default=0)
     payment_method: Mapped[str | None] = mapped_column(
-        Enum("cod", "momo", name="order_payment_method"),
+        Enum("cod", "vnpay", name="order_payment_method"),
         nullable=True,
     )
     payment_status: Mapped[str] = mapped_column(

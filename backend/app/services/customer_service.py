@@ -1384,7 +1384,7 @@ def confirm_customer_order(db: Session, order_id: int, user_id: int) -> dict:
 	Confirm order after payment - convert reserved stock to actual deduction
 	Called when payment is confirmed (payment_status changes to 'paid')
 	"""
-	order = db.query(Order.id, Order.status, Order.payment_status).filter(
+	order = db.query(Order).filter(
 		Order.id == order_id,
 		Order.customer_id == user_id
 	).first()
@@ -1392,7 +1392,7 @@ def confirm_customer_order(db: Session, order_id: int, user_id: int) -> dict:
 	if not order:
 		raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Don hang khong ton tai")
 
-	if order.payment_status == "paid":
+	if order.status == "preparing":
 		# Already confirmed, no action needed
 		return {"success": True, "message": "Don hang da duoc xac nhan"}
 
@@ -1415,70 +1415,21 @@ def confirm_customer_order(db: Session, order_id: int, user_id: int) -> dict:
 			synchronize_session=False
 		)
 
-	# Update order payment status
+	# Update order payment status, payment method and order status
+	update_data = {
+		Order.payment_status: 'paid',
+		Order.status: 'preparing'
+	}
+	if order.payment_method is None:
+		update_data[Order.payment_method] = 'cod'
+
 	db.query(Order).filter(Order.id == order_id).update(
-		{Order.payment_status: 'paid'},
+		update_data,
 		synchronize_session=False
 	)
-
 	db.commit()
 	return {"success": True, "message": "Xac nhan thanh toan thanh cong"}
 
-
-def _auto_cleanup_expired_reservations(db: Session, timeout_minutes: int = 3) -> dict:
-	"""
-	Auto-cleanup expired reservations before any stock operation.
-	SECOND layer of protection - validates and releases expired
-	reservations on-the-fly when orders are being processed.
-	
-	Returns dict with cleanup info for logging purposes.
-	"""
-	cutoff_time = datetime.now() - timedelta(minutes=timeout_minutes)
-	
-	expired_orders = db.query(Order.id, Order.reserved_at).filter(
-		Order.payment_status == 'pending',
-		Order.status == 'pending',
-		Order.reserved_at <= cutoff_time
-	).all()
-	
-	cleaned_count = 0
-	
-	for order_row in expired_orders:
-		order_id = order_row.id
-		
-		item_rows = db.query(
-			OrderItem.lot_id,
-			OrderItem.quantity
-		).filter(OrderItem.order_id == order_id).all()
-		
-		for item in item_rows:
-			lot = db.query(InventoryLot.qty_reserved).filter(
-				InventoryLot.id == item.lot_id
-			).first()
-			
-			if lot and lot.qty_reserved > 0:
-				restore_qty = min(item.quantity, lot.qty_reserved)
-				if restore_qty > 0:
-					db.query(InventoryLot).filter(
-						InventoryLot.id == item.lot_id
-					).update(
-						{InventoryLot.qty_reserved: InventoryLot.qty_reserved - restore_qty},
-						synchronize_session=False
-					)
-		
-		db.query(Order).filter(Order.id == order_id).update(
-			{Order.status: 'expired'},
-			synchronize_session=False
-		)
-		cleaned_count += 1
-	
-	if cleaned_count > 0:
-		db.commit()
-	
-	return {
-		"cleanedOrders": cleaned_count,
-		"cutoffTime": cutoff_time.strftime("%Y-%m-%d %H:%M:%S")
-	}
 
 
 def restore_expired_reserved_stock(db: Session, timeout_minutes: int = 3) -> dict:
@@ -1570,9 +1521,9 @@ def validate_cart_stock(db: Session, items: list, user_id: int = None) -> dict:
 	
 	# FIRST: Auto-cleanup expired reservations BEFORE checking stock
 	# This ensures expired reservations don't block valid purchases
-	cleanup_result = _auto_cleanup_expired_reservations(db, timeout_minutes=3)
-	if cleanup_result["cleanedOrders"] > 0:
-		logger.info(f"Auto-cleanup during validation: {cleanup_result['cleanedOrders']} expired orders released")
+	cleanup_result = restore_expired_reserved_stock(db, timeout_minutes=3)
+	if cleanup_result["restoredCount"] > 0:
+		logger.info(f"Auto-cleanup during validation: {cleanup_result['restoredCount']} expired orders released")
 	
 	from app.models import InventoryLot, Product
 	

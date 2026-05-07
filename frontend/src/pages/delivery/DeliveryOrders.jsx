@@ -31,7 +31,7 @@ const statusText = {
 
 const paymentMethodText = {
   cod: 'Tiền mặt (COD)',
-  momo: 'MoMo',
+  vnpay: 'VNPay',
 }
 
 const paymentStatusText = {

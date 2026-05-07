@@ -278,15 +278,14 @@ const CustomerCart = () => {
         return;
       }
 
-      // Create orders immediately to reserve stock
+      // Create orders immediately to reserve stock (payment method set later at checkout)
       const result = await createMultiStoreOrder({
         items: validationItems,
-        paymentMethod: 'cod',
         shippingAddress: shippingAddress,
       });
 
 
-      showToast('✅ Đặt hàng và giữ chỗ thành công! Vui lòng xác nhận thông tin.');
+      showToast('Đặt hàng và giữ chỗ thành công! Vui lòng xác nhận thông tin.');
 
       setTimeout(() => {
         // Xóa các sản phẩm đã đặt khỏi giỏ hàng chỉ sau khi đã điều hướng sang trang checkout

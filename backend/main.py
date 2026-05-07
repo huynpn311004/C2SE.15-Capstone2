@@ -1,5 +1,4 @@
 from app import create_app
-from app.routers.momo import router as momo_router
 import uvicorn
 
 app = create_app()

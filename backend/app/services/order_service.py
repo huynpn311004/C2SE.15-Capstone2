@@ -1,3 +1,4 @@
+from datetime import datetime
 from sqlalchemy.orm import Session
 from decimal import Decimal
 from typing import List, Dict, Any, Optional
@@ -9,6 +10,7 @@ from app.models.order_item import OrderItem
 from app.models.inventory_lot import InventoryLot
 from app.models.user import User
 from app.models.product import Product
+from app.models.store import Store
 
 
 # =======================
@@ -28,7 +30,7 @@ def create_customer_order(
     customer_id: int,
     items: List[Any],
     store_id: int,
-    payment_method: str = "cod",
+    payment_method: Optional[str] = None,
     shipping_address: str = "",
     shipping_phone: str = "",
     coupon_id: Optional[int] = None,
@@ -94,7 +96,8 @@ def create_customer_order(
             payment_status="paid" if payment_method == "cod" else "pending",
             shipping_address=shipping_address,
             shipping_phone=shipping_phone,
-            status="pending"
+            status="pending",
+            reserved_at=datetime.now()  # Đánh dấu thời điểm đặt chỗ tồn kho
         )
 
         db.add(order)
@@ -174,6 +177,10 @@ def create_multi_store_order(
             coupon_id
         )
 
+        # Get store name from database
+        store = db.query(Store).filter(Store.id == store_id).first()
+        store_name = store.name if store else f"Store {store_id}"
+
         #  KHÔNG QUERY LẠI DB NỮA
         items_response = []
 
@@ -191,7 +198,7 @@ def create_multi_store_order(
 
         results.append({
             "storeId": store_id,
-            "storeName": f"Store {store_id}",
+            "storeName": store_name,
             "orderId": order["orderId"],
             "orderCode": order["orderCode"],
             "totalAmount": order["totalAmount"],
@@ -205,32 +212,6 @@ def create_multi_store_order(
         "totalOrders": len(results),
         "totalAmount": sum(o["totalAmount"] for o in results)
     }
-
-# =======================
-# CONFIRM ORDER
-# =======================
-def confirm_customer_order(db: Session, order_id: int, customer_id: int):
-
-    order = db.query(Order).filter(
-        Order.id == order_id,
-        Order.customer_id == customer_id
-    ).first()
-
-    if not order:
-        raise ValueError("Order not found")
-
-    if order.status != "pending":
-        return {
-            "success": False,
-            "message": f"Order cannot confirm because status is {order.status}"
-        }
-
-    order.status = "preparing"
-    order.payment_status = "paid"
-
-    db.commit()
-
-    return {"success": True}
 
 # =======================
 # CANCEL ORDER
@@ -262,3 +243,45 @@ def cancel_customer_order(db: Session, order_id: int, customer_id: int):
     db.commit()
 
     return {"success": True}
+
+
+# =======================
+# VNPAY PAYMENT
+# =======================
+def initiate_vnpay_payment(db: Session, data, ip_address: str = "127.0.0.1") -> Dict:
+    """Khởi tạo thanh toán VNPay cho order."""
+    from app.services.vnpay_service import create_vnpay_payment
+    from app.schemas.payment_schemas import PaymentResponse
+
+    order = db.query(Order).filter(Order.id == data.order_id).first()
+    if not order:
+        raise ValueError("Order not found")
+
+    # Cập nhật payment_method nếu order được tạo từ cart với default cod
+    if order.payment_method != "vnpay":
+        order.payment_method = "vnpay"
+        db.commit()
+
+    result = create_vnpay_payment(
+        order_id=data.order_id,
+        amount=float(order.total_amount),
+        order_info=f"Thanh toan don hang {data.order_id}",
+        ip_address=ip_address,
+    )
+
+    return PaymentResponse(
+        payment_url=result["payment_url"],
+        order_id=data.order_id,
+    )
+
+
+def handle_vnpay_ipn_handler(db: Session, params: dict) -> Dict:
+    """Xử lý IPN callback từ VNPay."""
+    from app.services.vnpay_service import handle_vnpay_ipn
+    return handle_vnpay_ipn(db, params)
+
+
+def handle_vnpay_return_handler(db: Session, params: dict) -> Dict:
+    """Xử lý return URL từ VNPay."""
+    from app.services.vnpay_service import handle_vnpay_return
+    return handle_vnpay_return(db, params)

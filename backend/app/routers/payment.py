@@ -1,21 +1,21 @@
-from fastapi import APIRouter, Depends, HTTPException, status as http_status, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status as http_status, Request
 from sqlalchemy.orm import Session
 from typing import Dict, Any
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.models.user import User
+from app.models.order import Order
 from app.schemas.payment_schemas import (
     PaymentRequest, 
     PaymentResponse, 
     PaymentStatusResponse, 
-    MomoIPNRequest, 
     SuccessResponse
 )
 from app.services.order_service import (
-    initiate_momo_payment,
-    handle_momo_ipn,
-    confirm_customer_order
+    initiate_vnpay_payment,
+    handle_vnpay_ipn_handler,
+    handle_vnpay_return_handler,
 )
 
 router = APIRouter(prefix="/payment", tags=["payment"])
@@ -25,74 +25,64 @@ def initiate_payment(
     order_id: int,
     data: PaymentRequest,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    request: Request = None,
 ):
     """Khởi tạo thanh toán online cho order"""
     if data.order_id != order_id:
         raise HTTPException(status_code=400, detail="Order ID mismatch")
     
     # Check order belongs to user
-    order = db.query("SELECT * FROM orders WHERE id = ? AND customer_id = ?").params(order_id, current_user.id).first()
+    order = db.query(Order).filter(
+        Order.id == order_id,
+        Order.customer_id == current_user.id
+    ).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     
-    if data.payment_method != "momo":
-        raise HTTPException(status_code=400, detail="Only Momo supported")
+    if data.payment_method != "vnpay":
+        raise HTTPException(status_code=400, detail="Only VNPay supported")
     
     try:
-        result = initiate_momo_payment(db, data)
+        # Lấy IP address của client
+        client_ip = request.client.host if request else "127.0.0.1"
+        result = initiate_vnpay_payment(db, data, client_ip)
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.post("/momo/ipn")
-def momo_ipn(
-    ipn_data: dict,  # Raw form data from Momo
-    db: Session = Depends(get_db)
+# =======================
+# VNPAY ENDPOINTS
+# =======================
+@router.get("/vnpay/return")
+def vnpay_return(
+    request: Request,
+    db: Session = Depends(get_db),
 ):
-    """Momo server-to-server IPN callback (background)"""
+    """VNPay redirect URL sau thanh toán (user browser)"""
     try:
-        result = handle_momo_ipn(db, ipn_data)
-        if result['success']:
-            return {"resultCode": 0, "message": "success"}
-        else:
-            return {"resultCode": 1, "message": "failed"}
-    except Exception as e:
-        return {"resultCode": 1, "message": str(e)}
-
-@router.get("/momo/return")
-def momo_return(
-    order_id: str,
-    result_code: int,
-    trans_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Momo redirect URL sau thanh toán (user browser)"""
-    try:
-        # Extract order_id from Momo orderId
-        real_order_id = int(order_id.replace("SEIMS", ""))
-        
-        order = db.query(Order).filter(
-            Order.id == real_order_id,
-            Order.customer_id == current_user.id
-        ).first()
-        
-        if not order:
-            raise HTTPException(status_code=404, detail="Order not found")
-        
-        status = "paid" if result_code == 0 else "failed"
-        order.payment_status = status
-        order.status = "preparing" if status == "paid" else "cancelled"
-        db.commit()
-        
-        if status == "paid":
-            return SuccessResponse(message="Thanh toán thành công! Đơn hàng đang được chuẩn bị.")
-        else:
-            return SuccessResponse(message="Thanh toán thất bại. Vui lòng thử lại.")
-            
+        params = dict(request.query_params)
+        result = handle_vnpay_return_handler(db, params)
+        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail="Payment processing error")
+
+
+@router.post("/vnpay/ipn")
+async def vnpay_ipn(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """VNPay server-to-server IPN callback (background).
+    VNPay sends IPN as GET with query params in URL."""
+    try:
+        # VNPay IPN gửi dữ liệu qua query string trên URL
+        params = dict(request.query_params)
+        result = handle_vnpay_ipn_handler(db, params)
+        return result
+    except Exception as e:
+        return {"RspCode": "99", "Message": str(e)}
+
 
 @router.get("/orders/{order_id}/payment-status", response_model=PaymentStatusResponse)
 def get_payment_status(

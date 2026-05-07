@@ -50,7 +50,7 @@ function CouponModal({ isOpen, onClose, coupons, selectedCoupon, onSelectCoupon,
                     <input
                       type="radio"
                       checked={isSelected}
-                      onChange={() => {}}
+                      onChange={() => { }}
                       disabled={!applicable}
                     />
                   </div>
@@ -107,7 +107,7 @@ const CustomerCheckout = () => {
   const [showCouponModal, setShowCouponModal] = useState(false);
   const [availableCoupons, setAvailableCoupons] = useState([]);
   const [selectedCoupon, setSelectedCoupon] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState('cod');  // 'cod' or 'momo'
+  const [paymentMethod, setPaymentMethod] = useState('cod');  // 'cod' or 'vnpay'
 
   const getProfile = () => {
     try {
@@ -209,17 +209,17 @@ const CustomerCheckout = () => {
   };
 
   // Calculate coupon discount
+  const subtotal = cart.reduce((sum, item) => {
+    const price = item.salePrice || item.bestPrice || 0;
+    return sum + price * item.quantity;
+  }, 0);
+
   const couponDiscount = selectedCoupon
     ? Math.round((isMultiStore ? totalAmount : subtotal) * selectedCoupon.discountPercent / 100)
     : 0;
 
   // Final total after discount
   const finalTotal = (isMultiStore ? totalAmount : subtotal) - couponDiscount;
-
-  const subtotal = cart.reduce((sum, item) => {
-    const price = item.salePrice || item.bestPrice || 0;
-    return sum + price * item.quantity;
-  }, 0);
 
   const totalSavings = cart.reduce((sum, item) => {
     const original = item.originalPrice || 0;
@@ -251,62 +251,49 @@ const CustomerCheckout = () => {
     try {
       setSubmitting(true);
 
-        // NEW FLOW: Create orders from cart items with user-entered address
-        if (isMultiStore && itemsForOrder.length > 0) {
-          // Validate address is provided
-          if (!formData.address || formData.address.trim() === '') {
-            setToast({ visible: true, message: ' Vui lòng nhập địa chỉ giao hàng!' });
-            setSubmitting(false);
-            return;
-          }
-
-          // Create multi-store orders with selected payment method
-          const result = await createMultiStoreOrder({
-            items: itemsForOrder,
-            paymentMethod,
-            shippingAddress: formData.address,
-          });
-
-          if (paymentMethod === 'cod') {
-            // COD: Show success
-            const orderCodes = result.orderGroups.map(g => g.orderCode).join(', ');
-            setToast({
-              visible: true,
-              message: ` ✅ Đặt hàng COD thành công!\n${result.totalOrders} đơn: ${orderCodes}`
-            });
-            setTimeout(() => {
-              setToast(prev => ({ ...prev, visible: false }));
-              navigate('/customer/orders');
-            }, 3000);
-            clearCart();
-            return;
-          } else {
-            // Momo: Pay first order (lead order)
-            const leadOrderId = result.orderGroups[0].orderId;
-            const paymentResult = await initiatePayment(leadOrderId, 'momo');
-            window.location.href = paymentResult.redirect_url;
-            return;
-          }
-
-        // Update localStorage with new address
-        const authRaw = localStorage.getItem('seims_auth_user');
-        const authUser = authRaw ? JSON.parse(authRaw) : null;
-        if (authUser) {
-          authUser.address = formData.address;
-          localStorage.setItem('seims_auth_user', JSON.stringify(authUser));
+      // NEW FLOW: Create orders from cart items with user-entered address
+      if (isMultiStore && itemsForOrder.length > 0) {
+        // Validate address is provided
+        if (!formData.address || formData.address.trim() === '') {
+          setToast({ visible: true, message: ' Vui lòng nhập địa chỉ giao hàng!' });
+          setSubmitting(false);
+          return;
         }
 
-        // Format order codes
-        const orderCodes = result.orderGroups.map(g => g.orderCode).join(', ');
-        setToast({
-          visible: true,
-          message: ` Đặt hàng thành công!\n${result.totalOrders} đơn: ${orderCodes}`
+        // Create multi-store orders with selected payment method
+        const result = await createMultiStoreOrder({
+          items: itemsForOrder,
+          paymentMethod,
+          shippingAddress: formData.address,
         });
-        setTimeout(() => {
-          setToast(prev => ({ ...prev, visible: false }));
-          navigate('/customer/orders');
-        }, 3000);
-        return;
+
+        if (paymentMethod === 'cod') {
+          // COD: Confirm all orders (deduct stock)
+          for (const group of result.orderGroups) {
+            await confirmCustomerOrder(group.orderId);
+          }
+          const orderCodes = result.orderGroups.map(g => g.orderCode).join(', ');
+          setToast({
+            visible: true,
+            message: ` ✅ Đặt hàng COD thành công!\n${result.totalOrders} đơn: ${orderCodes}`
+          });
+          setTimeout(() => {
+            setToast(prev => ({ ...prev, visible: false }));
+            navigate('/customer/orders');
+          }, 3000);
+          clearCart();
+          return;
+        } else {
+          // VNPay: Pay first order (lead order)
+          const leadOrderId = result.orderGroups[0].orderId;
+          console.log('[VNPay] Initiating payment for order:', leadOrderId);
+          const paymentResult = await initiatePayment(leadOrderId, paymentMethod);
+          console.log('[VNPay] Payment result:', paymentResult);
+          const redirectUrl = paymentResult.redirect_url || paymentResult.payment_url;
+          console.log('[VNPay] Redirecting to:', redirectUrl);
+          window.location.href = redirectUrl;
+          return;
+        }
       }
 
       // OLD FLOW: Multi-Store Orders already created (pre-created orders)
@@ -318,21 +305,29 @@ const CustomerCheckout = () => {
           localStorage.setItem('seims_auth_user', JSON.stringify(authUser));
         }
 
-        // Confirm payment for all orders
-        for (const group of orderGroups) {
-          await confirmCustomerOrder(group.orderId);
-        }
+        if (paymentMethod === 'cod') {
+          // COD: Confirm payment for all orders
+          for (const group of orderGroups) {
+            await confirmCustomerOrder(group.orderId);
+          }
 
-        // Format order codes
-        const orderCodes = orderGroups.map(g => g.orderCode).join(', ');
-        setToast({
-          visible: true,
-          message: `✅ Thanh toán thành công!\n${totalOrders} đơn: ${orderCodes}`
-        });
-        setTimeout(() => {
-          setToast(prev => ({ ...prev, visible: false }));
-          navigate('/customer/orders');
-        }, 3000);
+          // Format order codes
+          const orderCodes = orderGroups.map(g => g.orderCode).join(', ');
+          setToast({
+            visible: true,
+            message: `✅ Thanh toán thành công!\n${totalOrders} đơn: ${orderCodes}`
+          });
+          setTimeout(() => {
+            setToast(prev => ({ ...prev, visible: false }));
+            navigate('/customer/orders');
+          }, 3000);
+        } else {
+          // VNPay: Pay first order (lead order)
+          const leadOrderId = orderGroups[0].orderId;
+          clearCart();
+          const paymentResult = await initiatePayment(leadOrderId, paymentMethod);
+          window.location.href = paymentResult.redirect_url || paymentResult.payment_url;
+        }
         return;
       }
 
@@ -370,7 +365,6 @@ const CustomerCheckout = () => {
       setSubmitting(false);
     }
   };
-
   if (loading) {
     return (
       <div className="customer-page" style={{ justifyContent: 'center', alignItems: 'center' }}>
@@ -454,7 +448,7 @@ const CustomerCheckout = () => {
                         }
                         storeGroups[storeId].items.push(item);
                       });
-                      
+
                       return Object.values(storeGroups).map((group) => (
                         <div key={group.storeId} className="customer-checkout-store-group">
                           {/* Store Header */}
@@ -511,8 +505,8 @@ const CustomerCheckout = () => {
                   onClick={() => setShowCouponModal(true)}
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: '18px', height: '18px' }}>
-                    <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
-                    <line x1="7" y1="7" x2="7.01" y2="7"/>
+                    <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+                    <line x1="7" y1="7" x2="7.01" y2="7" />
                   </svg>
                   <span>{selectedCoupon ? `Mã: ${selectedCoupon.code}` : 'Seims ưu đãi'}</span>
                   <span className="customer-checkout-coupon-arrow">›</span>
@@ -635,21 +629,21 @@ const CustomerCheckout = () => {
                   />
                   <span style={{ fontSize: '0.95rem', fontWeight: '500' }}>Thanh toán khi nhận hàng (COD)</span>
                 </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', padding: '0.75rem', border: '1px solid var(--seims-border)', borderRadius: '10px', background: paymentMethod === 'momo' ? 'linear-gradient(135deg, #ff6b35, #f7931e)' : 'var(--seims-bg)', color: paymentMethod === 'momo' ? 'white' : 'inherit' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', padding: '0.75rem', border: '1px solid var(--seims-border)', borderRadius: '10px', background: paymentMethod === 'vnpay' ? 'linear-gradient(135deg, #005baa, #0077d9)' : 'var(--seims-bg)', color: paymentMethod === 'vnpay' ? 'white' : 'inherit' }}>
                   <input
                     type="radio"
                     name="paymentMethod"
-                    value="momo"
-                    checked={paymentMethod === 'momo'}
+                    value="vnpay"
+                    checked={paymentMethod === 'vnpay'}
                     onChange={(e) => setPaymentMethod(e.target.value)}
                     style={{ width: '18px', height: '18px', accentColor: 'white' }}
                   />
-                  <span style={{ fontSize: '0.95rem', fontWeight: '500' }}>Momo (Thanh toán online)</span>
+                  <span style={{ fontSize: '0.95rem', fontWeight: '500' }}>VNPay (Thanh toán online)</span>
                 </label>
               </div>
-              {paymentMethod === 'momo' && (
+              {paymentMethod === 'vnpay' && (
                 <p style={{ fontSize: '0.8rem', color: 'var(--seims-teal-dark)', marginTop: '0.5rem' }}>
-                  An toàn, nhanh chóng. Hỗ trợ quét QR & app Momo.
+                  Thanh toán qua VNPay. Hỗ trợ tất cả ngân hàng nội địa.
                 </p>
               )}
             </div>
@@ -658,7 +652,7 @@ const CustomerCheckout = () => {
               <p className="customer-checkout-note-title">Lưu ý quan trọng</p>
               <ul className="customer-checkout-note-list">
                 <li>Vui lòng kiểm tra kỹ thông tin trước khi đặt hàng</li>
-                {paymentMethod === 'momo' && <li>Thanh toán Momo: Nhận QR code hoặc link ngay sau khi xác nhận</li>}
+                {paymentMethod === 'vnpay' && <li>Thanh toán VNPay: Chuyển đến cổng VNPay để thanh toán qua ngân hàng</li>}
                 {isMultiStore && orderGroups.length > 1 && (
                   <li style={{ color: 'var(--seims-warning)' }}>
                     Bạn sẽ nhận {orderGroups.length} gói hàng từ các cửa hàng khác nhau
@@ -680,7 +674,7 @@ const CustomerCheckout = () => {
               type="submit"
               className="customer-checkout-submit"
               disabled={(cart.length === 0 && orderGroups.length === 0 && itemsForOrder.length === 0) || submitting}
-              style={{ background: paymentMethod === 'momo' ? 'linear-gradient(135deg, #ff6b35, #f7931e)' : 'var(--seims-teal)' }}
+              style={{ background: paymentMethod === 'vnpay' ? 'linear-gradient(135deg, #005baa, #0077d9)' : 'var(--seims-teal)' }}
             >
               {submitting ? 'Đang xử lý...' : (orderGroups.length > 0 ? `Thanh toán ${paymentMethod.toUpperCase()}` : `Đặt hàng ${paymentMethod.toUpperCase()}`)}
             </button>
