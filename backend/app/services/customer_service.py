@@ -212,12 +212,35 @@ def _get_or_create_order_group(
 		applied_coupon_code = coupon_info.get("coupon_code")
 		final_amount = max(Decimal("0"), total_amount - applied_discount_amount)
 	
+	# Calculate shipping fee
+	shipping_fee_value = Decimal("0")
+	delivery_distance_value = None
+	if shipping_address:
+		try:
+			from app.services.shipping_service import calculate_shipping_fee_sync
+			shipping_result = calculate_shipping_fee_sync(
+				db, store_id, shipping_address, float(final_amount)
+			)
+			if shipping_result.get("deliverable", True):
+				shipping_fee_value = Decimal(str(shipping_result.get("fee", 0) or 0))
+				delivery_distance_value = shipping_result.get("distance_km")
+		except Exception as e:
+			import logging
+			logging.getLogger(__name__).warning(f"Shipping calc failed: {e}")
+			# Fallback: free shipping if calculation fails
+			shipping_fee_value = Decimal("0")
+	
+	# Add shipping fee to final amount
+	final_amount_with_shipping = final_amount + shipping_fee_value
+	
 	new_order = Order(
 		store_id=store_id,
 		customer_id=user_id,
 		status='pending',
-		total_amount=final_amount,
+		total_amount=final_amount_with_shipping,
 		discount_amount=applied_discount_amount,
+		shipping_fee=shipping_fee_value,
+		delivery_distance=delivery_distance_value,
 		payment_method=payment_method,
 		payment_status='pending',
 		shipping_address=shipping_address,
@@ -262,9 +285,11 @@ def _get_or_create_order_group(
 		"orderId": order_id,
 		"orderCode": f"DH-{order_id}",
 		"items": product_details,
-		"totalAmount": float(final_amount),
+		"totalAmount": float(final_amount_with_shipping),
 		"originalAmount": float(total_amount),
 		"discountAmount": float(applied_discount_amount),
+		"shippingFee": float(shipping_fee_value),
+		"deliveryDistance": delivery_distance_value,
 		"couponCode": applied_coupon_code,
 		"shippingAddress": shipping_address,
 	}

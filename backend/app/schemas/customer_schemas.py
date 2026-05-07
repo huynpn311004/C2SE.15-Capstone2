@@ -226,6 +226,8 @@ class OrderGroup(BaseModel):
 	orderCode: str
 	items: List[OrderGroupItem]
 	totalAmount: float
+	shippingFee: Optional[float] = 0
+	deliveryDistance: Optional[float] = None
 	shippingAddress: Optional[str] = None
 
 
@@ -297,3 +299,24 @@ class CouponItemResponse(BaseModel):
 
 class CouponListResponse(BaseModel):
 	items: List[CouponItemResponse]
+
+
+# ========== Shipping Schemas ==========
+
+class EstimateShippingRequest(BaseModel):
+	storeId: int
+	address: str
+	orderAmount: Optional[float] = 0
+
+
+class EstimateShippingResponse(BaseModel):
+	fee: Optional[float] = None
+	originalFee: Optional[float] = None
+	distanceKm: float
+	zone: str
+	deliverable: bool
+	freeShipping: bool = False
+	freeShippingThreshold: Optional[float] = None
+	message: str
+	storeId: Optional[int] = None
+	storeName: Optional[str] = None

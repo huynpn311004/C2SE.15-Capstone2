@@ -154,5 +154,16 @@ export async function fetchAvailableCoupons() {
   return response.data.items || []
 }
 
+// Shipping Estimation
+export async function estimateShipping(storeId, address, orderAmount = 0) {
+  requireCustomer()
+  const response = await API.post('/customer/estimate-shipping', {
+    storeId,
+    address,
+    orderAmount,
+  })
+  return response.data
+}
+
 // Helpers
 export { getUserId, getUserRole }
