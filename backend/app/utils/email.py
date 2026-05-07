@@ -11,17 +11,6 @@ load_dotenv()
 
 
 def send_reset_password_email(to_email: str, reset_token: str, reset_url: str) -> bool:
-	"""
-	Send password reset email via SMTP.
-	
-	Args:
-		to_email: Recipient email address
-		reset_token: Password reset token
-		reset_url: Full URL for reset link
-	
-	Returns:
-		True if email sent successfully, False otherwise
-	"""
 	try:
 		smtp_server = os.getenv("MAIL_SERVER") or os.getenv("SMTP_SERVER", "smtp.gmail.com")
 		smtp_port = int(os.getenv("MAIL_PORT") or os.getenv("SMTP_PORT", "587"))
