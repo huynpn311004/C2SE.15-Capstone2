@@ -12,6 +12,6 @@ class DeliveryPartner(Base):
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
-    phone: Mapped[str] = mapped_column(String(50), nullable=False)
+    phone: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
     vehicle_type: Mapped[str | None] = mapped_column(String(10), nullable=True)
     vehicle_plate: Mapped[str | None] = mapped_column(String(50), nullable=True)

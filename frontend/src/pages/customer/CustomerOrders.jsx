@@ -74,11 +74,7 @@ function OrderCard({ order, onCancel, onCancelLoading }) {
         </button>
       )}
 
-      {order.status === 'completed' && (
-        <button className="order-card-review-btn">
-          Đánh giá đơn hàng
-        </button>
-      )}
+
     </div>
   );
 }

@@ -242,32 +242,44 @@ def create_multi_store_order(
 # CANCEL ORDER
 # =======================
 def cancel_customer_order(db: Session, order_id: int, customer_id: int):
-
-    order = db.query(Order).filter(
-        Order.id == order_id,
-        Order.customer_id == customer_id,
-        Order.status.in_(["pending", "preparing"])
-    ).first()
-
-    if not order:
-        raise ValueError("Order cannot be cancelled")
-
-    order.status = "cancelled"
-    order.payment_status = "failed"
-
-    items = db.query(OrderItem).filter(OrderItem.order_id == order.id).all()
-
-    for item in items:
-        lot = db.query(InventoryLot).filter(
-            InventoryLot.id == item.lot_id
+    from fastapi import HTTPException, status
+    
+    try:
+        order = db.query(Order).filter(
+            Order.id == order_id,
+            Order.customer_id == customer_id
         ).first()
 
-        if lot:
-            lot.qty_reserved = max(0, (lot.qty_reserved or 0) - item.quantity)
+        if not order:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy đơn hàng")
 
-    db.commit()
+        if order.status not in ["pending", "preparing"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, 
+                detail=f"Không thể hủy đơn hàng ở trạng thái: {order.status}"
+            )
 
-    return {"success": True}
+        order.status = "cancelled"
+        order.payment_status = "pending"
+
+        items = db.query(OrderItem).filter(OrderItem.order_id == order.id).all()
+
+        for item in items:
+            lot = db.query(InventoryLot).filter(
+                InventoryLot.id == item.lot_id
+            ).first()
+
+            if lot:
+                lot.qty_reserved = max(0, (lot.qty_reserved or 0) - item.quantity)
+
+        db.commit()
+        return {"success": True, "message": "Hủy đơn hàng thành công"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Lỗi hệ thống: {str(e)}")
 
 
 # =======================

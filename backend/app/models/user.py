@@ -21,7 +21,7 @@ class User(Base):
 	email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
 	password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
 	full_name: Mapped[str] = mapped_column(String(255), nullable=False)
-	phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
+	phone: Mapped[str | None] = mapped_column(String(20), unique=True, nullable=True)
 	address: Mapped[str | None] = mapped_column(String(255), nullable=True)
 	latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
 	longitude: Mapped[float | None] = mapped_column(Float, nullable=True)

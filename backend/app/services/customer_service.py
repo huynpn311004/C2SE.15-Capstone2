@@ -428,6 +428,14 @@ def _dict_row(row) -> dict:
 	return dict(row._mapping)
 
 
+def _bool_from_db(value) -> bool:
+	if isinstance(value, bool):
+		return value
+	if value is None:
+		return False
+	return int(value) == 1
+
+
 def _status_label(expiry_date: date) -> str:
 	today = date.today()
 	if expiry_date < today:
@@ -559,12 +567,20 @@ def update_customer_profile(db: Session, user_id: int, full_name: str, email: st
 	if not full_name:
 		raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ho ten khong duoc trong")
 
-	existing = db.query(User.id).filter(
+	existing_email = db.query(User.id).filter(
 		User.email == email,
 		User.id != user_id
 	).first()
-	if existing:
+	if existing_email:
 		raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email da duoc su dung")
+
+	if phone:
+		existing_phone = db.query(User.id).filter(
+			User.phone == phone,
+			User.id != user_id
+		).first()
+		if existing_phone:
+			raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="So dien thoai da duoc su dung")
 
 	db.query(User).filter(User.id == user_id, User.role == 'customer').update(
 		{
@@ -631,7 +647,12 @@ def list_customer_products(
 	 .join(Category, Category.id == Product.category_id)\
 	 .join(InventoryLot, InventoryLot.product_id == Product.id)\
 	 .join(Store, Store.id == InventoryLot.store_id)\
-	 .filter(InventoryLot.qty_on_hand > 0, InventoryLot.expiry_date >= date.today())
+	 .join(User, and_(User.supermarket_id == Product.supermarket_id, User.role == 'supermarket_admin'))\
+	 .filter(
+		 InventoryLot.qty_on_hand > 0, 
+		 InventoryLot.expiry_date >= date.today(),
+		 User.is_active == 1
+	 )
 
 	if supermarket_id:
 		base_query = base_query.filter(Product.supermarket_id == supermarket_id)
@@ -687,7 +708,7 @@ def list_customer_products(
 	return {"items": items}
 
 
-def get_customer_product_detail(db: Session, product_id: int) -> dict:
+def get_customer_product_detail(db: Session, product_id: int, customer_lat: float = None, customer_lng: float = None, radius_km: float = 10.0) -> dict:
 	rows = db.query(
 		Product.id,
 		Product.name,
@@ -697,17 +718,20 @@ def get_customer_product_detail(db: Session, product_id: int) -> dict:
 		Category.id.label('category_id'),
 		Category.name.label('category_name'),
 		Supermarket.id.label('supermarket_id'),
-		Supermarket.name.label('supermarket_name')
+		Supermarket.name.label('supermarket_name'),
+		User.is_active.label('supermarket_active')
 	).outerjoin(
 		Category, Category.id == Product.category_id
 	).outerjoin(
 		Supermarket, Supermarket.id == Product.supermarket_id
+	).join(
+		User, and_(User.supermarket_id == Product.supermarket_id, User.role == 'supermarket_admin')
 	).filter(
 		Product.id == product_id
 	).first()
 
-	if not rows:
-		raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="San pham khong ton tai")
+	if not rows or not _bool_from_db(getattr(rows, 'supermarket_active', False)):
+		raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sản phẩm không tồn tại hoặc siêu thị đã ngừng hoạt động")
 
 	row = _dict_row(rows)
 
@@ -717,7 +741,9 @@ def get_customer_product_detail(db: Session, product_id: int) -> dict:
 		InventoryLot.qty_on_hand,
 		InventoryLot.qty_reserved,
 		Store.name.label('store_name'),
-		Store.location.label('store_address')
+		Store.location.label('store_address'),
+		Store.latitude,
+		Store.longitude
 	).join(
 		Store, Store.id == InventoryLot.store_id
 	).filter(
@@ -731,6 +757,14 @@ def get_customer_product_detail(db: Session, product_id: int) -> dict:
 	stores = []
 	total_stock = 0
 	for inv in inventory_rows:
+		# Lọc khoảng cách cửa hàng
+		if customer_lat is not None and customer_lng is not None:
+			if inv.latitude is None or inv.longitude is None:
+				continue
+			dist = calculate_distance(customer_lat, customer_lng, inv.latitude, inv.longitude)
+			if dist > radius_km:
+				continue
+
 		base_price = float(row["base_price"] or 0)
 		sale_price, discount_percent = _calculate_discount(base_price, inv.expiry_date, row["supermarket_id"], product_id, db)
 		days_left = (inv.expiry_date - datetime.now().date()).days
@@ -771,21 +805,29 @@ def get_customer_product_detail(db: Session, product_id: int) -> dict:
 def list_near_expiry_products(
 	db: Session,
 	supermarket_id: int = None,
-	max_days: int = 7
+	max_days: int = 7,
+	customer_lat: float = None,
+	customer_lng: float = None,
+	radius_km: float = 10.0
 ) -> dict:
 	cutoff_date = date.today() + timedelta(days=max_days)
 
 	base_query = db.query(
 		Product.id, Product.sku, Product.name, Product.base_price, Product.image_url,
 		Product.supermarket_id, Category.name.label("category_name"),
-		Store.name.label("store_name"), InventoryLot.expiry_date, 
+		Store.name.label("store_name"), Store.latitude, Store.longitude,
+		InventoryLot.expiry_date, 
 		InventoryLot.qty_on_hand, InventoryLot.qty_reserved, InventoryLot.lot_code
 	).join(Category, Category.id == Product.category_id)\
 	 .join(InventoryLot, InventoryLot.product_id == Product.id)\
 	 .join(Store, Store.id == InventoryLot.store_id)\
-	 .filter(InventoryLot.qty_on_hand > 0, 
+	 .join(User, and_(User.supermarket_id == Product.supermarket_id, User.role == 'supermarket_admin'))\
+	 .filter(
+	         InventoryLot.qty_on_hand > 0, 
 	         InventoryLot.expiry_date >= date.today(),
-	         InventoryLot.expiry_date <= cutoff_date)
+	         InventoryLot.expiry_date <= cutoff_date,
+	         User.is_active == 1
+	 )
 
 	if supermarket_id:
 		base_query = base_query.filter(Product.supermarket_id == supermarket_id)
@@ -798,6 +840,14 @@ def list_near_expiry_products(
 		sale_price, discount_percent = _calculate_discount(base_price, row.expiry_date, row.supermarket_id, row.id, db)
 		days_left = (row.expiry_date - date.today()).days
 		available_stock = max(0, int(row.qty_on_hand) - int(row.qty_reserved))
+
+		# Nếu có tọa độ customer → lọc theo bán kính 10km
+		if customer_lat is not None and customer_lng is not None:
+			if row.latitude is None or row.longitude is None:
+				continue  # store không có tọa độ → loại bỏ
+			dist = calculate_distance(customer_lat, customer_lng, row.latitude, row.longitude)
+			if dist > radius_km:
+				continue  # quá xa → loại bỏ
 
 		items.append({
 			"id": row.id,

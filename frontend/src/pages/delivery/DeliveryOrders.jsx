@@ -39,12 +39,27 @@ const paymentStatusText = {
   paid: 'Đã thanh toán',
 }
 
+const nextStatusText = {
+  assigned: 'Xác nhận lấy hàng',
+  pending: 'Xác nhận lấy hàng',
+  picking_up: 'Giao hàng',
+  preparing: 'Giao hàng',
+  picked_up: 'Giao hàng',
+  delivering: 'Giao hàng thành công',
+  shipped: 'Giao hàng thành công',
+  ready: 'Giao hàng thành công',
+}
+
+
+
 const nextStatusMap = {
   assigned: 'picking_up',
   pending: 'picking_up',
   picking_up: 'delivering',
   preparing: 'delivering',
+  picked_up: 'delivering',
   delivering: 'completed',
+  shipped: 'completed',
   ready: 'completed',
 }
 
@@ -65,8 +80,16 @@ export default function DeliveryOrders() {
       const data = await fetchDeliveryOrders()
       setOrders(data.items || [])
     } catch (err) {
-      console.error('Failed to load orders:', err)
-      setError(err.response?.data?.detail || err.message || 'Không thể tải đơn hàng')
+      const errorData = err.response?.data?.detail
+      let msg = 'Không thể tải đơn hàng'
+      if (typeof errorData === 'string') {
+        msg = errorData
+      } else if (errorData) {
+        msg = typeof errorData === 'object' ? JSON.stringify(errorData) : String(errorData)
+      } else {
+        msg = err.message || msg
+      }
+      setError(msg)
     } finally {
       setLoading(false)
     }
@@ -87,6 +110,12 @@ export default function DeliveryOrders() {
   }
 
   async function handleUpdateStatus(id, newStatus) {
+    console.log(`[DELIVERY] Updating ${id} to ${newStatus}`)
+    if (!newStatus) {
+      setError('Trạng thái tiếp theo không xác định.')
+      return
+    }
+
     setUpdating(true)
     setUpdateSuccess('')
 
@@ -95,14 +124,31 @@ export default function DeliveryOrders() {
       setOrders(prev =>
         prev.map(o => (o.id === id ? { ...o, status: newStatus } : o))
       )
+
+      // Cập nhật dữ liệu modal nếu đang mở
+      if (selectedOrder && selectedOrder.id === id) {
+        setSelectedOrder(prev => ({ ...prev, status: newStatus }))
+      }
+
       setUpdateSuccess(result.message || `Cập nhật đơn thành công!`)
+
 
       if (newStatus === 'completed') {
         setTimeout(() => setUpdateSuccess(''), 3000)
       }
     } catch (err) {
       console.error('Failed to update status:', err)
-      setError(err.response?.data?.detail || err.message || 'Cập nhật thất bại')
+      const errorData = err.response?.data?.detail
+      let msg = 'Cập nhật thất bại'
+      if (typeof errorData === 'string') {
+        msg = errorData
+      } else if (errorData) {
+        // Tránh render object trực tiếp làm sập React
+        msg = typeof errorData === 'object' ? JSON.stringify(errorData) : String(errorData)
+      } else {
+        msg = err.message || msg
+      }
+      setError(msg)
       setTimeout(() => setError(''), 3000)
     } finally {
       setUpdating(false)
@@ -291,14 +337,14 @@ export default function DeliveryOrders() {
                           >
                             Gọi
                           </a>
-                          {order.status !== 'completed' && order.status !== 'cancelled' && (
+                          {order.status !== 'completed' && order.status !== 'cancelled' && nextStatusMap[order.status] && (
                             <button
                               onClick={() => handleUpdateStatus(order.id, nextStatusMap[order.status])}
                               className="dp-action-btn dp-btn-confirm"
-                              title="Cập nhật trạng thái"
+                              title={`Cập nhật thành: ${statusText[nextStatusMap[order.status]]}`}
                               disabled={updating}
                             >
-                              Cập nhật
+                              {nextStatusText[order.status] || 'Cập nhật'}
                             </button>
                           )}
                         </div>
@@ -468,11 +514,10 @@ export default function DeliveryOrders() {
                     className="dp-btn dp-btn-primary"
                     onClick={() => {
                       handleUpdateStatus(selectedOrder.id, nextStatusMap[selectedOrder.status])
-                      closeDetail()
                     }}
                     disabled={updating}
                   >
-                    {updating ? 'Đang cập nhật...' : 'Cập Nhật Trạng Thái'}
+                    {updating ? 'Đang cập nhật...' : (nextStatusText[selectedOrder.status] || 'Cập Nhật Trạng Thái')}
                   </button>
                 )}
                 <button className="dp-btn dp-btn-secondary" onClick={closeDetail}>

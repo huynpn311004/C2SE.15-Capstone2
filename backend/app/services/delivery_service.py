@@ -131,9 +131,10 @@ def format_delivery_data(delivery: Delivery, db: Session, include_order_detail: 
         # Get items detail
         items_str, items_list, total_quantity = get_order_items_detail(db, order.id)
         
-        # Calculate reward
+        # Calculate reward: Shipper gets 80% of shipping fee, minimum 15,000 VND
         order_amount = float(order.total_amount) if order.total_amount else 0
-        reward = calculate_reward(order_amount)
+        shipping_fee = float(order.shipping_fee or 0)
+        reward = max(15000, shipping_fee * 0.8)
         
         entity_id = order.id
         entity_data = {
@@ -219,7 +220,7 @@ def format_delivery_data(delivery: Delivery, db: Session, include_order_detail: 
             "delivered_at": delivery.delivered_at.strftime("%Y-%m-%d %H:%M:%S") if delivery.delivered_at else None,
             "completed_at": delivery.delivered_at.strftime("%Y-%m-%d %H:%M:%S") if delivery.delivered_at else None,
             "created_at": donation.created_at.strftime("%Y-%m-%d %H:%M:%S") if donation.created_at else "",
-            "reward": 0.0,  # No reward for donations
+            "reward": 20000.0,  # Fixed reward for donations
         }
     
     else:
@@ -338,7 +339,22 @@ def update_delivery_status(db: Session, delivery_id: int, new_status: str, user_
 
     delivery.status = new_status
 
-    if new_status == "completed":
+    if new_status == "picking_up":
+        # Khi shipper bắt đầu đi lấy hàng
+        if delivery.order_id:
+            order = db.query(Order).filter(Order.id == delivery.order_id).first()
+            if order and order.status == "ready":
+                order.status = "preparing" # Hoặc giữ nguyên chuẩn bị
+        if delivery.donation_request_id:
+            donation = db.query(DonationRequest).filter(DonationRequest.id == delivery.donation_request_id).first()
+            if donation:
+                donation.status = "approved"
+
+    elif new_status == "delivering":
+        # Khi shipper bắt đầu đi giao - Giữ nguyên trạng thái cũ của Order/Donation vì Enum không hỗ trợ 'shipped'
+        pass
+
+    elif new_status == "completed":
         delivery.delivered_at = datetime.now()
 
         # Update order status if order delivery

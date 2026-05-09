@@ -45,14 +45,33 @@ def get_delivery_history(
     return delivery_service.get_delivery_history(db, current_user.id, filter)
 
 
+from fastapi import APIRouter, Depends, Query, Body, HTTPException, status as http_status, Request
+
 @router.put("/orders/{delivery_id}/status", response_model=StatusUpdateResponse)
-def update_delivery_status(
+async def update_delivery_status(
 	delivery_id: int,
-	status: str = Query(...),
+	request: Request,
+	status: str = Query(None),
 	current_user: User = Depends(get_current_user),
 	db: Session = Depends(get_db),
 ):
-    return delivery_service.update_delivery_status(db, delivery_id, status, current_user.id)
+    final_status = status
+    
+    # Nếu không thấy ở Query, thử bóc từ Body
+    if not final_status:
+        try:
+            body = await request.json()
+            final_status = body.get("status")
+        except:
+            pass
+
+    if not final_status:
+        raise HTTPException(
+            status_code=http_status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Trạng thái (status) không được để trống"
+        )
+        
+    return delivery_service.update_delivery_status(db, delivery_id, final_status, current_user.id)
 
 
 @router.get("/orders/{delivery_id}", response_model=DeliveryItemResponse)

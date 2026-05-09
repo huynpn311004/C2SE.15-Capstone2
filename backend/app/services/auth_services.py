@@ -52,21 +52,27 @@ def register_user(db: Session, payload: RegisterRequest) -> User:
 				detail="Chỉ tài khoản Store Staff mới được gán store.",
 			)
 
-	existing_user = (
-		db.query(User)
-		.filter(or_(User.username == username, User.email == email))
-		.first()
-	)
+	filters = [User.username == username, User.email == email]
+	if phone:
+		filters.append(User.phone == phone)
+
+	existing_user = db.query(User).filter(or_(*filters)).first()
 	if existing_user:
 		if existing_user.username == username:
 			raise HTTPException(
 				status_code=status.HTTP_400_BAD_REQUEST,
 				detail="Tên đăng nhập đã tồn tại.",
 			)
-		raise HTTPException(
-			status_code=status.HTTP_400_BAD_REQUEST,
-			detail="Email đã được sử dụng.",
-		)
+		if existing_user.email == email:
+			raise HTTPException(
+				status_code=status.HTTP_400_BAD_REQUEST,
+				detail="Email đã được sử dụng.",
+			)
+		if phone and existing_user.phone == phone:
+			raise HTTPException(
+				status_code=status.HTTP_400_BAD_REQUEST,
+				detail="Số điện thoại đã được sử dụng.",
+			)
 
 	user = User(
 		username=username,

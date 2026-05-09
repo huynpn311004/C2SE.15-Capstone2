@@ -61,7 +61,8 @@ export async function fetchDeliveryHistory(filter = 'all') {
 export async function updateDeliveryStatus(deliveryId, newStatus) {
   requireDelivery()
   const response = await API.put(
-    `/delivery/orders/${deliveryId}/status`,null,{ params: { status: newStatus } }
+    `/delivery/orders/${deliveryId}/status`,
+    { status: newStatus }
   )
   return response.data
 }
@@ -138,8 +139,7 @@ export async function updateDonationDeliveryStatus(deliveryId, newStatus) {
   requireDelivery()
   const response = await API.put(
     `/delivery/orders/${deliveryId}/status`,
-    null,
-    { params: { status: newStatus } }
+    { status: newStatus }
   )
   return response.data
 }

@@ -112,6 +112,14 @@ def update_charity_profile(db: Session, user_id: int, full_name: str, email: str
     if existing_email:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email da duoc su dung")
 
+    if phone:
+        existing_phone = db.query(User.id).filter(
+            User.phone == phone,
+            User.id != user_id
+        ).first()
+        if existing_phone:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Số điện thoại đã được sử dụng")
+
     db.query(User).filter(User.id == user_id).update(
         {User.full_name: full_name, User.email: email, User.phone: phone or None},
         synchronize_session=False
@@ -305,7 +313,9 @@ def list_charity_donation_offers(db: Session, user_id: int) -> dict:
             DonationRequest.charity_id == user_id
         )
     ).filter(
-        DonationOffer.status == 'open'
+        DonationOffer.status == 'open',
+        InventoryLot.expiry_date >= date.today(),
+        func.date(DonationOffer.created_at) == date.today()
     ).group_by(
         DonationOffer.id, Product.name, InventoryLot.expiry_date, Store.name, Supermarket.name, Supermarket.address, Store.latitude, Store.longitude
     )
