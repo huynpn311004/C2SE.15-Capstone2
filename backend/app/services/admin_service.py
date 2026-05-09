@@ -84,6 +84,7 @@ def _get_supermarket_admin(db: Session, supermarket_id: int):
 def get_dashboard_summary(db: Session) -> dict:
 	supermarkets_count = db.query(func.count(Supermarket.id)).scalar() or 0
 	charities_count = db.query(func.count(CharityOrganization.id)).scalar() or 0
+	deliveries_count = db.query(func.count(DeliveryPartner.id)).scalar() or 0
 	users_count = db.query(func.count(User.id)).filter(User.role != 'system_admin').scalar() or 0
 
 	pending_supermarkets = db.query(func.count(Supermarket.id)).outerjoin(
@@ -104,6 +105,7 @@ def get_dashboard_summary(db: Session) -> dict:
 	return {
 		"supermarkets": int(supermarkets_count),
 		"charities": int(charities_count),
+		"deliveries": int(deliveries_count),
 		"users": int(users_count),
 		"pendingRequests": int(pending_supermarkets + pending_charities + pending_deliveries),
 	}

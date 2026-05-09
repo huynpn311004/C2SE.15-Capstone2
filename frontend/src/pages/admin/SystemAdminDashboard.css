@@ -32,8 +32,7 @@
   background: var(--seims-card);
   padding: 0.8rem;
   border-radius: 10px;
-  border: 1px solid var(--seims-border);
-  box-shadow: 0 2px 8px rgba(15, 118, 110, 0.06);
+  box-shadow: 0 4px 12px rgba(15, 118, 110, 0.08);
   min-height: auto;
 }
 
@@ -48,6 +47,23 @@
   font-size: 0.8rem;
   color: var(--seims-muted);
   font-weight: 500;
+}
+
+/* CARD COLORS */
+.stat-card-teal .stat-value {
+  color: #0f766e;
+}
+
+.stat-card-red .stat-value {
+  color: #b91c1c;
+}
+
+.stat-card-orange .stat-value {
+  color: #f59e0b;
+}
+
+.stat-card-blue .stat-value {
+  color: #2563eb;
 }
 
 /* RESPONSIVE ADJUSTMENTS */

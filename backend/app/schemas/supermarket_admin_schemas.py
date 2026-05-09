@@ -34,3 +34,11 @@ class UpdateStoreRequest(BaseModel):
     phone: str = Field(default="")
     latitude: float | None = None
     longitude: float | None = None
+
+
+# ========== Staff Request Schemas ==========
+class UpdateStaffRequest(BaseModel):
+    fullName: str = Field(..., min_length=1)
+    email: str = Field(..., min_length=1)
+    phone: str = Field(default="")
+    storeId: int | None = None

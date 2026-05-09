@@ -121,7 +121,7 @@
   width: 100%;
   border-collapse: collapse;
   font-size: 0.88rem;
-  table-layout: fixed;
+  table-layout: auto;
 }
 
 .charities-table thead {
@@ -130,7 +130,6 @@
 }
 
 .charities-table th {
-  width: 16.66%;
   text-align: left;
   padding: 0.52rem 0.56rem;
   font-size: 0.72rem;
@@ -142,15 +141,11 @@
 }
 
 .charities-table td {
-  width: 16.66%;
   padding: 0.46rem 0.56rem;
   font-size: 0.81rem;
   border-bottom: 1px solid var(--seims-border);
   color: var(--seims-ink);
   vertical-align: middle;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .charities-table tbody tr:hover {
@@ -171,6 +166,7 @@
   vertical-align: middle;
   white-space: nowrap;
   text-align: center;
+  width: 280px;
 }
 
 /* ACTION BUTTONS */

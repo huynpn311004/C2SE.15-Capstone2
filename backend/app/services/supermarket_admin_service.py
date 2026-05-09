@@ -355,6 +355,124 @@ def list_supermarket_staff(db: Session, user_id: int) -> dict:
     return {"items": items}
 
 
+def update_staff(db: Session, admin_id: int, staff_id: int, full_name: str, email: str, phone: str, store_id: int | None = None) -> dict:
+    supermarket_id = _get_supermarket_scope(db, admin_id)
+
+    # Ensure the staff belongs to this supermarket
+    staff = db.query(User).filter(
+        User.id == staff_id,
+        User.role == 'store_staff'
+    ).first()
+
+    if not staff:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nhân viên không tồn tại.")
+
+    # Verify the staff's current store belongs to the admin's supermarket
+    current_store = db.query(Store).filter(Store.id == staff.store_id, Store.supermarket_id == supermarket_id).first()
+    if not current_store:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Bạn không có quyền quản lý nhân viên này.")
+
+    # If changing store, verify the new store also belongs to this supermarket
+    if store_id:
+        new_store = db.query(Store).filter(Store.id == store_id, Store.supermarket_id == supermarket_id).first()
+        if not new_store:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Store mới không hợp lệ hoặc không thuộc siêu thị của bạn.")
+
+    # Get old values for audit
+    old_value = {
+        "fullName": staff.full_name,
+        "email": staff.email,
+        "phone": staff.phone,
+        "storeId": staff.store_id
+    }
+
+    # Perform update
+    staff.full_name = full_name.strip()
+    staff.email = email.strip().lower()
+    staff.phone = phone.strip()
+    if store_id:
+        staff.store_id = store_id
+
+    db.commit()
+
+    new_value = {
+        "fullName": staff.full_name,
+        "email": staff.email,
+        "phone": staff.phone,
+        "storeId": staff.store_id
+    }
+
+    log_action(db, user_id=admin_id, store_id=staff.store_id,
+               action=UPDATE_STAFF, entity_type=ENTITY_USER, entity_id=staff_id,
+               old_value=old_value, new_value=new_value)
+
+    return {"success": True}
+
+
+def toggle_staff_lock(db: Session, admin_id: int, staff_id: int) -> dict:
+    supermarket_id = _get_supermarket_scope(db, admin_id)
+
+    staff = db.query(User).filter(
+        User.id == staff_id,
+        User.role == 'store_staff'
+    ).first()
+
+    if not staff:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nhân viên không tồn tại.")
+
+    store = db.query(Store).filter(Store.id == staff.store_id, Store.supermarket_id == supermarket_id).first()
+    if not store:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Bạn không có quyền quản lý nhân viên này.")
+
+    next_active = 0 if staff.is_active else 1
+    staff.is_active = next_active
+    staff.locked_at = None if next_active == 1 else datetime.now()
+    if next_active == 1:
+        staff.failed_login_attempts = 0
+
+    db.commit()
+
+    action = UNLOCK_STAFF if next_active == 1 else LOCK_STAFF
+    log_action(db, user_id=admin_id, store_id=staff.store_id,
+               action=action, entity_type=ENTITY_USER, entity_id=staff_id)
+
+    return {"success": True, "isActive": bool(next_active)}
+
+
+def delete_staff(db: Session, admin_id: int, staff_id: int) -> dict:
+    supermarket_id = _get_supermarket_scope(db, admin_id)
+
+    staff = db.query(User).filter(
+        User.id == staff_id,
+        User.role == 'store_staff'
+    ).first()
+
+    if not staff:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nhân viên không tồn tại.")
+
+    store = db.query(Store).filter(Store.id == staff.store_id, Store.supermarket_id == supermarket_id).first()
+    if not store:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Bạn không có quyền quản lý nhân viên này.")
+
+    # Get values for audit before deletion
+    old_value = {
+        "username": staff.username,
+        "fullName": staff.full_name,
+        "email": staff.email,
+        "storeId": staff.store_id
+    }
+    staff_store_id = staff.store_id
+
+    db.delete(staff)
+    db.commit()
+
+    log_action(db, user_id=admin_id, store_id=staff_store_id,
+               action=DELETE_STAFF, entity_type=ENTITY_USER, entity_id=staff_id,
+               old_value=old_value)
+
+    return {"success": True}
+
+
 # ========== Audit Log ==========
 def list_supermarket_audit_logs(
     db: Session,

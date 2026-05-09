@@ -189,13 +189,26 @@ export default function SupermarketManagement() {
       return
     }
 
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    const phoneRegex = /^\d{10}$/
+
     if (!createForm.email.trim()) {
       setCreateError('Email không được để trống.')
       return
     }
 
+    if (!emailRegex.test(createForm.email.trim())) {
+      setCreateError('Email không đúng định dạng.')
+      return
+    }
+
     if (!createForm.phone.trim()) {
       setCreateError('Điện thoại không được để trống.')
+      return
+    }
+
+    if (!phoneRegex.test(createForm.phone.trim())) {
+      setCreateError('Số điện thoại phải có đúng 10 chữ số.')
       return
     }
 
@@ -293,13 +306,26 @@ export default function SupermarketManagement() {
       return
     }
 
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    const phoneRegex = /^\d{10}$/
+
     if (!editForm.email.trim()) {
       setEditError('Email không được để trống.')
       return
     }
 
+    if (!emailRegex.test(editForm.email.trim())) {
+      setEditError('Email không đúng định dạng.')
+      return
+    }
+
     if (!editForm.phone.trim()) {
       setEditError('Điện thoại không được để trống.')
+      return
+    }
+
+    if (!phoneRegex.test(editForm.phone.trim())) {
+      setEditError('Số điện thoại phải có đúng 10 chữ số.')
       return
     }
 

@@ -106,7 +106,11 @@ export default function Register() {
       return
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      setError('Email không hợp lệ.');
+      setError('Email không đúng định dạng.');
+      return
+    }
+    if (phone.trim() && !/^\d{10}$/.test(phone.trim())) {
+      setError('Số điện thoại phải có đúng 10 chữ số.');
       return
     }
     if (password.length < 6) {

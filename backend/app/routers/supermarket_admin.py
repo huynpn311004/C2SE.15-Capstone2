@@ -8,6 +8,7 @@ from app.schemas.supermarket_admin_schemas import (
     StoresListResponse,
     CreateStoreRequest,
     UpdateStoreRequest,
+    UpdateStaffRequest,
 )
 from app.services import supermarket_admin_service, product_service, admin_service
 
@@ -172,6 +173,39 @@ def list_supermarket_staff(
     db: Session = Depends(get_db),
 ):
     return supermarket_admin_service.list_supermarket_staff(db, current_user.id)
+
+
+@router.put("/staff/{staff_id}")
+def update_supermarket_staff(
+    staff_id: int,
+    data: UpdateStaffRequest,
+    _=Depends(require_supermarket_admin),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return supermarket_admin_service.update_staff(
+        db, current_user.id, staff_id, data.fullName, data.email, data.phone, data.storeId
+    )
+
+
+@router.patch("/staff/{staff_id}/toggle-lock")
+def toggle_supermarket_staff_lock(
+    staff_id: int,
+    _=Depends(require_supermarket_admin),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return supermarket_admin_service.toggle_staff_lock(db, current_user.id, staff_id)
+
+
+@router.delete("/staff/{staff_id}")
+def delete_supermarket_staff(
+    staff_id: int,
+    _=Depends(require_supermarket_admin),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return supermarket_admin_service.delete_staff(db, current_user.id, staff_id)
 
 
 # ========== Audit Log ==========

@@ -11,6 +11,7 @@ export default function SystemAdminDashboard() {
   const [summary, setSummary] = useState({
     supermarkets: 0,
     charities: 0,
+    deliveries: 0,
     users: 0,
     pendingRequests: 0,
   })
@@ -29,6 +30,7 @@ export default function SystemAdminDashboard() {
           setSummary({
             supermarkets: 0,
             charities: 0,
+            deliveries: 0,
             users: 0,
             pendingRequests: 0,
           })
@@ -44,18 +46,23 @@ export default function SystemAdminDashboard() {
 
   const stats = [
     {
-      label: 'Supermarket',
-      value: summary.supermarkets,
+      label: 'Siêu thị',
+      value: summary.supermarkets || 0,
       color: 'teal',
     },
     {
-      label: 'Charity',
-      value: summary.charities,
+      label: 'Tổ chức từ thiện',
+      value: summary.charities || 0,
       color: 'red',
     },
     {
+      label: 'Đối tác Giao hàng',
+      value: summary.deliveries || 0,
+      color: 'orange',
+    },
+    {
       label: 'Người dùng',
-      value: summary.users,
+      value: summary.users || 0,
       color: 'blue',
     },
   ]

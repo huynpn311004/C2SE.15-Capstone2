@@ -104,15 +104,18 @@ export async function fetchSupermarketStaff() {
 }
 
 export async function saveSupermarketStaff(userId, payload) {
-  await updateAdminUser(userId, payload)
+  requireSupermarketAdmin()
+  await API.put(`/supermarket-admin/staff/${userId}`, payload)
 }
 
 export async function toggleSupermarketStaffLock(userId) {
-  await toggleAdminUserLock(userId)
+  requireSupermarketAdmin()
+  await API.patch(`/supermarket-admin/staff/${userId}/toggle-lock`)
 }
 
 export async function removeSupermarketStaff(userId) {
-  await deleteAdminUser(userId)
+  requireSupermarketAdmin()
+  await API.delete(`/supermarket-admin/staff/${userId}`)
 }
 
 export async function createSupermarketStaff(payload) {

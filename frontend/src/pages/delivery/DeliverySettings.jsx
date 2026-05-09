@@ -71,6 +71,29 @@ export default function DeliverySettings() {
       return
     }
 
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    const phoneRegex = /^\d{10}$/
+
+    if (!formData.email.trim()) {
+      setSaveMessage('Email không được để trống.')
+      return
+    }
+
+    if (!emailRegex.test(formData.email.trim())) {
+      setSaveMessage('Email không đúng định dạng.')
+      return
+    }
+
+    if (!formData.phone.trim()) {
+      setSaveMessage('Số điện thoại không được để trống.')
+      return
+    }
+
+    if (!phoneRegex.test(formData.phone.trim())) {
+      setSaveMessage('Số điện thoại phải có đúng 10 chữ số.')
+      return
+    }
+
     try {
       const nextFormData = {
         ...formData,

@@ -136,8 +136,21 @@ export default function CharityManagement() {
       return
     }
 
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    const phoneRegex = /^\d{10}$/
+
+    if (!emailRegex.test(editForm.email.trim())) {
+      setEditError('Email không đúng định dạng.')
+      return
+    }
+
     if (!editForm.phone.trim()) {
       setEditError('Điện thoại không được để trống.')
+      return
+    }
+
+    if (!phoneRegex.test(editForm.phone.trim())) {
+      setEditError('Số điện thoại phải có đúng 10 chữ số.')
       return
     }
 
@@ -270,6 +283,9 @@ export default function CharityManagement() {
     setCreateError('')
     setCreateSuccess('')
 
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    const phoneRegex = /^\d{10}$/
+
     if (!createForm.name.trim()) {
       setCreateError('Tên tổ chức không được để trống.')
       return
@@ -282,6 +298,11 @@ export default function CharityManagement() {
 
     if (!createForm.email.trim()) {
       setCreateError('Email không được để trống.')
+      return
+    }
+
+    if (!emailRegex.test(createForm.email.trim())) {
+      setCreateError('Email không đúng định dạng.')
       return
     }
 

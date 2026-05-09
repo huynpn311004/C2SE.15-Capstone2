@@ -80,6 +80,28 @@ export default function CharitySettings() {
     setSaving(true)
     setSaveMessage('')
     setSaveError('')
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    const phoneRegex = /^\d{10}$/
+
+    if (!formData.email.trim()) {
+      setSaveError('Email không được để trống.')
+      setSaving(false)
+      return
+    }
+
+    if (!emailRegex.test(formData.email.trim())) {
+      setSaveError('Email không đúng định dạng.')
+      setSaving(false)
+      return
+    }
+
+    if (formData.phone.trim() && !phoneRegex.test(formData.phone.trim())) {
+      setSaveError('Số điện thoại phải có đúng 10 chữ số.')
+      setSaving(false)
+      return
+    }
+
     try {
       await updateCharityProfile(formData)
       setOriginalData(formData)

@@ -80,6 +80,24 @@ export default function CustomerSetting() {
       setSaveMessage('')
       setSaveError('')
 
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      const phoneRegex = /^\d{10}$/
+
+      if (!formData.email.trim()) {
+        setSaveError('Email không được để trống.')
+        return
+      }
+
+      if (!emailRegex.test(formData.email.trim())) {
+        setSaveError('Email không đúng định dạng.')
+        return
+      }
+
+      if (formData.phone.trim() && !phoneRegex.test(formData.phone.trim())) {
+        setSaveError('Số điện thoại phải có đúng 10 chữ số.')
+        return
+      }
+
       try {
         setIsSaving(true)
 

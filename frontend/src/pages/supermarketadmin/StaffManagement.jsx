@@ -131,7 +131,21 @@ export default function StaffManagement() {
     setError('')
     if (!form.name.trim()) { setError('Họ tên không được để trống.'); return }
     if (!form.email.trim()) { setError('Email không được để trống.'); return }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    const phoneRegex = /^\d{10}$/
+
+    if (!emailRegex.test(form.email.trim())) {
+      setError('Email không đúng định dạng.')
+      return
+    }
+
     if (!form.phone.trim()) { setError('SĐT không được để trống.'); return }
+
+    if (!phoneRegex.test(form.phone.trim())) {
+      setError('Số điện thoại phải có đúng 10 chữ số.')
+      return
+    }
 
     try {
       if (mode === 'create') {

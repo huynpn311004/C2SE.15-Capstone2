@@ -115,6 +115,12 @@ export default function StoreManagement() {
     if (!editForm.address.trim()) { setEditError('Địa chỉ không được để trống.'); return }
     if (!editForm.phone.trim()) { setEditError('Số điện thoại không được để trống.'); return }
 
+    const phoneRegex = /^\d{10}$/
+    if (!phoneRegex.test(editForm.phone.trim())) {
+      setEditError('Số điện thoại phải có đúng 10 chữ số.')
+      return
+    }
+
     try {
       if (mode === 'create') {
         await createSupermarketStore({

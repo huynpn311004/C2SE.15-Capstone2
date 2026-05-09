@@ -1,10 +1,11 @@
-from datetime import datetime
+from datetime import datetime, date
 from sqlalchemy import func, and_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
 from app.core.security import get_password_hash, verify_password
+from app.services.geocoding_service import calculate_distance
 from app.models.user import User
 from app.models.charity_organization import CharityOrganization
 from app.models.donation_offer import DonationOffer
@@ -267,10 +268,15 @@ def get_charity_dashboard_summary(db: Session, user_id: int) -> dict:
 def list_charity_donation_offers(db: Session, user_id: int) -> dict:
     _get_charity_user(db, user_id)
 
+    # Get charity location
+    charity_org = db.query(CharityOrganization).filter(CharityOrganization.user_id == user_id).first()
+    charity_lat = charity_org.latitude if charity_org else None
+    charity_lng = charity_org.longitude if charity_org else None
+
     # Subquery to check if charity has pending/approved request for this offer
     from sqlalchemy import case
     
-    rows = db.query(
+    base_query = db.query(
         DonationOffer.id,
         DonationOffer.offered_qty,
         DonationOffer.status,
@@ -280,6 +286,8 @@ def list_charity_donation_offers(db: Session, user_id: int) -> dict:
         Store.name.label('store_name'),
         Supermarket.name.label('supermarket_name'),
         Supermarket.address.label('supermarket_address'),
+        Store.latitude,
+        Store.longitude,
         func.count(DonationRequestItem.id).label('request_count')
     ).join(
         InventoryLot, InventoryLot.id == DonationOffer.lot_id
@@ -299,13 +307,23 @@ def list_charity_donation_offers(db: Session, user_id: int) -> dict:
     ).filter(
         DonationOffer.status == 'open'
     ).group_by(
-        DonationOffer.id, Product.name, InventoryLot.expiry_date, Store.name, Supermarket.name, Supermarket.address
-    ).order_by(
+        DonationOffer.id, Product.name, InventoryLot.expiry_date, Store.name, Supermarket.name, Supermarket.address, Store.latitude, Store.longitude
+    )
+
+    rows = base_query.order_by(
         DonationOffer.created_at.desc()
     ).limit(200).all()
 
     items = []
     for row in rows:
+        # Nếu charity có tọa độ → lọc theo bán kính 10km
+        if charity_lat is not None and charity_lng is not None:
+            if row.latitude is None or row.longitude is None:
+                continue  # store không có tọa độ → loại bỏ
+            dist = calculate_distance(charity_lat, charity_lng, row.latitude, row.longitude)
+            if dist > 10.0:  # 10km
+                continue  # quá xa → loại bỏ
+
         display_status = "available"
         if row.offered_qty <= 0:
             display_status = "out_of_stock"
