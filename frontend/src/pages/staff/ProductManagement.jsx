@@ -41,6 +41,16 @@ export default function ProductManagement() {
     loadData()
   }, [])
 
+  useEffect(() => {
+    if (success || error) {
+      const timer = setTimeout(() => {
+        setSuccess('')
+        setError('')
+      }, 4000)
+      return () => clearTimeout(timer)
+    }
+  }, [success, error])
+
   async function loadData() {
     try {
       setLoading(true)
@@ -184,7 +194,7 @@ export default function ProductManagement() {
         setSuccess('Tạo sản phẩm thành công')
       }
       await loadData()
-      setTimeout(() => closeModal(), 800)
+      setTimeout(() => closeModal(), 1500)
     } catch (err) {
       setError(err.response?.data?.detail || err.message || 'Có lỗi xảy ra')
     } finally {
@@ -298,8 +308,7 @@ export default function ProductManagement() {
           </div>
         </div>
 
-        {error && <div className="product-alert product-alert-error">{error}</div>}
-        {success && <div className="product-alert product-alert-success">{success}</div>}
+
 
         {/* CARD + TABLE */}
         <div className="product-card">
@@ -502,7 +511,7 @@ export default function ProductManagement() {
                     </div>
                   )}
                 </label>
-                {error && <p className="product-error">{error}</p>}
+
               </div>
               <div className="product-modal-footer">
                 <button type="button" className="product-btn-cancel" onClick={closeModal}>
@@ -552,6 +561,26 @@ export default function ProductManagement() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+      {/* TOAST NOTIFICATION */}
+      {(success || error) && (
+        <div className={`product-toast ${success ? 'success' : 'error'}`}>
+          <div className="toast-content">
+            <span className="toast-icon">
+              {success ? (
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+                </svg>
+              )}
+            </span>
+            <p className="toast-message">{success || error}</p>
+          </div>
+          <button className="toast-close" onClick={() => { setSuccess(''); setError(''); }}>×</button>
         </div>
       )}
     </StaffLayout>

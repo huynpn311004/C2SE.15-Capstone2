@@ -1,21 +1,19 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../services/AuthContext'
 
 import './Login.css'
 export default function Login() {
   const ADMIN_CONTACT = {
-    email: 'admin@seims.vn',
-    hotline: '1900-0000',
+    email: 'seimshotro@gmail.com',
   }
 
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [message, setMessage] = useState('')
+  const [success, setSuccess] = useState('')
   const [error, setError] = useState('')
-  const [showAdminContact, setShowAdminContact] = useState(false)
   const { login } = useAuth()
   const navigate = useNavigate()
 
@@ -31,11 +29,20 @@ export default function Login() {
     return routes[role] || '/'
   }
 
+  useEffect(() => {
+    if (success || error) {
+      const timer = setTimeout(() => {
+        setSuccess('')
+        setError('')
+      }, 4000)
+      return () => clearTimeout(timer)
+    }
+  }, [success, error])
+
   async function handleSubmit(e) {
     e.preventDefault()
-    setMessage('')
+    setSuccess('')
     setError('')
-    setShowAdminContact(false)
 
     if (!username.trim()) {
       setError('Vui lòng nhập tên đăng nhập hoặc email.')
@@ -53,7 +60,7 @@ export default function Login() {
         password,
       })
       const nextRole = response?.user?.role
-      setMessage('Đăng nhập thành công!')
+      setSuccess('Đăng nhập thành công!')
       setTimeout(() => {
         navigate(routeByRole(nextRole))
       }, 1500)
@@ -62,9 +69,10 @@ export default function Login() {
       const detail = err.response?.data?.detail
 
       if (detail) {
-        setError(detail)
-        if (status === 423 || detail.toLowerCase().includes('lien he admin')) {
-          setShowAdminContact(true)
+        if (status === 423 || detail.toLowerCase().includes('lien he admin') || detail.toLowerCase().includes('locked')) {
+          setError(`Tài khoản đã bị khóa. Vui lòng liên hệ Admin (Email: ${ADMIN_CONTACT.email}, Hotline: ${ADMIN_CONTACT.hotline})`)
+        } else {
+          setError(detail)
         }
       } else {
         setError('Đăng nhập thất bại. Vui lòng thử lại.')
@@ -145,28 +153,6 @@ export default function Login() {
               <button type="submit" className="login-submit" disabled={loading}>
                 {loading ? 'Đang Xử Lý…' : 'Đăng Nhập'}
               </button>
-
-              {error ? (
-                <p className="login-message error" role="alert">
-                  {error}
-                </p>
-              ) : null}
-              {showAdminContact ? (
-                <div className="login-message error" role="status">
-                  <strong>Tài khoản bạn đã bị khóa.</strong>
-                  <br />
-                  Vui lòng liên hệ đến admin:
-                  <br />
-                  Email: {ADMIN_CONTACT.email}
-                  <br />
-                  Hotline: {ADMIN_CONTACT.hotline}
-                </div>
-              ) : null}
-              {message ? (
-                <p className="login-message info" role="status">
-                  {message}
-                </p>
-              ) : null}
             </form>
 
             <footer className="login-footer">
@@ -175,6 +161,27 @@ export default function Login() {
           </div>
         </div>
       </div>
+
+      {/* TOAST NOTIFICATION */}
+      {(success || error) && (
+        <div className={`login-toast ${success ? 'success' : 'error'}`}>
+          <div className="toast-content">
+            <span className="toast-icon">
+              {success ? (
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+                </svg>
+              )}
+            </span>
+            <p className="toast-message">{success || error}</p>
+          </div>
+          <button className="toast-close" onClick={() => { setSuccess(''); setError(''); }}>×</button>
+        </div>
+      )}
     </div>
   )
 }

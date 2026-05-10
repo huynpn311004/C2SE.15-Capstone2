@@ -11,6 +11,7 @@ from app.models.inventory_lot import InventoryLot
 from app.models.user import User
 from app.models.product import Product
 from app.models.store import Store
+from app.services.discount_policy_service import calculate_discount
 
 
 # =======================
@@ -34,6 +35,7 @@ def create_customer_order(
     shipping_address: str = "",
     shipping_phone: str = "",
     coupon_id: Optional[int] = None,
+    commit: bool = True
 ) -> Dict:
     if not coupon_id or coupon_id == "":
         coupon_id = None
@@ -58,21 +60,34 @@ def create_customer_order(
             if not product:
                 raise ValueError(f"Product {pid} not found")
 
-            #LẤY LOT TRƯỚC
+            # LẤY LOT THEO FEFO (Sắp hết hạn lấy trước)
             lot = (
-            db.query(InventoryLot)
-            .filter(
-            InventoryLot.product_id == pid,
-            InventoryLot.store_id == store_id,
-            (InventoryLot.qty_on_hand - func.coalesce(InventoryLot.qty_reserved, 0)) >= qty, )
-            .with_for_update()
-            .first()
-)
+                db.query(InventoryLot)
+                .filter(
+                    InventoryLot.product_id == pid,
+                    InventoryLot.store_id == store_id,
+                    (InventoryLot.qty_on_hand - func.coalesce(InventoryLot.qty_reserved, 0)) >= qty,
+                    InventoryLot.expiry_date >= datetime.now().date() # Chỉ lấy hàng chưa hết hạn
+                )
+                .order_by(InventoryLot.expiry_date.asc())
+                .with_for_update()
+                .first()
+            )
 
             if not lot:
                 raise ValueError(f"Not enough stock for product {pid}")
 
-            price = Decimal(str(product.base_price or 0))
+            # TÍNH GIÁ ĐÃ GIẢM THEO CHÍNH SÁCH CẬN HẠN
+            base_price = float(product.base_price or 0)
+            discount_result = calculate_discount(
+                db,
+                base_price=base_price,
+                expiry_date=lot.expiry_date.strftime("%Y-%m-%d"),
+                supermarket_id=product.supermarket_id,
+                product_id=pid
+            )
+            
+            price = Decimal(str(discount_result.get("finalPrice", base_price)))
 
             total_amount += price * qty
 
@@ -138,7 +153,10 @@ def create_customer_order(
             # reserve stock
             lot.qty_reserved = (lot.qty_reserved or 0) + data["quantity"]
 
-        db.commit()
+        if commit:
+            db.commit()
+        else:
+            db.flush()
 
         return {
             "orderId": order.id,
@@ -194,7 +212,8 @@ def create_multi_store_order(
             payment_method,
             shipping_address,
             shipping_phone,
-            coupon_id
+            coupon_id,
+            commit=False # Không commit lẻ từng store
         )
 
         # Get store name from database
@@ -229,7 +248,7 @@ def create_multi_store_order(
 
     total_shipping = sum(o.get("shippingFee", 0) for o in results)
 
-    return {
+    response_data = {
         "success": True,
         "message": "Create multi-store order successfully",
         "orderGroups": results,
@@ -237,6 +256,14 @@ def create_multi_store_order(
         "totalAmount": sum(o["totalAmount"] for o in results),
         "totalShippingFee": total_shipping
     }
+
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise e
+
+    return response_data
 
 # =======================
 # CANCEL ORDER
@@ -253,24 +280,27 @@ def cancel_customer_order(db: Session, order_id: int, customer_id: int):
         if not order:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy đơn hàng")
 
-        if order.status not in ["pending", "preparing"]:
+        if order.status not in ["pending", "preparing", "ready"]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, 
                 detail=f"Không thể hủy đơn hàng ở trạng thái: {order.status}"
             )
 
+        old_status = order.status
         order.status = "cancelled"
         order.payment_status = "pending"
 
         items = db.query(OrderItem).filter(OrderItem.order_id == order.id).all()
 
         for item in items:
-            lot = db.query(InventoryLot).filter(
-                InventoryLot.id == item.lot_id
-            ).first()
-
+            lot = db.query(InventoryLot).filter(InventoryLot.id == item.lot_id).first()
             if lot:
-                lot.qty_reserved = max(0, (lot.qty_reserved or 0) - item.quantity)
+                if old_status == "ready":
+                    # Nếu đơn đã ở trạng thái ready (đã trừ on_hand), khi hủy phải cộng lại
+                    lot.qty_on_hand = (lot.qty_on_hand or 0) + item.quantity
+                else:
+                    # Nếu đơn đang pending/preparing, chỉ cần giảm qty_reserved
+                    lot.qty_reserved = max(0, (lot.qty_reserved or 0) - item.quantity)
 
         db.commit()
         return {"success": True, "message": "Hủy đơn hàng thành công"}

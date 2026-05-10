@@ -18,16 +18,14 @@ export default function CustomerSetting() {
   const [loading, setLoading] = useState(true)
   const [formData, setFormData] = useState(defaultSetting)
   const [initialFormData, setInitialFormData] = useState(defaultSetting)
-  const [saveMessage, setSaveMessage] = useState('')
-  const [saveError, setSaveError] = useState('')
+  const [toastSuccess, setToastSuccess] = useState('')
+  const [toastError, setToastError] = useState('')
   const [isSaving, setIsSaving] = useState(false)
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
     newPassword: '',
     confirmPassword: '',
   })
-  const [passwordMessage, setPasswordMessage] = useState('')
-  const [passwordError, setPasswordError] = useState('')
   const [isChangingPassword, setIsChangingPassword] = useState(false)
   const [showLocationModal, setShowLocationModal] = useState(false)
 
@@ -61,6 +59,16 @@ export default function CustomerSetting() {
     loadSetting()
   }, [])
 
+  useEffect(() => {
+    if (toastSuccess || toastError) {
+      const timer = setTimeout(() => {
+        setToastSuccess('')
+        setToastError('')
+      }, 4000)
+      return () => clearTimeout(timer)
+    }
+  }, [toastSuccess, toastError])
+
   const isDirty = useMemo(() => {
     return JSON.stringify(initialFormData) !== JSON.stringify(formData)
   }, [formData, initialFormData])
@@ -77,24 +85,24 @@ export default function CustomerSetting() {
   const handleSave = async (e) => {
     e.preventDefault()
 
-      setSaveMessage('')
-      setSaveError('')
+      setToastSuccess('')
+      setToastError('')
 
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
       const phoneRegex = /^\d{10}$/
 
       if (!formData.email.trim()) {
-        setSaveError('Email không được để trống.')
+        setToastError('Email không được để trống.')
         return
       }
 
       if (!emailRegex.test(formData.email.trim())) {
-        setSaveError('Email không đúng định dạng.')
+        setToastError('Email không đúng định dạng.')
         return
       }
 
       if (formData.phone.trim() && !phoneRegex.test(formData.phone.trim())) {
-        setSaveError('Số điện thoại phải có đúng 10 chữ số.')
+        setToastError('Số điện thoại phải có đúng 10 chữ số.')
         return
       }
 
@@ -148,11 +156,10 @@ export default function CustomerSetting() {
       setFormData((prev) => ({ ...prev, ...payload }))
       setInitialFormData((prev) => ({ ...prev, ...payload }))
       window.dispatchEvent(new Event('seims-customer-setting-updated'))
-      setSaveMessage('Đã lưu thay đổi thành công.' + geocodeWarning)
-      setTimeout(() => setSaveMessage(''), 3000)
+      setToastSuccess('Đã lưu thay đổi thành công.' + geocodeWarning)
     } catch (err) {
       console.error('Lỗi khi lưu:', err)
-      setSaveError(err.message || 'Không thể lưu thay đổi. Vui lòng thử lại.')
+      setToastError(err.message || 'Không thể lưu thay đổi. Vui lòng thử lại.')
     } finally {
       setIsSaving(false)
     }
@@ -168,21 +175,21 @@ export default function CustomerSetting() {
 
   const handleChangePassword = async (event) => {
     event.preventDefault()
-    setPasswordMessage('')
-    setPasswordError('')
+    setToastSuccess('')
+    setToastError('')
 
     if (passwordData.newPassword.length < 6) {
-      setPasswordError('Mật khẩu mới phải có ít nhất 6 ký tự.')
+      setToastError('Mật khẩu mới phải có ít nhất 6 ký tự.')
       return
     }
 
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      setPasswordError('Mật khẩu xác nhận không khớp.')
+      setToastError('Mật khẩu xác nhận không khớp.')
       return
     }
 
     if (!passwordData.currentPassword) {
-      setPasswordError('Vui lòng nhập mật khẩu hiện tại.')
+      setToastError('Vui lòng nhập mật khẩu hiện tại.')
       return
     }
 
@@ -197,11 +204,10 @@ export default function CustomerSetting() {
         newPassword: '',
         confirmPassword: '',
       })
-      setPasswordMessage('Đổi mật khẩu thành công.')
-      setTimeout(() => setPasswordMessage(''), 3000)
+      setToastSuccess('Đổi mật khẩu thành công.')
     } catch (err) {
       console.error('Lỗi đổi mật khẩu:', err)
-      setPasswordError(err.message || 'Không thể đổi mật khẩu. Vui lòng thử lại.')
+      setToastError(err.message || 'Không thể đổi mật khẩu. Vui lòng thử lại.')
     } finally {
       setIsChangingPassword(false)
     }
@@ -303,9 +309,6 @@ export default function CustomerSetting() {
             {isSaving ? 'Đang lưu...' : 'Lưu Thay Đổi'}
           </button>
         </div>
-
-        {saveError ? <p className="customer-setting-msg-error">{saveError}</p> : null}
-        {saveMessage ? <p className="customer-setting-msg-success">{saveMessage}</p> : null}
       </form>
 
       <form className="customer-setting-card" onSubmit={handleChangePassword}>
@@ -358,10 +361,28 @@ export default function CustomerSetting() {
             {isChangingPassword ? 'Đang xử lý...' : 'Cập Nhật Mật Khẩu'}
           </button>
         </div>
-
-        {passwordError ? <p className="customer-setting-msg-error">{passwordError}</p> : null}
-        {passwordMessage ? <p className="customer-setting-msg-success">{passwordMessage}</p> : null}
       </form>
+
+      {/* TOAST NOTIFICATION */}
+      {(toastSuccess || toastError) && (
+        <div className={`customer-setting-toast ${toastSuccess ? 'success' : 'error'}`}>
+          <div className="toast-content">
+            <span className="toast-icon">
+              {toastSuccess ? (
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+                </svg>
+              )}
+            </span>
+            <p className="toast-message">{toastSuccess || toastError}</p>
+          </div>
+          <button type="button" className="toast-close" onClick={() => { setToastSuccess(''); setToastError(''); }}>×</button>
+        </div>
+      )}
 
       <LocationModal
         isOpen={showLocationModal}

@@ -7,11 +7,28 @@ import './CustomerCart.css';
 
 const saveCart = setCart;
 
-function Toast({ message, visible }) {
+function Toast({ message, visible, onClose }) {
   if (!visible) return null;
+
+  const isError = message.includes('Lỗi') || message.includes('Vui lòng') || message.includes('⚠️');
+
   return (
-    <div className="cart-toast">
-      {message}
+    <div className={`cart-toast ${isError ? 'error' : 'success'}`}>
+      <div className="toast-content">
+        <span className="toast-icon">
+          {!isError ? (
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+            </svg>
+          )}
+        </span>
+        <p className="toast-message">{message}</p>
+      </div>
+      <button type="button" className="toast-close" onClick={onClose}>×</button>
     </div>
   );
 }
@@ -129,7 +146,7 @@ const CustomerCart = () => {
 
         // Fetch fresh prices for each unique product from server
         const productIds = [...new Set(stored.map(item => item.id))];
-        
+
         if (productIds.length === 0) return;
 
         const freshPricesMap = {};
@@ -216,7 +233,7 @@ const CustomerCart = () => {
       }
     };
     window.addEventListener('seims-cart-updated', handleUpdate);
-    
+
     return () => {
       isMounted = false;
       if (fallbackTimer) clearTimeout(fallbackTimer);
@@ -285,7 +302,7 @@ const CustomerCart = () => {
       });
 
 
-      showToast('Đặt hàng và giữ chỗ thành công! Vui lòng xác nhận thông tin.');
+      showToast('Vui lòng xác nhận thông tin.');
 
       setTimeout(() => {
         // Xóa các sản phẩm đã đặt khỏi giỏ hàng chỉ sau khi đã điều hướng sang trang checkout
@@ -387,209 +404,209 @@ const CustomerCart = () => {
     <>
       <div className="cart-page">
         <div className="cart-layout">
-        {/* Cart Items */}
-        <div className="cart-products-section cart-items-section">
-          <div className="cart-section-header">
-            <div className="cart-header-left">
-              <h3 className="cart-section-title">Danh sách sản phẩm</h3>
-              <p className="cart-section-subtitle">{cart.length} sản phẩm trong giỏ hàng</p>
-            </div>
-            <div className="cart-header-right">
-              {cart.length > 0 && (
-                <button className="cart-clear-btn" onClick={handleClearCart}>
-                  🗑 Xóa tất cả
-                </button>
-              )}
-              {cart.length > 0 && (
-                <label className="cart-select-all" style={{ cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={cart.length > 0 && cart.every(item => selectedItems[item.id])}
-                    onChange={toggleSelectAll}
-                    style={{ width: '18px', height: '18px', accentColor: 'var(--seims-teal)' }}
-                  />
-                  <span>Chọn tất cả</span>
-                </label>
-              )}
-            </div>
-          </div>
-
-          <div className="cart-content">
-            {cart.length === 0 ? (
-              <div className="cart-empty">
-                <p className="cart-empty-title">Giỏ hàng trống</p>
+          {/* Cart Items */}
+          <div className="cart-products-section cart-items-section">
+            <div className="cart-section-header">
+              <div className="cart-header-left">
+                <h3 className="cart-section-title">Danh sách sản phẩm</h3>
+                <p className="cart-section-subtitle">{cart.length} sản phẩm trong giỏ hàng</p>
               </div>
-            ) : (
-              groupList.map((group, groupIdx) => (
-                <div key={group.storeId} className="cart-store-group">
-                  {/* Store Header */}
-                  <div className="cart-store-header">
-                    <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-                      <input
-                        type="checkbox"
-                        checked={group.items.every(item => selectedItems[item.id])}
-                        onChange={() => toggleSelectStore(group.storeId, group.items)}
-                        style={{ width: '18px', height: '18px', accentColor: 'var(--seims-teal)' }}
-                      />
-                    </label>
-                    <div className="cart-store-info">
-                      <h4 className="cart-store-name">{group.storeName}</h4>
-                      {group.storeAddress && (
-                        <span className="cart-store-address">{group.storeAddress}</span>
-                      )}
-                    </div>
-                    <span className="cart-store-badge">{group.items.length} sản phẩm</span>
-                  </div>
+              <div className="cart-header-right">
+                {cart.length > 0 && (
+                  <button className="cart-clear-btn" onClick={handleClearCart}>
+                    🗑 Xóa tất cả
+                  </button>
+                )}
+                {cart.length > 0 && (
+                  <label className="cart-select-all" style={{ cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={cart.length > 0 && cart.every(item => selectedItems[item.id])}
+                      onChange={toggleSelectAll}
+                      style={{ width: '18px', height: '18px', accentColor: 'var(--seims-teal)' }}
+                    />
+                    <span>Chọn tất cả</span>
+                  </label>
+                )}
+              </div>
+            </div>
 
-                  {/* Items in this store */}
-                  {group.items.map((item) => (
-                    <div key={item.id} className={`cart-item ${!selectedItems[item.id] ? 'cart-item-unselected' : ''}`}>
+            <div className="cart-content">
+              {cart.length === 0 ? (
+                <div className="cart-empty">
+                  <p className="cart-empty-title">Giỏ hàng trống</p>
+                </div>
+              ) : (
+                groupList.map((group, groupIdx) => (
+                  <div key={group.storeId} className="cart-store-group">
+                    {/* Store Header */}
+                    <div className="cart-store-header">
                       <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
                         <input
                           type="checkbox"
-                          checked={!!selectedItems[item.id]}
-                          onChange={() => toggleSelectItem(item.id)}
+                          checked={group.items.every(item => selectedItems[item.id])}
+                          onChange={() => toggleSelectStore(group.storeId, group.items)}
                           style={{ width: '18px', height: '18px', accentColor: 'var(--seims-teal)' }}
                         />
                       </label>
-                      <div className="cart-item-image">
-                        <img src={getProductImageUrl(item.imageUrl || item.image)} alt={item.name} />
+                      <div className="cart-store-info">
+                        <h4 className="cart-store-name">{group.storeName}</h4>
+                        {group.storeAddress && (
+                          <span className="cart-store-address">{group.storeAddress}</span>
+                        )}
                       </div>
-                      <div className="cart-item-info">
-                        <h4 className="cart-item-name">{item.name}</h4>
-                        <div className="cart-item-meta">
-                          <span className="cart-discount-badge">-{item.discount || 0}%</span>
+                      <span className="cart-store-badge">{group.items.length} sản phẩm</span>
+                    </div>
+
+                    {/* Items in this store */}
+                    {group.items.map((item) => (
+                      <div key={item.id} className={`cart-item ${!selectedItems[item.id] ? 'cart-item-unselected' : ''}`}>
+                        <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                          <input
+                            type="checkbox"
+                            checked={!!selectedItems[item.id]}
+                            onChange={() => toggleSelectItem(item.id)}
+                            style={{ width: '18px', height: '18px', accentColor: 'var(--seims-teal)' }}
+                          />
+                        </label>
+                        <div className="cart-item-image">
+                          <img src={getProductImageUrl(item.imageUrl || item.image)} alt={item.name} />
                         </div>
-                        <div className="cart-item-pricing">
-                          {item.originalPrice > 0 && item.discount > 0 && (
-                            <span className="cart-item-original-price">
-                              {item.originalPrice.toLocaleString()}đ
+                        <div className="cart-item-info">
+                          <h4 className="cart-item-name">{item.name}</h4>
+                          <div className="cart-item-meta">
+                            <span className="cart-discount-badge">-{item.discount || 0}%</span>
+                          </div>
+                          <div className="cart-item-pricing">
+                            {item.originalPrice > 0 && item.discount > 0 && (
+                              <span className="cart-item-original-price">
+                                {item.originalPrice.toLocaleString()}đ
+                              </span>
+                            )}
+                            <span className="cart-item-sale-price">
+                              {(item.salePrice || item.bestPrice || 0).toLocaleString()}đ
                             </span>
-                          )}
-                          <span className="cart-item-sale-price">
-                            {(item.salePrice || item.bestPrice || 0).toLocaleString()}đ
-                          </span>
+                          </div>
+                          <div className="cart-item-qty-controls">
+                            <button
+                              className="cart-qty-btn"
+                              onClick={() => updateCartItemQuantity(item.id, -1, handleDeleteItem)}
+                              title="Giảm"
+                            >
+                              −
+                            </button>
+                            <span className="cart-qty-value">{item.quantity}</span>
+                            <button
+                              className="cart-qty-btn"
+                              onClick={() => updateCartItemQuantity(item.id, 1)}
+                              title="Tăng"
+                            >
+                              +
+                            </button>
+                          </div>
                         </div>
-                        <div className="cart-item-qty-controls">
-                          <button
-                            className="cart-qty-btn"
-                            onClick={() => updateCartItemQuantity(item.id, -1, handleDeleteItem)}
-                            title="Giảm"
-                          >
-                            −
-                          </button>
-                          <span className="cart-qty-value">{item.quantity}</span>
-                          <button
-                            className="cart-qty-btn"
-                            onClick={() => updateCartItemQuantity(item.id, 1)}
-                            title="Tăng"
-                          >
-                            +
-                          </button>
+                        <div className="cart-item-price">
+                          <p className="cart-item-price-value">
+                            {((item.salePrice || item.bestPrice || 0) * item.quantity).toLocaleString()}đ
+                          </p>
+                          <p className="cart-item-price-qty">x{item.quantity}</p>
+                        </div>
+                        <button
+                          onClick={() => handleRemove(item.id)}
+                          className="cart-item-remove"
+                          title="Xóa khỏi giỏ hàng"
+                        >
+                          🗑
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Order Summary */}
+          <div className="cart-products-section cart-summary-section">
+            {selectedCount > 0 ? (
+              <>
+                <div className="cart-section-header">
+                  <div className="cart-header-left">
+                    <h3 className="cart-section-title">Tóm tắt đơn hàng</h3>
+                    <p className="cart-section-subtitle">{selectedCount} sản phẩm đã chọn</p>
+                  </div>
+                </div>
+
+                <div className="cart-content">
+                  {/* Summary by store */}
+                  {selectedGroupList.length > 1 && selectedGroupList.map((group, idx) => {
+                    const groupTotal = group.items.reduce((sum, item) => {
+                      return sum + (item.salePrice || item.bestPrice || 0) * item.quantity;
+                    }, 0);
+                    return (
+                      <div key={group.storeId} className="cart-store-summary">
+                        <div className="cart-store-summary-header">
+                          <span>{group.storeName}</span>
+                          <span>{groupTotal.toLocaleString()}đ</span>
                         </div>
                       </div>
-                      <div className="cart-item-price">
-                        <p className="cart-item-price-value">
-                          {((item.salePrice || item.bestPrice || 0) * item.quantity).toLocaleString()}đ
-                        </p>
-                        <p className="cart-item-price-qty">x{item.quantity}</p>
-                      </div>
-                      <button
-                        onClick={() => handleRemove(item.id)}
-                        className="cart-item-remove"
-                        title="Xóa khỏi giỏ hàng"
-                      >
-                        🗑
-                      </button>
+                    );
+                  })}
+
+                  {/* Selected items list */}
+                  {selectedCartItems.map(item => (
+                    <div key={item.id} className="cart-summary-row">
+                      <span className="cart-summary-label">{item.name} x{item.quantity}</span>
+                      <span className="cart-summary-value">
+                        {((item.salePrice || item.bestPrice || 0) * item.quantity).toLocaleString()}đ
+                      </span>
                     </div>
                   ))}
+
+                  {totalSavings > 0 && (
+                    <div className="cart-summary-savings">
+                      <span className="cart-summary-label">Tiết kiệm</span>
+                      <span className="cart-summary-value" style={{ color: 'var(--seims-warning)' }}>
+                        -{totalSavings.toLocaleString()}đ
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="cart-grand-total">
+                    <span className="cart-grand-total-label">Tổng thanh toán</span>
+                    <span className="cart-grand-total-value">{subtotal.toLocaleString()}đ</span>
+                  </div>
+
+                  <button
+                    onClick={handleCheckout}
+                    className="cart-add-to-cart-btn"
+                    style={{ padding: '0.875rem', fontSize: '1rem', marginTop: '0.5rem' }}
+                    disabled={isProcessing}
+                  >
+                    {isProcessing ? '⏳ Đang xử lý...' : 'Thanh toán ngay'}
+                  </button>
+
+                  <button
+                    onClick={() => navigate('/customer/home')}
+                    className="cart-filter-btn"
+                    style={{ width: '100%', marginTop: '0.5rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}
+                  >
+                    Tiếp tục mua sắm
+                  </button>
                 </div>
-              ))
+              </>
+            ) : (
+              <div className="cart-content" style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--seims-muted)' }}>
+                <p style={{ fontSize: '2rem', margin: '0 0 0.5rem 0' }}>🛒</p>
+                <p style={{ margin: 0 }}>Chọn sản phẩm để xem tóm tắt</p>
+              </div>
             )}
           </div>
         </div>
-
-        {/* Order Summary */}
-        <div className="cart-products-section cart-summary-section">
-          {selectedCount > 0 ? (
-            <>
-              <div className="cart-section-header">
-                <div className="cart-header-left">
-                  <h3 className="cart-section-title">Tóm tắt đơn hàng</h3>
-                  <p className="cart-section-subtitle">{selectedCount} sản phẩm đã chọn</p>
-                </div>
-              </div>
-
-              <div className="cart-content">
-                {/* Summary by store */}
-                {selectedGroupList.length > 1 && selectedGroupList.map((group, idx) => {
-                  const groupTotal = group.items.reduce((sum, item) => {
-                    return sum + (item.salePrice || item.bestPrice || 0) * item.quantity;
-                  }, 0);
-                  return (
-                    <div key={group.storeId} className="cart-store-summary">
-                      <div className="cart-store-summary-header">
-                        <span>{group.storeName}</span>
-                        <span>{groupTotal.toLocaleString()}đ</span>
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {/* Selected items list */}
-                {selectedCartItems.map(item => (
-                  <div key={item.id} className="cart-summary-row">
-                    <span className="cart-summary-label">{item.name} x{item.quantity}</span>
-                    <span className="cart-summary-value">
-                      {((item.salePrice || item.bestPrice || 0) * item.quantity).toLocaleString()}đ
-                    </span>
-                  </div>
-                ))}
-
-                {totalSavings > 0 && (
-                  <div className="cart-summary-savings">
-                    <span className="cart-summary-label">Tiết kiệm</span>
-                    <span className="cart-summary-value" style={{ color: 'var(--seims-warning)' }}>
-                      -{totalSavings.toLocaleString()}đ
-                    </span>
-                  </div>
-                )}
-
-                <div className="cart-grand-total">
-                  <span className="cart-grand-total-label">Tổng thanh toán</span>
-                  <span className="cart-grand-total-value">{subtotal.toLocaleString()}đ</span>
-                </div>
-
-                <button
-                  onClick={handleCheckout}
-                  className="cart-add-to-cart-btn"
-                  style={{ padding: '0.875rem', fontSize: '1rem', marginTop: '0.5rem' }}
-                  disabled={isProcessing}
-                >
-                  {isProcessing ? '⏳ Đang xử lý...' : 'Thanh toán ngay'}
-                </button>
-
-                <button
-                  onClick={() => navigate('/customer/home')}
-                  className="cart-filter-btn"
-                  style={{ width: '100%', marginTop: '0.5rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}
-                >
-                  Tiếp tục mua sắm
-                </button>
-              </div>
-            </>
-          ) : (
-            <div className="cart-content" style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--seims-muted)' }}>
-              <p style={{ fontSize: '2rem', margin: '0 0 0.5rem 0' }}>🛒</p>
-              <p style={{ margin: 0 }}>Chọn sản phẩm để xem tóm tắt</p>
-            </div>
-          )}
-        </div>
       </div>
-    </div>
 
-    <Toast visible={toast.visible} message={toast.message} />
-    <DeleteConfirmModal />
+      <Toast visible={toast.visible} message={toast.message} onClose={() => setToast(prev => ({ ...prev, visible: false }))} />
+      <DeleteConfirmModal />
     </>
   );
 };

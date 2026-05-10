@@ -1,4 +1,3 @@
-/* Trang đăng ký SEIMS — class register-* riêng, không dùng chung login-* */
 .register-page {
   --seims-teal: #0f766e;
   --seims-teal-dark: #0d5c56;
@@ -21,7 +20,8 @@
     radial-gradient(circle at 95% 4%, rgba(15, 118, 110, 0.18) 0, rgba(15, 118, 110, 0) 32%),
     linear-gradient(160deg, #ecfdf5 0%, #f0fdfa 45%, #e6fffa 100%);
   overflow-x: hidden;
-  overflow-y: hidden; /* không tạo scrollbar toàn trang */
+  overflow-y: hidden;
+  /* không tạo scrollbar toàn trang */
 }
 
 .register-page a {
@@ -43,7 +43,8 @@
   width: 100%;
   margin: 0 auto;
   align-items: stretch;
-  min-height: 0; /* cho phép layout co/thu gọn */
+  min-height: 0;
+  /* cho phép layout co/thu gọn */
   box-sizing: border-box;
   padding: 0 1.25rem;
 }
@@ -128,8 +129,7 @@
 }
 
 .register-panel {
-  padding: clamp(1.15rem, 3.5vh, 2rem) 1.25rem
-    clamp(1.4rem, 4vh, 2.5rem);
+  padding: clamp(1.15rem, 3.5vh, 2rem) 1.25rem clamp(1.4rem, 4vh, 2.5rem);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -150,7 +150,8 @@
   /* nếu màn hình thấp: vẫn truy cập form nhưng không tạo scrollbar toàn trang */
   max-height: calc(100svh - 9rem);
   overflow-y: auto;
-  scrollbar-width: none; /* Firefox */
+  scrollbar-width: none;
+  /* Firefox */
   animation: register-card-enter 280ms ease-out;
 }
 
@@ -236,7 +237,7 @@
   accent-color: var(--seims-teal);
 }
 
-.register-checkbox-label > span {
+.register-checkbox-label>span {
   display: block;
   min-width: 0;
 }
@@ -251,7 +252,7 @@
   line-height: 1.45;
 }
 
-.register-terms-label > span {
+.register-terms-label>span {
   display: block;
   white-space: nowrap;
 }
@@ -313,22 +314,80 @@
   transform: none;
 }
 
-.register-message {
-  margin-top: 0.85rem;
-  padding: 0.55rem 0.65rem;
-  border-radius: 8px;
-  font-size: 0.8125rem;
-  text-align: left;
+.register-toast {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 320px;
+  max-width: 450px;
+  padding: 1rem 1.25rem;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.12), 0 5px 10px rgba(0, 0, 0, 0.05);
+  animation: toastSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  background: #ffffff;
 }
 
-.register-message.register-message--info {
-  background: var(--seims-mint);
-  color: var(--seims-teal-dark);
+@keyframes toastSlideIn {
+  from {
+    transform: translateX(120%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
 }
 
-.register-message.register-message--error {
-  background: var(--seims-error-bg);
-  color: var(--seims-error);
+.register-toast.success .toast-icon {
+  color: #10b981;
+}
+
+.register-toast.error .toast-icon {
+  color: #ef4444;
+}
+
+.toast-content {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  flex: 1;
+}
+
+.toast-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.toast-message {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #1f2937;
+  line-height: 1.4;
+}
+
+.toast-close {
+  background: none;
+  border: none;
+  color: #9ca3af;
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0 0 0 1rem;
+  line-height: 1;
+  transition: color 0.2s;
+  display: flex;
+  align-items: center;
+}
+
+.toast-close:hover {
+  color: #4b5563;
 }
 
 .register-footer {
@@ -354,6 +413,7 @@
 .register-top-nav a:hover {
   text-decoration: underline;
 }
+
 .register-inline-link {
   border: none;
   background: none;
@@ -452,7 +512,7 @@
   padding: 0.9rem 1rem 1rem;
 }
 
-.register-policy-section + .register-policy-section {
+.register-policy-section+.register-policy-section {
   margin-top: 0.85rem;
 }
 
@@ -474,6 +534,7 @@
     opacity: 0;
     transform: translateY(10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -485,6 +546,7 @@
     opacity: 0;
     transform: translateY(8px) scale(0.985);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
@@ -492,6 +554,7 @@
 }
 
 @media (max-width: 520px) {
+
   .register-modal-header,
   .register-modal-body {
     padding-left: 0.85rem;

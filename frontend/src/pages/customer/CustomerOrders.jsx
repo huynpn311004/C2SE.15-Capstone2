@@ -84,7 +84,19 @@ const CustomerOrders = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [toastSuccess, setToastSuccess] = useState('');
+  const [toastError, setToastError] = useState('');
   const [cancellingId, setCancellingId] = useState(null);
+
+  useEffect(() => {
+    if (toastSuccess || toastError) {
+      const timer = setTimeout(() => {
+        setToastSuccess('');
+        setToastError('');
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [toastSuccess, toastError]);
 
   const loadOrders = async () => {
     try {
@@ -109,10 +121,11 @@ const CustomerOrders = () => {
     try {
       setCancellingId(orderId);
       await cancelCustomerOrder(orderId);
+      setToastSuccess('Đã hủy đơn hàng thành công.');
       await loadOrders();
     } catch (err) {
       console.error('Failed to cancel order:', err);
-      alert(err.response?.data?.detail || 'Không thể hủy đơn hàng.');
+      setToastError(err.response?.data?.detail || 'Không thể hủy đơn hàng.');
     } finally {
       setCancellingId(null);
     }
@@ -180,6 +193,27 @@ const CustomerOrders = () => {
           </div>
         )}
       </div>
+
+      {/* TOAST NOTIFICATION */}
+      {(toastSuccess || toastError) && (
+        <div className={`customer-orders-toast ${toastSuccess ? 'success' : 'error'}`}>
+          <div className="toast-content">
+            <span className="toast-icon">
+              {toastSuccess ? (
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+                </svg>
+              )}
+            </span>
+            <p className="toast-message">{toastSuccess || toastError}</p>
+          </div>
+          <button type="button" className="toast-close" onClick={() => { setToastSuccess(''); setToastError(''); }}>×</button>
+        </div>
+      )}
     </div>
   );
 };

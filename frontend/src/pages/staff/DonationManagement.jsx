@@ -39,8 +39,8 @@ export default function DonationManagement() {
   const [loading, setLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const [createError, setCreateError] = useState('')
-  const [createSuccess, setCreateSuccess] = useState('')
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
   const [inventoryLots, setInventoryLots] = useState([])
   const [loadingLots, setLoadingLots] = useState(false)
   const [statusFilter, setStatusFilter] = useState('all')
@@ -60,6 +60,16 @@ export default function DonationManagement() {
   useEffect(() => {
     loadData()
   }, [statusFilter])
+
+  useEffect(() => {
+    if (success || error) {
+      const timer = setTimeout(() => {
+        setSuccess('')
+        setError('')
+      }, 4000)
+      return () => clearTimeout(timer)
+    }
+  }, [success, error])
 
   async function loadData() {
     try {
@@ -99,7 +109,7 @@ export default function DonationManagement() {
       setSelectedRequest(detail)
     } catch (err) {
       console.error('Failed to load request detail:', err)
-      alert('Không thể tải chi tiết yêu cầu')
+      setError('Không thể tải chi tiết yêu cầu')
       setShowDetailModal(false)
     } finally {
       setLoadingDetail(false)
@@ -115,13 +125,13 @@ export default function DonationManagement() {
     if (!confirm('Bạn có chắc muốn duyệt yêu cầu này?')) return
     try {
       await updateDonationRequestStatus(requestId, 'APPROVED')
-      alert('Đã duyệt yêu cầu thành công!')
+      setSuccess('Đã duyệt yêu cầu thành công!')
       closeRequestDetail()
       loadData()
     } catch (err) {
       console.error('Failed to approve request:', err)
       const detail = err?.response?.data?.detail || 'Duyệt thất bại'
-      alert(detail)
+      setError(detail)
     }
   }
 
@@ -129,29 +139,29 @@ export default function DonationManagement() {
     if (!confirm('Bạn có chắc muốn từ chối yêu cầu này?')) return
     try {
       await updateDonationRequestStatus(requestId, 'REJECTED')
-      alert('Đã từ chối yêu cầu!')
+      setSuccess('Đã từ chối yêu cầu!')
       closeRequestDetail()
       loadData()
     } catch (err) {
       console.error('Failed to reject request:', err)
       const detail = err?.response?.data?.detail || 'Từ chối thất bại'
-      alert(detail)
+      setError(detail)
     }
   }
 
   function openCreateModal() {
     loadInventoryLots()
     setSelectedItems([])
-    setCreateError('')
-    setCreateSuccess('')
+    setError('')
+    setSuccess('')
     setShowCreateModal(true)
   }
 
   function closeCreateModal() {
     setShowCreateModal(false)
     setSelectedItems([])
-    setCreateError('')
-    setCreateSuccess('')
+    setError('')
+    setSuccess('')
   }
 
   function handleLotCheckboxChange(lotId, checked) {
@@ -163,8 +173,8 @@ export default function DonationManagement() {
         return prev.filter(item => item.lotId !== lotId)
       }
     })
-    setCreateError('')
-    setCreateSuccess('')
+    setError('')
+    setSuccess('')
   }
 
   function handleQuantityChange(lotId, newQty) {
@@ -177,27 +187,27 @@ export default function DonationManagement() {
 
   async function submitCreateOffer(event) {
     event.preventDefault()
-    setCreateError('')
-    setCreateSuccess('')
+    setError('')
+    setSuccess('')
 
     if (selectedItems.length === 0) {
-      setCreateError('Vui lòng chọn ít nhất 1 sản phẩm.')
+      setError('Vui lòng chọn ít nhất 1 sản phẩm.')
       return
     }
 
     for (const item of selectedItems) {
       const lot = inventoryLots.find(l => l.id === item.lotId)
       if (!lot) {
-        setCreateError(`Sản phẩm không hợp lệ (ID: ${item.lotId}).`)
+        setError(`Sản phẩm không hợp lệ (ID: ${item.lotId}).`)
         return
       }
       const qty = Number(item.quantity)
       if (!qty || qty <= 0) {
-        setCreateError(`Số lượng cho ${lot.productName} phải > 0.`)
+        setError(`Số lượng cho ${lot.productName} phải > 0.`)
         return
       }
       if (qty > lot.quantity) {
-        setCreateError(`Số lượng cho ${lot.productName} vượt quá tồn kho (còn lại: ${lot.quantity}).`)
+        setError(`Số lượng cho ${lot.productName} vượt quá tồn kho (còn lại: ${lot.quantity}).`)
         return
       }
     }
@@ -211,15 +221,15 @@ export default function DonationManagement() {
 
       const result = await createBulkDonationOffers(payload)
       await loadData()
-      setCreateSuccess(`Đã tạo ${result.created || selectedItems.length} đề nghị quyên góp thành công!`)
-      setTimeout(() => closeCreateModal(), 1000)
+      setSuccess(`Đã tạo ${result.created || selectedItems.length} đề nghị quyên góp thành công!`)
+      setTimeout(() => closeCreateModal(), 1500)
     } catch (err) {
       console.error('Failed to create offers:', err)
       const detail = err?.response?.data?.detail
       if (Array.isArray(detail)) {
-        setCreateError(detail.map(e => e.message).join('; '))
+        setError(detail.map(e => e.message).join('; '))
       } else {
-        setCreateError(detail || 'Tạo đề nghị quyên góp thất bại.')
+        setError(detail || 'Tạo đề nghị quyên góp thất bại.')
       }
     } finally {
       setIsSubmitting(false)
@@ -234,7 +244,7 @@ export default function DonationManagement() {
       )
     } catch (err) {
       console.error('Failed to update offer status:', err)
-      alert('Cập nhật trạng thái thất bại')
+      setError('Cập nhật trạng thái thất bại')
     }
   }
 
@@ -254,11 +264,11 @@ export default function DonationManagement() {
       await loadData()
       setEditingOfferId(null)
       setEditQuantity(1)
-      alert('Đã cập nhật số lượng thành công!')
+      setSuccess('Đã cập nhật số lượng thành công!')
     } catch (err) {
       console.error('Failed to update offer:', err)
       const detail = err?.response?.data?.detail || 'Cập nhật thất bại'
-      alert(detail)
+      setError(detail)
     }
   }
 
@@ -269,11 +279,11 @@ export default function DonationManagement() {
     try {
       await deleteDonationOffer(offerId)
       setOffers((prev) => prev.filter((r) => r.id !== offerId))
-      alert('Đã xóa đề nghị quyên góp!')
+      setSuccess('Đã xóa đề nghị quyên góp!')
     } catch (err) {
       console.error('Failed to delete offer:', err)
       const detail = err?.response?.data?.detail || 'Xóa thất bại'
-      alert(detail)
+      setError(detail)
     }
   }
 
@@ -650,8 +660,6 @@ export default function DonationManagement() {
                 </div>
               )}
 
-              {createError && <p className="donation-error">{createError}</p>}
-              {createSuccess && <p className="donation-success">{createSuccess}</p>}
 
               <div className="donation-form-footer">
                 <div className="donation-form-actions">
@@ -673,6 +681,26 @@ export default function DonationManagement() {
               </div>
             </form>
           </div>
+        </div>
+      )}
+      {/* TOAST NOTIFICATION */}
+      {(success || error) && (
+        <div className={`donation-toast ${success ? 'success' : 'error'}`}>
+          <div className="toast-content">
+            <span className="toast-icon">
+              {success ? (
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+                </svg>
+              )}
+            </span>
+            <p className="toast-message">{success || error}</p>
+          </div>
+          <button className="toast-close" onClick={() => { setSuccess(''); setError(''); }}>×</button>
         </div>
       )}
     </div>

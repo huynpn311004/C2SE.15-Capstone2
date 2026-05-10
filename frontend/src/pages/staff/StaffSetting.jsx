@@ -24,14 +24,22 @@ export default function StaffSetting() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [passwordSaving, setPasswordSaving] = useState(false)
-  const [saveMessage, setSaveMessage] = useState('')
-  const [passwordMessage, setPasswordMessage] = useState('')
-  const [passwordError, setPasswordError] = useState('')
+  const [success, setSuccess] = useState('')
   const [error, setError] = useState('')
 
   useEffect(() => {
     loadProfile()
   }, [user])
+
+  useEffect(() => {
+    if (success || error) {
+      const timer = setTimeout(() => {
+        setSuccess('')
+        setError('')
+      }, 4000)
+      return () => clearTimeout(timer)
+    }
+  }, [success, error])
 
   async function loadProfile() {
     if (!user?.id) {
@@ -78,14 +86,14 @@ export default function StaffSetting() {
   function handleProfileChange(event) {
     const { name, value } = event.target
     setProfile((prev) => ({ ...prev, [name]: value }))
-    setSaveMessage('')
+    setSuccess('')
     setError('')
   }
 
   async function handleSave(event) {
     event.preventDefault()
     setError('')
-    setSaveMessage('')
+    setSuccess('')
 
     if (!profile.fullName.trim()) {
       setError('Họ tên không được để trống.')
@@ -122,7 +130,7 @@ export default function StaffSetting() {
         phone: profile.phone,
       })
       setInitialProfile({ ...profile })
-      setSaveMessage('Đã lưu thay đổi thành công.')
+      setSuccess('Đã lưu thay đổi thành công.')
     } catch (err) {
       setError(err.response?.data?.detail || 'Cập nhật thất bại.')
     } finally {
@@ -133,27 +141,27 @@ export default function StaffSetting() {
   function handlePasswordChange(event) {
     const { name, value } = event.target
     setPasswordData((prev) => ({ ...prev, [name]: value }))
-    setPasswordMessage('')
-    setPasswordError('')
+    setSuccess('')
+    setError('')
   }
 
   async function handleChangePassword(event) {
     event.preventDefault()
-    setPasswordMessage('')
-    setPasswordError('')
+    setSuccess('')
+    setError('')
 
     if (!passwordData.currentPassword) {
-      setPasswordError('Vui lòng nhập mật khẩu hiện tại.')
+      setError('Vui lòng nhập mật khẩu hiện tại.')
       return
     }
 
     if (passwordData.newPassword.length < 6) {
-      setPasswordError('Mật khẩu mới phải có ít nhất 6 ký tự.')
+      setError('Mật khẩu mới phải có ít nhất 6 ký tự.')
       return
     }
 
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      setPasswordError('Mật khẩu xác nhận không khớp.')
+      setError('Mật khẩu xác nhận không khớp.')
       return
     }
 
@@ -168,9 +176,9 @@ export default function StaffSetting() {
         newPassword: '',
         confirmPassword: '',
       })
-      setPasswordMessage('Đổi mật khẩu thành công.')
+      setSuccess('Đổi mật khẩu thành công.')
     } catch (err) {
-      setPasswordError(err.response?.data?.detail || err.message || 'Đổi mật khẩu thất bại.')
+      setError(err.response?.data?.detail || err.message || 'Đổi mật khẩu thất bại.')
     } finally {
       setPasswordSaving(false)
     }
@@ -284,8 +292,7 @@ export default function StaffSetting() {
             </button>
           </div>
 
-          {error && <p className="settings-msg-error">{error}</p>}
-          {saveMessage && <p className="settings-msg-success">{saveMessage}</p>}
+
         </form>
 
         {/* Đổi Mật Khẩu */}
@@ -335,10 +342,29 @@ export default function StaffSetting() {
             </button>
           </div>
 
-          {passwordError && <p className="settings-msg-error">{passwordError}</p>}
-          {passwordMessage && <p className="settings-msg-success">{passwordMessage}</p>}
+
         </form>
-      </div>
+        {/* TOAST NOTIFICATION */}
+      {(success || error) && (
+        <div className={`settings-toast ${success ? 'success' : 'error'}`}>
+          <div className="toast-content">
+            <span className="toast-icon">
+              {success ? (
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+                </svg>
+              )}
+            </span>
+            <p className="toast-message">{success || error}</p>
+          </div>
+          <button className="toast-close" onClick={() => { setSuccess(''); setError(''); }}>×</button>
+        </div>
+      )}
+    </div>
     </StaffLayout>
   )
 }

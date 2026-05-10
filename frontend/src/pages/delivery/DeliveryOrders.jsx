@@ -63,6 +63,32 @@ const nextStatusMap = {
   ready: 'completed',
 }
 
+function Toast({ message, visible, onClose }) {
+  if (!visible) return null;
+  
+  const isError = message.includes('thất bại') || message.includes('Lỗi') || message.includes('không xác định') || message.includes('Không thể');
+
+  return (
+    <div className={`dp-orders-toast ${isError ? 'error' : 'success'}`}>
+      <div className="toast-content">
+        <span className="toast-icon">
+          {!isError ? (
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+            </svg>
+          )}
+        </span>
+        <p className="toast-message">{message}</p>
+      </div>
+      <button type="button" className="toast-close" onClick={onClose}>×</button>
+    </div>
+  );
+}
+
 export default function DeliveryOrders() {
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
@@ -70,13 +96,16 @@ export default function DeliveryOrders() {
   const [showModal, setShowModal] = useState(false)
   const [updating, setUpdating] = useState(false)
   const [activeTab, setActiveTab] = useState('active')
-  const [updateSuccess, setUpdateSuccess] = useState('')
-  const [error, setError] = useState('')
+  const [toast, setToast] = useState({ visible: false, message: '' })
+
+  const showToast = (msg) => {
+    setToast({ visible: true, message: msg })
+    setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 2500)
+  }
 
   async function loadOrders() {
     try {
       setLoading(true)
-      setError('')
       const data = await fetchDeliveryOrders()
       setOrders(data.items || [])
     } catch (err) {
@@ -89,7 +118,7 @@ export default function DeliveryOrders() {
       } else {
         msg = err.message || msg
       }
-      setError(msg)
+      showToast(msg)
     } finally {
       setLoading(false)
     }
@@ -112,12 +141,11 @@ export default function DeliveryOrders() {
   async function handleUpdateStatus(id, newStatus) {
     console.log(`[DELIVERY] Updating ${id} to ${newStatus}`)
     if (!newStatus) {
-      setError('Trạng thái tiếp theo không xác định.')
+      showToast('Trạng thái tiếp theo không xác định.')
       return
     }
 
     setUpdating(true)
-    setUpdateSuccess('')
 
     try {
       const result = await updateDeliveryStatus(id, newStatus)
@@ -130,12 +158,7 @@ export default function DeliveryOrders() {
         setSelectedOrder(prev => ({ ...prev, status: newStatus }))
       }
 
-      setUpdateSuccess(result.message || `Cập nhật đơn thành công!`)
-
-
-      if (newStatus === 'completed') {
-        setTimeout(() => setUpdateSuccess(''), 3000)
-      }
+      showToast(result.message || `Cập nhật đơn thành công!`)
     } catch (err) {
       console.error('Failed to update status:', err)
       const errorData = err.response?.data?.detail
@@ -148,8 +171,7 @@ export default function DeliveryOrders() {
       } else {
         msg = err.message || msg
       }
-      setError(msg)
-      setTimeout(() => setError(''), 3000)
+      showToast(msg)
     } finally {
       setUpdating(false)
     }
@@ -204,19 +226,6 @@ export default function DeliveryOrders() {
   return (
     <DeliveryLayout>
       <div className="dp-orders-page">
-        {/* Success Message */}
-        {updateSuccess && (
-          <div className="dp-alert dp-alert-success">
-            {updateSuccess}
-          </div>
-        )}
-
-        {/* Error Message */}
-        {error && (
-          <div className="dp-alert dp-alert-error">
-            {error}
-          </div>
-        )}
 
         {/* Tabs */}
         <div className="dp-tabs">
@@ -265,12 +274,6 @@ export default function DeliveryOrders() {
                   <tr>
                     <td colSpan="7" style={{ textAlign: 'center', padding: '2rem' }}>
                       Đang tải dữ liệu...
-                    </td>
-                  </tr>
-                ) : error ? (
-                  <tr>
-                    <td colSpan="7" style={{ textAlign: 'center', padding: '2rem', color: '#dc2626' }}>
-                      {error}
                     </td>
                   </tr>
                 ) : displayedOrders.length === 0 ? (
@@ -527,6 +530,7 @@ export default function DeliveryOrders() {
             </div>
           </div>
         )}
+        <Toast visible={toast.visible} message={toast.message} onClose={() => setToast(prev => ({ ...prev, visible: false }))} />
       </div>
     </DeliveryLayout>
   )

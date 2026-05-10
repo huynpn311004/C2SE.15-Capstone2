@@ -27,8 +27,8 @@ export default function CharitySettings() {
     phone: '',
     address: '',
   })
-  const [saveMessage, setSaveMessage] = useState('')
-  const [saveError, setSaveError] = useState('')
+  const [toastSuccess, setToastSuccess] = useState('')
+  const [toastError, setToastError] = useState('')
   const [saving, setSaving] = useState(false)
 
   const isDirty = useMemo(() => {
@@ -40,13 +40,21 @@ export default function CharitySettings() {
     newPassword: '',
     confirmPassword: '',
   })
-  const [passwordMessage, setPasswordMessage] = useState('')
-  const [passwordError, setPasswordError] = useState('')
   const [changingPassword, setChangingPassword] = useState(false)
 
   useEffect(() => {
     loadProfile()
   }, [])
+
+  useEffect(() => {
+    if (toastSuccess || toastError) {
+      const timer = setTimeout(() => {
+        setToastSuccess('')
+        setToastError('')
+      }, 4000)
+      return () => clearTimeout(timer)
+    }
+  }, [toastSuccess, toastError])
 
   async function loadProfile() {
     setLoading(true)
@@ -78,26 +86,26 @@ export default function CharitySettings() {
   async function handleSave(e) {
     e.preventDefault()
     setSaving(true)
-    setSaveMessage('')
-    setSaveError('')
+    setToastSuccess('')
+    setToastError('')
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     const phoneRegex = /^\d{10}$/
 
     if (!formData.email.trim()) {
-      setSaveError('Email không được để trống.')
+      setToastError('Email không được để trống.')
       setSaving(false)
       return
     }
 
     if (!emailRegex.test(formData.email.trim())) {
-      setSaveError('Email không đúng định dạng.')
+      setToastError('Email không đúng định dạng.')
       setSaving(false)
       return
     }
 
     if (formData.phone.trim() && !phoneRegex.test(formData.phone.trim())) {
-      setSaveError('Số điện thoại phải có đúng 10 chữ số.')
+      setToastError('Số điện thoại phải có đúng 10 chữ số.')
       setSaving(false)
       return
     }
@@ -105,10 +113,9 @@ export default function CharitySettings() {
     try {
       await updateCharityProfile(formData)
       setOriginalData(formData)
-      setSaveMessage('Đã lưu thay đổi thành công.')
-      setTimeout(() => setSaveMessage(''), 3000)
+      setToastSuccess('Đã lưu thay đổi thành công.')
     } catch (err) {
-      setSaveError(err?.response?.data?.detail || err.message || 'Lưu thất bại')
+      setToastError(err?.response?.data?.detail || err.message || 'Lưu thất bại')
     } finally {
       setSaving(false)
     }
@@ -121,16 +128,16 @@ export default function CharitySettings() {
 
   async function handleChangePassword(e) {
     e.preventDefault()
-    setPasswordMessage('')
-    setPasswordError('')
+    setToastSuccess('')
+    setToastError('')
 
     if (passwordData.newPassword.length < 6) {
-      setPasswordError('Mật khẩu mới phải có ít nhất 6 ký tự.')
+      setToastError('Mật khẩu mới phải có ít nhất 6 ký tự.')
       return
     }
 
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      setPasswordError('Mật khẩu xác nhận không khớp.')
+      setToastError('Mật khẩu xác nhận không khớp.')
       return
     }
 
@@ -141,10 +148,9 @@ export default function CharitySettings() {
         newPassword: passwordData.newPassword,
       })
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' })
-      setPasswordMessage('Đổi mật khẩu thành công.')
-      setTimeout(() => setPasswordMessage(''), 3000)
+      setToastSuccess('Đổi mật khẩu thành công.')
     } catch (err) {
-      setPasswordError(err?.response?.data?.detail || err.message || 'Đổi mật khẩu thất bại')
+      setToastError(err?.response?.data?.detail || err.message || 'Đổi mật khẩu thất bại')
     } finally {
       setChangingPassword(false)
     }
@@ -256,9 +262,6 @@ export default function CharitySettings() {
               {saving ? 'Đang lưu...' : 'Lưu Thay Đổi'}
             </button>
           </div>
-
-          {saveError && <p className="chsettings-msg-error">{saveError}</p>}
-          {saveMessage && <p className="chsettings-msg-success">{saveMessage}</p>}
         </form>
 
         {/* DOI MAT KHAU */}
@@ -307,10 +310,28 @@ export default function CharitySettings() {
               {changingPassword ? 'Đang xử lý...' : 'Cập Nhật Mật Khẩu'}
             </button>
           </div>
-
-          {passwordError && <p className="chsettings-msg-error">{passwordError}</p>}
-          {passwordMessage && <p className="chsettings-msg-success">{passwordMessage}</p>}
         </form>
+
+        {/* TOAST NOTIFICATION */}
+        {(toastSuccess || toastError) && (
+          <div className={`chsettings-toast ${toastSuccess ? 'success' : 'error'}`}>
+            <div className="toast-content">
+              <span className="toast-icon">
+                {toastSuccess ? (
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+                  </svg>
+                )}
+              </span>
+              <p className="toast-message">{toastSuccess || toastError}</p>
+            </div>
+            <button type="button" className="toast-close" onClick={() => { setToastSuccess(''); setToastError(''); }}>×</button>
+          </div>
+        )}
       </div>
     </CharityLayout>
   )

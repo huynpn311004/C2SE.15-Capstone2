@@ -12,15 +12,45 @@ import './StoreManagement.css'
 const statusBadge = { active: 'badge-success', warning: 'badge-warning', inactive: 'badge-danger' }
 const statusLabel = { active: 'Hoạt Động', warning: 'Cảnh Báo', inactive: 'Bị Khóa' }
 
+function Toast({ message, visible, onClose }) {
+  if (!visible) return null;
+  
+  const isError = message.includes('Lỗi') || message.includes('thất bại') || message.includes('Không thể') || message.includes('không được để trống') || message.includes('phải có đúng 10 chữ số');
+
+  return (
+    <div className={`sastore-toast ${isError ? 'error' : 'success'}`}>
+      <div className="toast-content">
+        <span className="toast-icon">
+          {!isError ? (
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+            </svg>
+          )}
+        </span>
+        <p className="toast-message">{message}</p>
+      </div>
+      <button type="button" className="toast-close" onClick={onClose}>×</button>
+    </div>
+  );
+}
+
 export default function StoreManagement() {
   const { user } = useAuth()
   const [stores, setStores] = useState([])
   const [selectedStore, setSelectedStore] = useState(null)
   const [showModal, setShowModal] = useState(false)
   const [mode, setMode] = useState('edit')
-  const [editError, setEditError] = useState('')
-  const [editSuccess, setEditSuccess] = useState('')
+  const [toast, setToast] = useState({ visible: false, message: '' })
   const [loading, setLoading] = useState(true)
+
+  const showToast = (msg) => {
+    setToast({ visible: true, message: msg })
+    setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 2500)
+  }
   const [editForm, setEditForm] = useState({ name: '', address: '', phone: '', status: 'active', latitude: null, longitude: null })
 
   const [showLocationModal, setShowLocationModal] = useState(false)
@@ -32,7 +62,7 @@ export default function StoreManagement() {
       if (!user?.id) {
         if (active) {
           setStores([])
-          setEditError('Không tìm thấy tài khoản đăng nhập.')
+          showToast('Không tìm thấy tài khoản đăng nhập.')
           setLoading(false)
         }
         return
@@ -42,12 +72,11 @@ export default function StoreManagement() {
         const items = await fetchSupermarketStores(user.id)
         if (active) {
           setStores(items)
-          setEditError('')
         }
       } catch {
         if (active) {
           setStores([])
-          setEditError('Không thể tải danh sách store.')
+          showToast('Không thể tải danh sách store.')
         }
       } finally {
         if (active) setLoading(false)
@@ -71,8 +100,6 @@ export default function StoreManagement() {
       latitude: store.latitude ?? null,
       longitude: store.longitude ?? null,
     })
-    setEditError('')
-    setEditSuccess('')
     setShowModal(true)
   }
 
@@ -80,23 +107,17 @@ export default function StoreManagement() {
     setMode('create')
     setSelectedStore(null)
     setEditForm({ name: '', address: '', phone: '', status: 'active', latitude: null, longitude: null })
-    setEditError('')
-    setEditSuccess('')
     setShowModal(true)
   }
 
   function closeEditModal() {
     setShowModal(false)
     setSelectedStore(null)
-    setEditError('')
-    setEditSuccess('')
   }
 
   function handleEditChange(e) {
     const { name, value } = e.target
     setEditForm(prev => ({ ...prev, [name]: value }))
-    setEditError('')
-    setEditSuccess('')
   }
 
   const handleLocationSelect = (location) => {
@@ -110,14 +131,13 @@ export default function StoreManagement() {
 
   async function submitEdit(e) {
     e.preventDefault()
-    setEditError('')
-    if (!editForm.name.trim()) { setEditError('Tên store không được để trống.'); return }
-    if (!editForm.address.trim()) { setEditError('Địa chỉ không được để trống.'); return }
-    if (!editForm.phone.trim()) { setEditError('Số điện thoại không được để trống.'); return }
+    if (!editForm.name.trim()) { showToast('Tên store không được để trống.'); return }
+    if (!editForm.address.trim()) { showToast('Địa chỉ không được để trống.'); return }
+    if (!editForm.phone.trim()) { showToast('Số điện thoại không được để trống.'); return }
 
     const phoneRegex = /^\d{10}$/
     if (!phoneRegex.test(editForm.phone.trim())) {
-      setEditError('Số điện thoại phải có đúng 10 chữ số.')
+      showToast('Số điện thoại phải có đúng 10 chữ số.')
       return
     }
 
@@ -133,7 +153,7 @@ export default function StoreManagement() {
         }, user?.id)
         const items = await fetchSupermarketStores(user.id)
         setStores(items)
-        setEditSuccess('Đã tạo store mới.')
+        showToast('Đã tạo store mới.')
       } else {
         await saveSupermarketStore(selectedStore.id, {
           name: editForm.name,
@@ -151,10 +171,10 @@ export default function StoreManagement() {
           latitude: editForm.latitude,
           longitude: editForm.longitude,
         } : s))
-        setEditSuccess('Đã cập nhật thông tin store.')
+        showToast('Đã cập nhật thông tin store.')
       }
     } catch (err) {
-      setEditError(err?.message || 'Thao tác store thất bại.')
+      showToast(err?.message || 'Thao tác store thất bại.')
     }
   }
 
@@ -165,8 +185,9 @@ export default function StoreManagement() {
     try {
       await removeSupermarketStore(id, user?.id)
       setStores(prev => prev.filter(s => s.id !== id))
+      showToast('Đã xóa store thành công.')
     } catch {
-      setEditError('Không thể xóa store.')
+      showToast('Không thể xóa store.')
     }
     if (selectedStore?.id === id) closeEditModal()
   }
@@ -273,8 +294,6 @@ export default function StoreManagement() {
                     </select>
                   </div>
                 </div>
-                {editError && <p className="sastore-error">{editError}</p>}
-                {editSuccess && <p className="sastore-success">{editSuccess}</p>}
               </div>
               <div className="sastore-modal-footer">
                 <button type="submit" className="sastore-btn-save">{mode === 'create' ? 'Tạo Store' : 'Lưu Thay Đổi'}</button>
@@ -291,6 +310,7 @@ export default function StoreManagement() {
         onSelectLocation={handleLocationSelect}
         initialAddress={editForm.address}
       />
+      <Toast visible={toast.visible} message={toast.message} onClose={() => setToast(prev => ({ ...prev, visible: false }))} />
     </div>
   )
 }

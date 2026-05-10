@@ -28,14 +28,13 @@ function createProfileFromUser(userData) {
 export default function AdminSettings() {
   const { user } = useAuth()
   const [formData, setFormData] = useState(() => createProfileFromUser(user))
-  const [saveMessage, setSaveMessage] = useState('')
+  const [success, setSuccess] = useState('')
+  const [error, setError] = useState('')
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
     newPassword: '',
     confirmPassword: '',
   })
-  const [passwordMessage, setPasswordMessage] = useState('')
-  const [passwordError, setPasswordError] = useState('')
 
   useEffect(() => {
     const profile = createProfileFromUser(user)
@@ -43,6 +42,16 @@ export default function AdminSettings() {
     localStorage.setItem(ADMIN_PROFILE_STORAGE_KEY, JSON.stringify(profile))
     window.dispatchEvent(new Event('seims-admin-profile-updated'))
   }, [user])
+
+  useEffect(() => {
+    if (success || error) {
+      const timer = setTimeout(() => {
+        setSuccess('')
+        setError('')
+      }, 4000)
+      return () => clearTimeout(timer)
+    }
+  }, [success, error])
 
   const isDirty = useMemo(() => {
     const current = createProfileFromUser(user)
@@ -61,10 +70,11 @@ export default function AdminSettings() {
 
   async function handleSave(event) {
     event.preventDefault()
-    setSaveMessage('')
+    setSuccess('')
+    setError('')
 
     if (!user?.id) {
-      setSaveMessage('Không tìm thấy thông tin tài khoản hiện tại.')
+      setError('Không tìm thấy thông tin tài khoản hiện tại.')
       return
     }
 
@@ -72,22 +82,22 @@ export default function AdminSettings() {
     const phoneRegex = /^\d{10}$/
 
     if (!formData.email.trim()) {
-      setSaveMessage('Email không được để trống.')
+      setError('Email không được để trống.')
       return
     }
 
     if (!emailRegex.test(formData.email.trim())) {
-      setSaveMessage('Email không đúng định dạng.')
+      setError('Email không đúng định dạng.')
       return
     }
 
     if (!formData.phone.trim()) {
-      setSaveMessage('Số điện thoại không được để trống.')
+      setError('Số điện thoại không được để trống.')
       return
     }
 
     if (!phoneRegex.test(formData.phone.trim())) {
-      setSaveMessage('Số điện thoại phải có đúng 10 chữ số.')
+      setError('Số điện thoại phải có đúng 10 chữ số.')
       return
     }
 
@@ -116,9 +126,9 @@ export default function AdminSettings() {
         }),
       )
       window.dispatchEvent(new Event('seims-admin-profile-updated'))
-      setSaveMessage('Đã lưu thay đổi thành công.')
+      setSuccess('Đã lưu thay đổi thành công.')
     } catch (err) {
-      setSaveMessage(err?.response?.data?.detail || 'Lưu thay đổi thất bại.')
+      setError(err?.response?.data?.detail || 'Lưu thay đổi thất bại.')
     }
   }
 
@@ -132,22 +142,22 @@ export default function AdminSettings() {
 
   async function handleChangePassword(event) {
     event.preventDefault()
-    setPasswordMessage('')
-    setPasswordError('')
+    setSuccess('')
+    setError('')
 
     if (passwordData.newPassword.length < 6) {
-      setPasswordError('Mật khẩu mới phải có ít nhất 6 ký tự.')
+      setError('Mật khẩu mới phải có ít nhất 6 ký tự.')
       return
     }
 
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      setPasswordError('Mật khẩu xác nhận không khớp.')
+      setError('Mật khẩu xác nhận không khớp.')
       return
     }
 
 
     if (!user?.id) {
-      setPasswordError('Không tìm thấy thông tin tài khoản hiện tại.')
+      setError('Không tìm thấy thông tin tài khoản hiện tại.')
       return
     }
 
@@ -161,9 +171,9 @@ export default function AdminSettings() {
         newPassword: '',
         confirmPassword: '',
       })
-      setPasswordMessage('Đổi mật khẩu thành công.')
+      setSuccess('Đổi mật khẩu thành công.')
     } catch (err) {
-      setPasswordError(err?.response?.data?.detail || 'Đổi mật khẩu thất bại.')
+      setError(err?.response?.data?.detail || 'Đổi mật khẩu thất bại.')
     }
   }
 
@@ -234,8 +244,6 @@ export default function AdminSettings() {
               Lưu Thay Đổi
             </button>
           </div>
-
-          {saveMessage && <p className="settings-msg-success">{saveMessage}</p>}
         </form>
 
         <form className="settings-card" onSubmit={handleChangePassword}>
@@ -283,10 +291,28 @@ export default function AdminSettings() {
               Cập Nhật Mật Khẩu
             </button>
           </div>
-
-          {passwordError && <p className="settings-msg-error">{passwordError}</p>}
-          {passwordMessage && <p className="settings-msg-success">{passwordMessage}</p>}
         </form>
+
+        {/* TOAST NOTIFICATION */}
+        {(success || error) && (
+          <div className={`settings-toast ${success ? 'success' : 'error'}`}>
+            <div className="toast-content">
+              <span className="toast-icon">
+                {success ? (
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+                  </svg>
+                )}
+              </span>
+              <p className="toast-message">{success || error}</p>
+            </div>
+            <button className="toast-close" onClick={() => { setSuccess(''); setError(''); }}>×</button>
+          </div>
+        )}
       </div>
     </SystemAdminLayout>
   )

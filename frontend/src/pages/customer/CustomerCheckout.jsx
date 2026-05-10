@@ -6,12 +6,28 @@ import { LocationModal } from '../../components/map';
 import { getCart, clearCart } from '../../services/cartUtils';
 import './CustomerCheckout.css';
 
-function Toast({ message, visible }) {
+function Toast({ message, visible, onClose }) {
   if (!visible) return null;
+
+  const isError = message.includes('Lỗi') || message.includes('Vui lòng') || message.includes('⚠️');
+
   return (
-    <div className="customer-toast-center">
-      <span className="customer-toast-icon">&#10004;</span>
-      {message}
+    <div className={`customer-checkout-toast ${isError ? 'error' : 'success'}`}>
+      <div className="toast-content">
+        <span className="toast-icon">
+          {!isError ? (
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+            </svg>
+          )}
+        </span>
+        <p className="toast-message">{message}</p>
+      </div>
+      <button type="button" className="toast-close" onClick={onClose}>×</button>
     </div>
   );
 }
@@ -264,7 +280,7 @@ const CustomerCheckout = () => {
     ? orderGroups.reduce((sum, g) => sum + (g.shippingFee || 0), 0)
     : 0;
 
-  const cartSubtotal = cart.length > 0 
+  const cartSubtotal = cart.length > 0
     ? cart.reduce((sum, item) => sum + (item.salePrice || item.bestPrice || 0) * item.quantity, 0)
     : cartItems.reduce((sum, item) => sum + (item.salePrice || item.bestPrice || 0) * item.quantity, 0);
 
@@ -416,7 +432,7 @@ const CustomerCheckout = () => {
 
         clearCart();
         clearCart();
-        setToast({ visible: true, message: `✅ Đặt hàng thành công!\nMã đơn: ${reservedOrderCode}` });
+        setToast({ visible: true, message: `Đặt hàng thành công!\nMã đơn: ${reservedOrderCode}` });
         setTimeout(() => {
           setToast(prev => ({ ...prev, visible: false }));
           navigate('/customer/orders');
@@ -788,7 +804,7 @@ const CustomerCheckout = () => {
         </div>
       </div>
 
-      <Toast visible={toast.visible} message={toast.message} />
+      <Toast visible={toast.visible} message={toast.message} onClose={() => setToast(prev => ({ ...prev, visible: false }))} />
 
       <LocationModal
         isOpen={showLocationModal}

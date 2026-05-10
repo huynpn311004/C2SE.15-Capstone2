@@ -304,6 +304,7 @@ def _upsert_inventory_lot(
     expiry_date: date,
     manual_status: object = None,
     product_id: int | None = None,
+    manufacturing_date: date | None = None,
 ) -> str:
     lot = db.query(InventoryLot.id).filter(
         InventoryLot.store_id == store_id,
@@ -321,6 +322,7 @@ def _upsert_inventory_lot(
                 InventoryLot.expiry_date: expiry_date,
                 InventoryLot.qty_on_hand: quantity,
                 InventoryLot.status: lot_status,
+                InventoryLot.manufacturing_date: manufacturing_date,
             },
             synchronize_session=False
         )
@@ -332,6 +334,7 @@ def _upsert_inventory_lot(
         product_id=product_id,
         lot_code=lot_code,
         expiry_date=expiry_date,
+        manufacturing_date=manufacturing_date,
         qty_on_hand=quantity,
         qty_reserved=0,
         status=lot_status
@@ -706,7 +709,16 @@ def update_staff_order_status(db: Session, order_id: int, store_id: int, new_sta
             detail=f"Không thể cập nhật từ trạng thái '{order.status}' thành 'ready'"
         )
 
-    result = db.query(Order).filter(
+    # Deduct stock as the order is marked 'ready' (packed and handed to delivery)
+    order_items = db.query(OrderItem).filter(OrderItem.order_id == order_id).all()
+    for item in order_items:
+        if item.lot_id:
+            lot = db.query(InventoryLot).filter(InventoryLot.id == item.lot_id).with_for_update().first()
+            if lot:
+                lot.qty_on_hand = max(0, (lot.qty_on_hand or 0) - item.quantity)
+                lot.qty_reserved = max(0, (lot.qty_reserved or 0) - item.quantity)
+
+    db.query(Order).filter(
         Order.id == order_id,
         Order.store_id == store_id
     ).update({Order.status: "ready"}, synchronize_session=False)
@@ -1402,7 +1414,7 @@ def list_staff_donation_offers(db: Session, user_id: int, status_filter: str = "
             DonationRequest, DonationRequest.id == DonationRequestItem.request_id
         ).filter(
             DonationRequestItem.offer_id == row.id,
-            DonationRequest.status.in_(['PENDING', 'APPROVED'])
+            DonationRequest.status.in_(['PENDING', 'APPROVED', 'RECEIVED', 'COMPLETED'])
         ).scalar() or 0
         remaining = row.offered_qty - int(total_requested)
 
@@ -1725,7 +1737,7 @@ def update_donation_request_status(db: Session, user_id: int, request_id: int, n
             ).filter(
                 DonationRequestItem.offer_id == item.offer_id,
                 DonationRequestItem.id != item.id,
-                DonationRequest.status.in_(['PENDING', 'APPROVED'])
+                DonationRequest.status.in_(['PENDING', 'APPROVED', 'RECEIVED', 'COMPLETED'])
             ).scalar() or 0
 
             available_qty = int(offer.offered_qty or 0) - int(total_requested)
@@ -1746,6 +1758,16 @@ def update_donation_request_status(db: Session, user_id: int, request_id: int, n
             {DonationRequestItem.status: 'APPROVED'},
             synchronize_session=False
         )
+
+        # Update InventoryLot - Deduct stock immediately as it's being packed/approved
+        for item in items:
+            offer = db.query(DonationOffer).filter(DonationOffer.id == item.offer_id).first()
+            if offer:
+                lot = db.query(InventoryLot).filter(InventoryLot.id == offer.lot_id).with_for_update().first()
+                if lot:
+                    lot.qty_on_hand = max(0, (lot.qty_on_hand or 0) - item.quantity)
+                    lot.qty_reserved = max(0, (lot.qty_reserved or 0) - item.quantity)
+        
         db.commit()
 
         # Create delivery for the approved donation request
@@ -1762,6 +1784,14 @@ def update_donation_request_status(db: Session, user_id: int, request_id: int, n
         }
     else:
         # Reject request and all items
+        items = db.query(DonationRequestItem).filter(DonationRequestItem.request_id == request_id).all()
+        for item in items:
+            offer = db.query(DonationOffer).filter(DonationOffer.id == item.offer_id).first()
+            if offer:
+                lot = db.query(InventoryLot).filter(InventoryLot.id == offer.lot_id).with_for_update().first()
+                if lot:
+                    lot.qty_reserved = max(0, (lot.qty_reserved or 0) - item.quantity)
+
         db.query(DonationRequest).filter(DonationRequest.id == request_id).update(
             {DonationRequest.status: 'REJECTED'},
             synchronize_session=False
@@ -1776,7 +1806,7 @@ def update_donation_request_status(db: Session, user_id: int, request_id: int, n
 
         return {
             "success": True,
-            "message": "Đã từ chối yêu cầu quyên góp",
+            "message": "Đã từ chối yêu cầu quyên góp và hoàn trả số lượng giữ chỗ",
             "status": "REJECTED"
         }
 
@@ -1851,12 +1881,20 @@ def list_inventory_lots(db: Session, store_id: int, status_filter: str = "all") 
 
 
 def create_inventory_lot(db: Session, store_id: int, supermarket_id: int, lot_code: str, product_name: str,
-                        quantity: int, expiry_date: date, manual_status: object, action_note: str) -> dict:
+                        quantity: int, expiry_date: date, manual_status: object, action_note: str,
+                        manufacturing_date: date = None) -> dict:
     lot_code = lot_code.strip()
     product_name = product_name.strip()
 
     if not lot_code or not product_name:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Du lieu khong hop le")
+
+    try:
+        expiry_date = _parse_date_input(expiry_date)
+        if manufacturing_date:
+            manufacturing_date = _parse_date_input(manufacturing_date)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     action = _upsert_inventory_lot(
         db,
@@ -1867,6 +1905,7 @@ def create_inventory_lot(db: Session, store_id: int, supermarket_id: int, lot_co
         quantity=quantity,
         expiry_date=expiry_date,
         manual_status=manual_status,
+        manufacturing_date=manufacturing_date,
     )
     db.commit()
 
@@ -1874,12 +1913,20 @@ def create_inventory_lot(db: Session, store_id: int, supermarket_id: int, lot_co
 
 
 def update_inventory_lot(db: Session, lot_id: int, store_id: int, supermarket_id: int, lot_code: str,
-                        product_name: str, quantity: int, expiry_date: date, manual_status: object) -> dict:
+                        product_name: str, quantity: int, expiry_date: date, manual_status: object,
+                        manufacturing_date: date = None) -> dict:
     lot_code = lot_code.strip()
     product_name = product_name.strip()
 
     if not lot_code or not product_name:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Du lieu khong hop le")
+
+    try:
+        expiry_date = _parse_date_input(expiry_date)
+        if manufacturing_date:
+            manufacturing_date = _parse_date_input(manufacturing_date)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     exists = db.query(InventoryLot.id).filter(
         InventoryLot.id == lot_id,
@@ -1901,6 +1948,7 @@ def update_inventory_lot(db: Session, lot_id: int, store_id: int, supermarket_id
             InventoryLot.qty_on_hand: quantity,
             InventoryLot.expiry_date: expiry_date,
             InventoryLot.status: next_status,
+            InventoryLot.manufacturing_date: manufacturing_date,
         },
         synchronize_session=False
     )

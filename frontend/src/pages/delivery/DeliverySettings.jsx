@@ -7,6 +7,32 @@ import './DeliverySettings.css'
 const DELIVERY_PROFILE_STORAGE_KEY = 'seims_delivery_profile'
 const AUTH_STORAGE_KEY = 'seims_auth_user'
 
+function Toast({ message, visible, onClose }) {
+  if (!visible) return null;
+  
+  const isError = message.includes('Lỗi') || message.includes('thất bại') || message.includes('không khớp') || message.includes('Không tìm thấy');
+
+  return (
+    <div className={`settings-toast ${isError ? 'error' : 'success'}`}>
+      <div className="toast-content">
+        <span className="toast-icon">
+          {!isError ? (
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+            </svg>
+          )}
+        </span>
+        <p className="toast-message">{message}</p>
+      </div>
+      <button type="button" className="toast-close" onClick={onClose}>×</button>
+    </div>
+  );
+}
+
 const DEFAULT_DELIVERY_PROFILE = {
   username: 'driver',
   fullName: 'Đối Tác Giao Hàng',
@@ -18,15 +44,18 @@ const DEFAULT_DELIVERY_PROFILE = {
 export default function DeliverySettings() {
   const { user } = useAuth()
   const [formData, setFormData] = useState(DEFAULT_DELIVERY_PROFILE)
-  const [saveMessage, setSaveMessage] = useState('')
+  const [toast, setToast] = useState({ visible: false, message: '' })
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
     newPassword: '',
     confirmPassword: '',
   })
-  const [passwordMessage, setPasswordMessage] = useState('')
-  const [passwordError, setPasswordError] = useState('')
   const [isChangingPassword, setIsChangingPassword] = useState(false)
+
+  const showToast = (msg) => {
+    setToast({ visible: true, message: msg })
+    setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 2500)
+  }
 
   useEffect(() => {
     const profile = {
@@ -64,10 +93,9 @@ export default function DeliverySettings() {
 
   async function handleSave(event) {
     event.preventDefault()
-    setSaveMessage('')
 
     if (!user?.id) {
-      setSaveMessage('Không tìm thấy thông tin tài khoản hiện tại.')
+      showToast('Không tìm thấy thông tin tài khoản hiện tại.')
       return
     }
 
@@ -75,22 +103,22 @@ export default function DeliverySettings() {
     const phoneRegex = /^\d{10}$/
 
     if (!formData.email.trim()) {
-      setSaveMessage('Email không được để trống.')
+      showToast('Email không được để trống.')
       return
     }
 
     if (!emailRegex.test(formData.email.trim())) {
-      setSaveMessage('Email không đúng định dạng.')
+      showToast('Email không đúng định dạng.')
       return
     }
 
     if (!formData.phone.trim()) {
-      setSaveMessage('Số điện thoại không được để trống.')
+      showToast('Số điện thoại không được để trống.')
       return
     }
 
     if (!phoneRegex.test(formData.phone.trim())) {
-      setSaveMessage('Số điện thoại phải có đúng 10 chữ số.')
+      showToast('Số điện thoại phải có đúng 10 chữ số.')
       return
     }
 
@@ -113,9 +141,9 @@ export default function DeliverySettings() {
         }),
       )
       window.dispatchEvent(new Event('seims-delivery-profile-updated'))
-      setSaveMessage('Đã lưu thay đổi thành công.')
+      showToast('Đã lưu thay đổi thành công.')
     } catch (err) {
-      setSaveMessage(err?.response?.data?.detail || 'Lưu thay đổi thất bại.')
+      showToast(err?.response?.data?.detail || 'Lưu thay đổi thất bại.')
     }
   }
 
@@ -129,26 +157,24 @@ export default function DeliverySettings() {
 
   async function handleChangePassword(event) {
     event.preventDefault()
-    setPasswordMessage('')
-    setPasswordError('')
 
     if (passwordData.newPassword.length < 6) {
-      setPasswordError('Mật khẩu mới phải có ít nhất 6 ký tự.')
+      showToast('Mật khẩu mới phải có ít nhất 6 ký tự.')
       return
     }
 
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      setPasswordError('Mật khẩu xác nhận không khớp.')
+      showToast('Mật khẩu xác nhận không khớp.')
       return
     }
 
     if (!user?.id) {
-      setPasswordError('Không tìm thấy thông tin tài khoản hiện tại.')
+      showToast('Không tìm thấy thông tin tài khoản hiện tại.')
       return
     }
 
     if (!passwordData.currentPassword) {
-      setPasswordError('Vui lòng nhập mật khẩu hiện tại.')
+      showToast('Vui lòng nhập mật khẩu hiện tại.')
       return
     }
 
@@ -163,9 +189,9 @@ export default function DeliverySettings() {
         newPassword: '',
         confirmPassword: '',
       })
-      setPasswordMessage('Đổi mật khẩu thành công.')
+      showToast('Đổi mật khẩu thành công.')
     } catch (err) {
-      setPasswordError(err?.response?.data?.detail || err.message || 'Đổi mật khẩu thất bại.')
+      showToast(err?.response?.data?.detail || err.message || 'Đổi mật khẩu thất bại.')
     } finally {
       setIsChangingPassword(false)
     }
@@ -244,8 +270,6 @@ export default function DeliverySettings() {
               Lưu Thay Đổi
             </button>
           </div>
-
-          {saveMessage && <p className="settings-msg-success">{saveMessage}</p>}
         </form>
 
         <form className="settings-card" onSubmit={handleChangePassword}>
@@ -293,10 +317,8 @@ export default function DeliverySettings() {
               {isChangingPassword ? 'Đang xử lý...' : 'Cập Nhật Mật Khẩu'}
             </button>
           </div>
-
-          {passwordError && <p className="settings-msg-error">{passwordError}</p>}
-          {passwordMessage && <p className="settings-msg-success">{passwordMessage}</p>}
         </form>
+        <Toast visible={toast.visible} message={toast.message} onClose={() => setToast(prev => ({ ...prev, visible: false }))} />
       </div>
     </DeliveryLayout>
   )

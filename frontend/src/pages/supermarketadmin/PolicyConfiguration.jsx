@@ -9,6 +9,32 @@ import {
 import { fetchSupermarketProducts, fetchSupermarketCategories } from '../../services/supermarketAdminApi'
 import './PolicyConfiguration.css'
 
+function Toast({ message, visible, onClose }) {
+  if (!visible) return null;
+  
+  const isError = message.includes('Lỗi') || message.includes('thất bại') || message.includes('Không thể') || message.includes('không hợp lệ') || message.includes('phải lớn hơn') || message.includes('không được trống') || message.includes('Hãy chọn');
+
+  return (
+    <div className={`sapolicy-toast ${isError ? 'error' : 'success'}`}>
+      <div className="toast-content">
+        <span className="toast-icon">
+          {!isError ? (
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+            </svg>
+          )}
+        </span>
+        <p className="toast-message">{message}</p>
+      </div>
+      <button type="button" className="toast-close" onClick={onClose}>×</button>
+    </div>
+  );
+}
+
 function getUserId() {
   try {
     const raw = localStorage.getItem('seims_auth_user')
@@ -25,8 +51,7 @@ export default function PolicyConfiguration() {
   const [categories, setCategories] = useState([])
   const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
+  const [toast, setToast] = useState({ visible: false, message: '' })
   const [showModal, setShowModal] = useState(false)
   const [editMode, setEditMode] = useState(false)
   const [selectedPolicy, setSelectedPolicy] = useState(null)
@@ -40,6 +65,11 @@ export default function PolicyConfiguration() {
     applyType: 'all',
   })
 
+  const showToast = (msg) => {
+    setToast({ visible: true, message: msg })
+    setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 2500)
+  }
+
   useEffect(() => {
     loadInitialData()
   }, [])
@@ -47,14 +77,13 @@ export default function PolicyConfiguration() {
   async function loadInitialData() {
     try {
       setLoading(true)
-      setError('')
       await Promise.all([
         loadPolicies(),
         loadCategories(),
         loadProducts(),
       ])
     } catch (err) {
-      setError('Không thể tải dữ liệu')
+      showToast('Không thể tải dữ liệu')
     } finally {
       setLoading(false)
     }
@@ -76,7 +105,7 @@ export default function PolicyConfiguration() {
     } catch (err) {
       console.error('Error loading categories:', err)
       const errorMsg = err.response?.data?.detail || err.message || 'Không thể tải danh mục'
-      setError(errorMsg)
+      showToast(errorMsg)
     }
   }
 
@@ -87,7 +116,7 @@ export default function PolicyConfiguration() {
     } catch (err) {
       console.error('Error loading products:', err)
       const errorMsg = err.response?.data?.detail || err.message || 'Không thể tải sản phẩm'
-      setError(errorMsg)
+      showToast(errorMsg)
     }
   }
 
@@ -103,8 +132,6 @@ export default function PolicyConfiguration() {
       productId: '',
       applyType: 'all',
     })
-    setError('')
-    setSuccess('')
     setShowModal(true)
   }
 
@@ -124,57 +151,49 @@ export default function PolicyConfiguration() {
       productId: String(policy.productId || ''),
       applyType: applyType,
     })
-    setError('')
-    setSuccess('')
     setShowModal(true)
   }
 
   function closeModal() {
     setShowModal(false)
     setSelectedPolicy(null)
-    setError('')
-    setSuccess('')
   }
 
   function handleChange(e) {
     const { name, value } = e.target
     setForm(prev => ({ ...prev, [name]: value }))
-    setError('')
-    setSuccess('')
   }
 
   async function handleSubmit(e) {
     e.preventDefault()
-    setError('')
-    setSuccess('')
 
     const minDays = parseInt(form.minDaysLeft)
     const maxDays = parseInt(form.maxDaysLeft)
     const discount = parseFloat(form.discountPercent)
 
     if (!form.name.trim()) {
-      setError('Tên chính sách không được trống')
+      showToast('Tên chính sách không được trống')
       return
     }
     if (isNaN(minDays) || minDays < 0) {
-      setError('Số ngày tối thiểu không hợp lệ')
+      showToast('Số ngày tối thiểu không hợp lệ')
       return
     }
     if (isNaN(maxDays) || maxDays < minDays) {
-      setError('Số ngày tối đa phải lớn hơn hoặc bằng số ngày tối thiểu')
+      showToast('Số ngày tối đa phải lớn hơn hoặc bằng số ngày tối thiểu')
       return
     }
     if (isNaN(discount) || discount < 0 || discount > 100) {
-      setError('Phần trăm giảm giá phải từ 0 đến 100')
+      showToast('Phần trăm giảm giá phải từ 0 đến 100')
       return
     }
 
     if (form.applyType === 'category' && !form.categoryId) {
-      setError('Hãy chọn danh mục')
+      showToast('Hãy chọn danh mục')
       return
     }
     if (form.applyType === 'product' && !form.productId) {
-      setError('Hãy chọn sản phẩm')
+      showToast('Hãy chọn sản phẩm')
       return
     }
 
@@ -190,25 +209,25 @@ export default function PolicyConfiguration() {
 
       if (editMode && selectedPolicy) {
         await updateDiscountPolicy(selectedPolicy.id, payload)
-        setSuccess('Cập nhật chính sách thành công!')
+        showToast('Cập nhật chính sách thành công!')
       } else {
         await createDiscountPolicy(payload)
-        setSuccess('Tạo chính sách mới thành công!')
+        showToast('Tạo chính sách mới thành công!')
       }
       await loadPolicies()
       setTimeout(closeModal, 1200)
     } catch (err) {
-      setError(err.message || 'Đã xảy ra lỗi')
+      showToast(err.message || 'Đã xảy ra lỗi')
     }
   }
 
   async function handleToggle(policy) {
     try {
       await toggleDiscountPolicy(policy.id)
-      setSuccess(`Đã ${policy.isActive ? 'tắt' : 'bật'} chính sách "${policy.name}"`)
+      showToast(`Đã ${policy.isActive ? 'tắt' : 'bật'} chính sách "${policy.name}"`)
       await loadPolicies()
     } catch (err) {
-      setError(err.message || 'Không thể thay đổi trạng thái')
+      showToast(err.message || 'Không thể thay đổi trạng thái')
     }
   }
 
@@ -216,10 +235,10 @@ export default function PolicyConfiguration() {
     if (!window.confirm(`Bạn có chắc muốn xóa chính sách "${policy.name}"?`)) return
     try {
       await deleteDiscountPolicy(policy.id)
-      setSuccess('Xóa chính sách thành công!')
+      showToast('Xóa chính sách thành công!')
       await loadPolicies()
     } catch (err) {
-      setError(err.message || 'Không thể xóa chính sách')
+      showToast(err.message || 'Không thể xóa chính sách')
     }
   }
 
@@ -242,20 +261,6 @@ export default function PolicyConfiguration() {
           Thêm Chính Sách
         </button>
       </div>
-
-      {/* ALERTS */}
-      {error && (
-        <div className="sapolicy-alert sapolicy-alert-error">
-          {error}
-          <button onClick={() => setError('')} className="sapolicy-alert-close">✕</button>
-        </div>
-      )}
-      {success && (
-        <div className="sapolicy-alert sapolicy-alert-success">
-          {success}
-          <button onClick={() => setSuccess('')} className="sapolicy-alert-close">✕</button>
-        </div>
-      )}
 
       {/* CARD + TABLE */}
       <div className="sapolicy-card">
@@ -490,8 +495,6 @@ export default function PolicyConfiguration() {
                   </div>
 
                 </div>
-                {error && <p className="sapolicy-error">{error}</p>}
-                {success && <p className="sapolicy-success">{success}</p>}
               </div>
               <div className="sapolicy-modal-footer">
                 <button type="submit" className="sapolicy-btn-save">{editMode ? 'Lưu Thay Đổi' : 'Tạo Mới'}</button>
@@ -501,6 +504,7 @@ export default function PolicyConfiguration() {
           </div>
         </div>
       )}
+      <Toast visible={toast.visible} message={toast.message} onClose={() => setToast(prev => ({ ...prev, visible: false }))} />
     </div>
   )
 }

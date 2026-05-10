@@ -27,10 +27,9 @@ export default function DeliveryManagement() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
+  const [success, setSuccess] = useState('')
   const [selectedDelivery, setSelectedDelivery] = useState(null)
   const [showDetailModal, setShowDetailModal] = useState(false)
-  const [editError, setEditError] = useState('')
-  const [editSuccess, setEditSuccess] = useState('')
   const [editForm, setEditForm] = useState({
     manager: '',
     email: '',
@@ -40,8 +39,6 @@ export default function DeliveryManagement() {
     requestDate: '',
   })
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const [createError, setCreateError] = useState('')
-  const [createSuccess, setCreateSuccess] = useState('')
   const [createForm, setCreateForm] = useState({
     manager: '',
     email: '',
@@ -70,14 +67,25 @@ export default function DeliveryManagement() {
     loadDeliveries()
   }, [])
 
+  useEffect(() => {
+    if (success || error) {
+      const timer = setTimeout(() => {
+        setSuccess('')
+        setError('')
+      }, 4000)
+      return () => clearTimeout(timer)
+    }
+  }, [success, error])
+
   const filteredDeliveries = deliveryPartners
 
   async function handleToggleLockDelivery(id) {
     try {
       await toggleAdminDeliveryLock(id)
       await loadDeliveries()
+      setSuccess('Cập nhật trạng thái đối tác giao hàng thành công.')
     } catch (err) {
-      window.alert(err?.response?.data?.detail || 'Không thể khóa/mở khóa đối tác giao hàng.')
+      setError(err?.response?.data?.detail || 'Không thể khóa/mở khóa đối tác giao hàng.')
     }
   }
 
@@ -98,8 +106,9 @@ export default function DeliveryManagement() {
       if (selectedDelivery && selectedDelivery.id === id) {
         closeDetail()
       }
+      setSuccess('Xóa đối tác giao hàng thành công.')
     } catch (err) {
-      window.alert(err?.response?.data?.detail || 'Không thể xóa đối tác giao hàng.')
+      setError(err?.response?.data?.detail || 'Không thể xóa đối tác giao hàng.')
     }
   }
 
@@ -115,8 +124,8 @@ export default function DeliveryManagement() {
       requestDate: getTodayDate(),
       activityStatus: 'active',
     })
-    setCreateError('')
-    setCreateSuccess('')
+    setError('')
+    setSuccess('')
   }
 
   function openCreateModal() {
@@ -137,17 +146,17 @@ export default function DeliveryManagement() {
       [name]: value,
     }))
 
-    setCreateError('')
-    setCreateSuccess('')
+    setError('')
+    setSuccess('')
   }
 
   async function submitCreateAccount(event) {
     event.preventDefault()
-    setCreateError('')
-    setCreateSuccess('')
+    setError('')
+    setSuccess('')
 
     if (!createForm.manager.trim()) {
-      setCreateError('Người phụ trách không được để trống.')
+      setError('Người phụ trách không được để trống.')
       return
     }
 
@@ -155,47 +164,47 @@ export default function DeliveryManagement() {
     const phoneRegex = /^\d{10}$/
 
     if (!createForm.email.trim()) {
-      setCreateError('Email không được để trống.')
+      setError('Email không được để trống.')
       return
     }
 
     if (!emailRegex.test(createForm.email.trim())) {
-      setCreateError('Email không đúng định dạng.')
+      setError('Email không đúng định dạng.')
       return
     }
 
     if (!createForm.phone.trim()) {
-      setCreateError('Điện thoại không được để trống.')
+      setError('Điện thoại không được để trống.')
       return
     }
 
     if (!phoneRegex.test(createForm.phone.trim())) {
-      setCreateError('Số điện thoại phải có đúng 10 chữ số.')
+      setError('Số điện thoại phải có đúng 10 chữ số.')
       return
     }
 
     if (!createForm.vehicleType.trim()) {
-      setCreateError('Loại phương tiện không được để trống.')
+      setError('Loại phương tiện không được để trống.')
       return
     }
 
     if (!createForm.licensePlate.trim()) {
-      setCreateError('Biển số xe không được để trống.')
+      setError('Biển số xe không được để trống.')
       return
     }
 
     if (!createForm.requestDate) {
-      setCreateError('Ngày đăng ký không được để trống.')
+      setError('Ngày đăng ký không được để trống.')
       return
     }
 
     if (createForm.password.length < 6) {
-      setCreateError('Mật khẩu phải có ít nhất 6 ký tự.')
+      setError('Mật khẩu phải có ít nhất 6 ký tự.')
       return
     }
 
     if (createForm.password !== createForm.confirmPassword) {
-      setCreateError('Mật khẩu xác nhận không khớp.')
+      setError('Mật khẩu xác nhận không khớp.')
       return
     }
 
@@ -211,16 +220,14 @@ export default function DeliveryManagement() {
       }
 
       await createAdminDeliveryWithAccount(payload)
-      setCreateSuccess(`Đã tạo tài khoản thành công.`)
+      setSuccess(`Đã tạo tài khoản thành công.`)
       await loadDeliveries()
+      setTimeout(() => {
+        closeCreateModal()
+      }, 1500)
     } catch (err) {
-      setCreateError(err?.response?.data?.detail || 'Không thể tạo tài khoản đối tác giao hàng.')
-      return
+      setError(err?.response?.data?.detail || 'Không thể tạo tài khoản đối tác giao hàng.')
     }
-
-    setTimeout(() => {
-      closeCreateModal()
-    }, 600)
   }
 
   function openDetail(delivery) {
@@ -233,16 +240,16 @@ export default function DeliveryManagement() {
       licensePlate: delivery.licensePlate,
       requestDate: delivery.requestDate,
     })
-    setEditError('')
-    setEditSuccess('')
+    setError('')
+    setSuccess('')
     setShowDetailModal(true)
   }
 
   function closeDetail() {
     setShowDetailModal(false)
     setSelectedDelivery(null)
-    setEditError('')
-    setEditSuccess('')
+    setError('')
+    setSuccess('')
   }
 
   function handleEditFormChange(event) {
@@ -253,8 +260,8 @@ export default function DeliveryManagement() {
       [name]: value,
     }))
 
-    setEditError('')
-    setEditSuccess('')
+    setError('')
+    setSuccess('')
   }
 
   async function submitEditDelivery(event) {
@@ -265,7 +272,7 @@ export default function DeliveryManagement() {
     }
 
     if (!editForm.manager.trim()) {
-      setEditError('Người phụ trách không được để trống.')
+      setError('Người phụ trách không được để trống.')
       return
     }
 
@@ -273,37 +280,37 @@ export default function DeliveryManagement() {
     const phoneRegex = /^\d{10}$/
 
     if (!editForm.email.trim()) {
-      setEditError('Email không được để trống.')
+      setError('Email không được để trống.')
       return
     }
 
     if (!emailRegex.test(editForm.email.trim())) {
-      setEditError('Email không đúng định dạng.')
+      setError('Email không đúng định dạng.')
       return
     }
 
     if (!editForm.phone.trim()) {
-      setEditError('Điện thoại không được để trống.')
+      setError('Điện thoại không được để trống.')
       return
     }
 
     if (!phoneRegex.test(editForm.phone.trim())) {
-      setEditError('Số điện thoại phải có đúng 10 chữ số.')
+      setError('Số điện thoại phải có đúng 10 chữ số.')
       return
     }
 
     if (!editForm.vehicleType.trim()) {
-      setEditError('Loại phương tiện không được để trống.')
+      setError('Loại phương tiện không được để trống.')
       return
     }
 
     if (!editForm.licensePlate.trim()) {
-      setEditError('Biển số xe không được để trống.')
+      setError('Biển số xe không được để trống.')
       return
     }
 
     if (!editForm.requestDate) {
-      setEditError('Ngày đăng ký không được để trống.')
+      setError('Ngày đăng ký không được để trống.')
       return
     }
 
@@ -318,10 +325,13 @@ export default function DeliveryManagement() {
 
     try {
       await updateAdminDeliveryPartner(selectedDelivery.id, nextData)
-      setEditSuccess('Đã cập nhật thông tin đối tác delivery.')
+      setSuccess('Đã cập nhật thông tin đối tác delivery.')
       await loadDeliveries()
+      setTimeout(() => {
+        closeDetail()
+      }, 1500)
     } catch (err) {
-      setEditError(err?.response?.data?.detail || 'Không thể cập nhật đối tác delivery.')
+      setError(err?.response?.data?.detail || 'Không thể cập nhật đối tác delivery.')
     }
   }
 
@@ -439,18 +449,6 @@ export default function DeliveryManagement() {
               </div>
               <form onSubmit={submitEditDelivery}>
                 <div className="delivery-modal-body">
-                  {(editError || editSuccess) && (
-                    <div className={`delivery-alert ${editError ? 'delivery-alert-error' : 'delivery-alert-success'}`}>
-                      <svg className="delivery-alert-icon" viewBox="0 0 24 24" fill="currentColor">
-                        {editError ? (
-                          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
-                        ) : (
-                          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                        )}
-                      </svg>
-                      <span>{editError || editSuccess}</span>
-                    </div>
-                  )}
                   <div className="delivery-create-grid">
                     <div className="delivery-form-field">
                       <label>Người Phụ Trách</label>
@@ -529,9 +527,6 @@ export default function DeliveryManagement() {
                       />
                     </div>
                   </div>
-
-                  {editError && <p className="delivery-error">{editError}</p>}
-                  {editSuccess && <p className="delivery-success">{editSuccess}</p>}
                 </div>
 
                 <div className="delivery-modal-footer">
@@ -690,6 +685,27 @@ export default function DeliveryManagement() {
           </div>
         )}
       </div>
+
+      {/* TOAST NOTIFICATION */}
+      {(success || error) && (
+        <div className={`delivery-toast ${success ? 'success' : 'error'}`}>
+          <div className="toast-content">
+            <span className="toast-icon">
+              {success ? (
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+                </svg>
+              )}
+            </span>
+            <p className="toast-message">{success || error}</p>
+          </div>
+          <button className="toast-close" onClick={() => { setSuccess(''); setError(''); }}>×</button>
+        </div>
+      )}
     </SystemAdminLayout>
   )
 }

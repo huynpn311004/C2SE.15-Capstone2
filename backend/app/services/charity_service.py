@@ -419,18 +419,31 @@ def create_charity_donation_request(db: Session, user_id: int, items: list) -> d
                     detail=f"Donation offer {offer_id} da dong"
                 )
 
+            # 1. Kiểm tra giới hạn của Donation Offer (so với các Request khác)
             total_requested = db.query(func.coalesce(func.sum(DonationRequestItem.quantity), 0)).join(
                 DonationRequest, DonationRequest.id == DonationRequestItem.request_id
             ).filter(
                 DonationRequestItem.offer_id == offer_id,
-                DonationRequest.status.in_(['PENDING', 'APPROVED'])
+                DonationRequest.status.in_(['PENDING', 'APPROVED', 'RECEIVED', 'COMPLETED'])
             ).scalar() or 0
 
-            remaining_qty = int(offer.offered_qty or 0) - int(total_requested)
-            if quantity > remaining_qty:
+            remaining_offer_qty = int(offer.offered_qty or 0) - int(total_requested)
+            if quantity > remaining_offer_qty:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"San pham {offer_id}: So luong vuot qua. Con lai: {remaining_qty}"
+                    detail=f"Sản phẩm {offer_id}: Vượt quá hạn mức quyên góp còn lại ({remaining_offer_qty})"
+                )
+
+            # 2. Kiểm tra tồn kho thực tế trong InventoryLot và khóa dòng (Locking)
+            lot = db.query(InventoryLot).filter(InventoryLot.id == offer.lot_id).with_for_update().first()
+            if not lot:
+                raise HTTPException(status_code=404, detail="Không tìm thấy lô hàng liên quan")
+            
+            available_in_lot = (lot.qty_on_hand or 0) - (lot.qty_reserved or 0)
+            if quantity > available_in_lot:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Sản phẩm {offer_id}: Lô hàng không đủ tồn kho thực tế. Còn lại: {available_in_lot}"
                 )
 
         # Group items by store_id
@@ -467,6 +480,11 @@ def create_charity_donation_request(db: Session, user_id: int, items: list) -> d
                     status='PENDING'
                 )
                 db.add(new_item)
+
+                # Cập nhật Giữ chỗ trong kho (Reserved)
+                lot = db.query(InventoryLot).filter(InventoryLot.id == offer.lot_id).with_for_update().first()
+                if lot:
+                    lot.qty_reserved = (lot.qty_reserved or 0) + quantity
 
             created_requests.append({
                 "request_id": new_request.id,
@@ -645,7 +663,7 @@ def confirm_received_donation(db: Session, user_id: int, request_id: int) -> dic
         {DonationRequestItem.status: 'RECEIVED'},
         synchronize_session=False
     )
-
+    
     db.commit()
 
     return {"success": True, "message": "Xac nhan nhan hang thanh cong"}

@@ -3,6 +3,32 @@ import DeliveryLayout from '../../components/layout/DeliveryLayout'
 import { fetchDeliveryHistory, fetchDeliveryStats } from '../../services/deliveryApi'
 import './DeliveryHistory.css'
 
+function Toast({ message, visible, onClose }) {
+  if (!visible) return null;
+  
+  const isError = message.includes('Không thể') || message.includes('Lỗi') || message.includes('thất bại');
+
+  return (
+    <div className={`dp-history-toast ${isError ? 'error' : 'success'}`}>
+      <div className="toast-content">
+        <span className="toast-icon">
+          {!isError ? (
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+            </svg>
+          )}
+        </span>
+        <p className="toast-message">{message}</p>
+      </div>
+      <button type="button" className="toast-close" onClick={onClose}>×</button>
+    </div>
+  );
+}
+
 export default function DeliveryHistory() {
   const [completedOrders, setCompletedOrders] = useState([])
   const [stats, setStats] = useState({
@@ -13,13 +39,17 @@ export default function DeliveryHistory() {
     average_earning: 0,
   })
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const [toast, setToast] = useState({ visible: false, message: '' })
   const [filter, setFilter] = useState('all')
+
+  const showToast = (msg) => {
+    setToast({ visible: true, message: msg })
+    setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 2500)
+  }
 
   async function loadData() {
     try {
       setLoading(true)
-      setError('')
 
       // Load history with filter
       const historyData = await fetchDeliveryHistory(filter)
@@ -34,7 +64,7 @@ export default function DeliveryHistory() {
       }
     } catch (err) {
       console.error('Failed to load history:', err)
-      setError(err.response?.data?.detail || err.message || 'Không thể tải lịch sử giao hàng')
+      showToast(err.response?.data?.detail || err.message || 'Không thể tải lịch sử giao hàng')
     } finally {
       setLoading(false)
     }
@@ -170,12 +200,6 @@ export default function DeliveryHistory() {
                       Đang tải dữ liệu...
                     </td>
                   </tr>
-                ) : error ? (
-                  <tr>
-                    <td colSpan="6" style={{ textAlign: 'center', padding: '2rem', color: '#dc2626' }}>
-                      {error}
-                    </td>
-                  </tr>
                 ) : completedOrders.length === 0 ? (
                   <tr>
                     <td colSpan="6" style={{ textAlign: 'center' }}>
@@ -223,6 +247,7 @@ export default function DeliveryHistory() {
             </table>
           </div>
         </div>
+        <Toast visible={toast.visible} message={toast.message} onClose={() => setToast(prev => ({ ...prev, visible: false }))} />
       </div>
     </DeliveryLayout>
   )

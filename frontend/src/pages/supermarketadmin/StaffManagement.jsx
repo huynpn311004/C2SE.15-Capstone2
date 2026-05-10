@@ -13,6 +13,32 @@ import './StaffManagement.css'
 const statusBadge = { active: 'badge-success', warning: 'badge-warning', locked: 'badge-danger' }
 const statusLabel = { active: 'Hoạt Động', warning: 'Cảnh Báo', locked: 'Bị Khóa' }
 
+function Toast({ message, visible, onClose }) {
+  if (!visible) return null;
+  
+  const isError = message.includes('Lỗi') || message.includes('thất bại') || message.includes('Không thể') || message.includes('không được để trống') || message.includes('không đúng định dạng') || message.includes('phải có đúng 10 chữ số') || message.includes('Vui lòng chọn store');
+
+  return (
+    <div className={`sastaff-toast ${isError ? 'error' : 'success'}`}>
+      <div className="toast-content">
+        <span className="toast-icon">
+          {!isError ? (
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+            </svg>
+          )}
+        </span>
+        <p className="toast-message">{message}</p>
+      </div>
+      <button type="button" className="toast-close" onClick={onClose}>×</button>
+    </div>
+  );
+}
+
 export default function StaffManagement() {
   const { user } = useAuth()
   const [staff, setStaff] = useState([])
@@ -20,9 +46,13 @@ export default function StaffManagement() {
   const [selectedStaff, setSelectedStaff] = useState(null)
   const [showModal, setShowModal] = useState(false)
   const [mode, setMode] = useState('edit')
-  const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
+  const [toast, setToast] = useState({ visible: false, message: '' })
   const [loading, setLoading] = useState(true)
+
+  const showToast = (msg) => {
+    setToast({ visible: true, message: msg })
+    setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 2500)
+  }
   const [form, setForm] = useState({ name: '', email: '', phone: '', store: '', storeId: '', role: 'Staff', status: 'active', username: '', password: '' })
 
   useEffect(() => {
@@ -52,7 +82,7 @@ export default function StaffManagement() {
       } catch {
         if (!active) return
         setStaff([])
-        setError('Không thể tải danh sách nhân viên.')
+        showToast('Không thể tải danh sách nhân viên.')
       } finally {
         if (active) setLoading(false)
       }
@@ -77,8 +107,6 @@ export default function StaffManagement() {
       username: '',
       password: '',
     })
-    setError('')
-    setSuccess('')
     setSelectedStaff(null)
     setShowModal(true)
   }
@@ -107,51 +135,44 @@ export default function StaffManagement() {
       username: s.username || '', 
       password: '' 
     })
-    setError('')
-    setSuccess('')
     setShowModal(true)
   }
 
   function closeModal() {
     setShowModal(false)
     setSelectedStaff(null)
-    setError('')
-    setSuccess('')
   }
 
   function handleChange(e) {
     const { name, value } = e.target
     setForm(prev => ({ ...prev, [name]: value }))
-    setError('')
-    setSuccess('')
   }
 
   async function handleSubmit(e) {
     e.preventDefault()
-    setError('')
-    if (!form.name.trim()) { setError('Họ tên không được để trống.'); return }
-    if (!form.email.trim()) { setError('Email không được để trống.'); return }
+    if (!form.name.trim()) { showToast('Họ tên không được để trống.'); return }
+    if (!form.email.trim()) { showToast('Email không được để trống.'); return }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     const phoneRegex = /^\d{10}$/
 
     if (!emailRegex.test(form.email.trim())) {
-      setError('Email không đúng định dạng.')
+      showToast('Email không đúng định dạng.')
       return
     }
 
-    if (!form.phone.trim()) { setError('SĐT không được để trống.'); return }
+    if (!form.phone.trim()) { showToast('SĐT không được để trống.'); return }
 
     if (!phoneRegex.test(form.phone.trim())) {
-      setError('Số điện thoại phải có đúng 10 chữ số.')
+      showToast('Số điện thoại phải có đúng 10 chữ số.')
       return
     }
 
     try {
       if (mode === 'create') {
-        if (!form.username.trim()) { setError('Tên đăng nhập không được để trống.'); return }
-        if (!form.password.trim()) { setError('Mật khẩu không được để trống.'); return }
-        if (!form.storeId) { setError('Vui lòng chọn store cho nhân viên.'); return }
+        if (!form.username.trim()) { showToast('Tên đăng nhập không được để trống.'); return }
+        if (!form.password.trim()) { showToast('Mật khẩu không được để trống.'); return }
+        if (!form.storeId) { showToast('Vui lòng chọn store cho nhân viên.'); return }
 
         await createSupermarketStaff({
           username: form.username,
@@ -174,7 +195,7 @@ export default function StaffManagement() {
           joinDate: item.joinDate,
           username: item.username,
         })))
-        setSuccess('Đã tạo nhân viên mới.')
+        showToast('Đã tạo nhân viên mới.')
       } else {
         await saveSupermarketStaff(selectedStaff.id, {
           username: form.username || selectedStaff.username,
@@ -185,10 +206,10 @@ export default function StaffManagement() {
         })
 
         setStaff(prev => prev.map(s => s.id === selectedStaff.id ? { ...s, ...form } : s))
-        setSuccess('Đã cập nhật thông tin nhân viên.')
+        showToast('Đã cập nhật thông tin nhân viên.')
       }
     } catch (err) {
-      setError(err?.response?.data?.detail || 'Thao tác thất bại.')
+      showToast(err?.response?.data?.detail || 'Thao tác thất bại.')
     }
   }
 
@@ -198,7 +219,7 @@ export default function StaffManagement() {
       const next = s.status === 'locked' ? 'active' : 'locked'
       setStaff(prev => prev.map(st => st.id === s.id ? { ...st, status: next } : st))
     } catch {
-      setError('Không thể thay đổi trạng thái khóa.')
+      showToast('Không thể thay đổi trạng thái khóa.')
     }
   }
 
@@ -207,8 +228,9 @@ export default function StaffManagement() {
     try {
       await removeSupermarketStaff(id)
       setStaff(prev => prev.filter(s => s.id !== id))
+      showToast('Đã xóa nhân viên thành công.')
     } catch {
-      setError('Không thể xóa nhân viên.')
+      showToast('Không thể xóa nhân viên.')
     }
     if (selectedStaff?.id === id) closeModal()
   }
@@ -352,8 +374,6 @@ export default function StaffManagement() {
                     </>
                   )}
                 </div>
-                {error && <p className="sastaff-error">{error}</p>}
-                {success && <p className="sastaff-success">{success}</p>}
               </div>
               <div className="sastaff-modal-footer">
                 <button type="submit" className="sastaff-btn-save">{mode === 'create' ? 'Tạo Mới' : 'Lưu Thay Đổi'}</button>
@@ -363,6 +383,7 @@ export default function StaffManagement() {
           </div>
         </div>
       )}
+      <Toast visible={toast.visible} message={toast.message} onClose={() => setToast(prev => ({ ...prev, visible: false }))} />
     </div>
   )
 }

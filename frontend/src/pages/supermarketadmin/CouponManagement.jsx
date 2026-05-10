@@ -8,6 +8,32 @@ import {
 } from '../../services/couponApi'
 import './CouponManagement.css'
 
+function Toast({ message, visible, onClose }) {
+  if (!visible) return null;
+  
+  const isError = message.includes('thất bại') || message.includes('Lỗi') || message.includes('không được để trống') || message.includes('phải là số') || message.includes('phải từ 0 đến 100') || message.includes('Không thể');
+
+  return (
+    <div className={`coupon-toast ${isError ? 'error' : 'success'}`}>
+      <div className="toast-content">
+        <span className="toast-icon">
+          {!isError ? (
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+            </svg>
+          )}
+        </span>
+        <p className="toast-message">{message}</p>
+      </div>
+      <button type="button" className="toast-close" onClick={onClose}>×</button>
+    </div>
+  );
+}
+
 export default function CouponManagement() {
   const [coupons, setCoupons] = useState([])
   const [loading, setLoading] = useState(true)
@@ -17,10 +43,12 @@ export default function CouponManagement() {
   const [showEditModal, setShowEditModal] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showDetailModal, setShowDetailModal] = useState(false)
-  const [editError, setEditError] = useState('')
-  const [editSuccess, setEditSuccess] = useState('')
-  const [createError, setCreateError] = useState('')
-  const [createSuccess, setCreateSuccess] = useState('')
+  const [toast, setToast] = useState({ visible: false, message: '' })
+
+  const showToast = (msg) => {
+    setToast({ visible: true, message: msg })
+    setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 2500)
+  }
 
   const [editForm, setEditForm] = useState({
     code: '',
@@ -68,43 +96,35 @@ export default function CouponManagement() {
       validFrom: '',
       validTo: '',
     })
-    setCreateError('')
-    setCreateSuccess('')
     setShowCreateModal(true)
   }
 
   function closeCreateModal() {
     setShowCreateModal(false)
-    setCreateError('')
-    setCreateSuccess('')
   }
 
   function handleCreateFormChange(event) {
     const { name, value } = event.target
     setCreateForm((prev) => ({ ...prev, [name]: value }))
-    setCreateError('')
-    setCreateSuccess('')
   }
 
   async function submitCreateCoupon(event) {
     event.preventDefault()
-    setCreateError('')
-    setCreateSuccess('')
 
     if (!createForm.code.trim()) {
-      setCreateError('Mã coupon không được để trống.')
+      showToast('Mã coupon không được để trống.')
       return
     }
     if (!createForm.discountPercent.trim() || isNaN(Number(createForm.discountPercent))) {
-      setCreateError('Phần trăm giảm giá phải là số.')
+      showToast('Phần trăm giảm giá phải là số.')
       return
     }
     if (Number(createForm.discountPercent) < 0 || Number(createForm.discountPercent) > 100) {
-      setCreateError('Phần trăm giảm giá phải từ 0 đến 100.')
+      showToast('Phần trăm giảm giá phải từ 0 đến 100.')
       return
     }
     if (!createForm.validFrom.trim() || !createForm.validTo.trim()) {
-      setCreateError('Ngày bắt đầu và kết thúc không được để trống.')
+      showToast('Ngày bắt đầu và kết thúc không được để trống.')
       return
     }
 
@@ -120,11 +140,11 @@ export default function CouponManagement() {
         validTo: createForm.validTo + 'T23:59:59',
       })
       await loadCoupons()
-      setCreateSuccess('Tạo coupon thành công.')
+      showToast('Tạo coupon thành công.')
       setTimeout(() => closeCreateModal(), 600)
     } catch (err) {
       console.error('Failed to create coupon:', err)
-      setCreateError(err?.response?.data?.detail || err?.response?.data?.error || 'Tạo coupon thất bại.')
+      showToast(err?.response?.data?.detail || err?.response?.data?.error || 'Tạo coupon thất bại.')
     } finally {
       setIsSubmitting(false)
     }
@@ -144,44 +164,36 @@ export default function CouponManagement() {
       validFrom: validFromDate,
       validTo: validToDate,
     })
-    setEditError('')
-    setEditSuccess('')
     setShowEditModal(true)
   }
 
   function closeEditModal() {
     setShowEditModal(false)
     setSelectedCoupon(null)
-    setEditError('')
-    setEditSuccess('')
   }
 
   function handleEditFormChange(event) {
     const { name, value } = event.target
     setEditForm((prev) => ({ ...prev, [name]: value }))
-    setEditError('')
-    setEditSuccess('')
   }
 
   async function submitEditCoupon(event) {
     event.preventDefault()
-    setEditError('')
-    setEditSuccess('')
 
     if (!editForm.code.trim()) {
-      setEditError('Mã coupon không được để trống.')
+      showToast('Mã coupon không được để trống.')
       return
     }
     if (!editForm.discountPercent.trim() || isNaN(Number(editForm.discountPercent))) {
-      setEditError('Phần trăm giảm giá phải là số.')
+      showToast('Phần trăm giảm giá phải là số.')
       return
     }
     if (Number(editForm.discountPercent) < 0 || Number(editForm.discountPercent) > 100) {
-      setEditError('Phần trăm giảm giá phải từ 0 đến 100.')
+      showToast('Phần trăm giảm giá phải từ 0 đến 100.')
       return
     }
     if (!editForm.validFrom.trim() || !editForm.validTo.trim()) {
-      setEditError('Ngày bắt đầu và kết thúc không được để trống.')
+      showToast('Ngày bắt đầu và kết thúc không được để trống.')
       return
     }
 
@@ -197,11 +209,11 @@ export default function CouponManagement() {
         validTo: editForm.validTo + 'T23:59:59',
       })
       await loadCoupons()
-      setEditSuccess('Cập nhật coupon thành công.')
+      showToast('Cập nhật coupon thành công.')
       setTimeout(() => closeEditModal(), 600)
     } catch (err) {
       console.error('Failed to update coupon:', err)
-      setEditError(err?.response?.data?.detail || err?.response?.data?.error || 'Cập nhật coupon thất bại.')
+      showToast(err?.response?.data?.detail || err?.response?.data?.error || 'Cập nhật coupon thất bại.')
     } finally {
       setIsSubmitting(false)
     }
@@ -217,22 +229,24 @@ export default function CouponManagement() {
     try {
       await deleteCoupon(id)
       setCoupons((prev) => prev.filter((item) => item.id !== id))
+      showToast('Đã xóa coupon thành công.')
       if (selectedCoupon?.id === id) {
         setSelectedCoupon(null)
       }
     } catch (err) {
       console.error('Failed to delete coupon:', err)
-      alert('Xóa coupon thất bại')
+      showToast('Xóa coupon thất bại')
     }
   }
 
   async function handleToggleCoupon(coupon) {
     try {
       await toggleCoupon(coupon.id)
+      showToast(`Đã ${coupon.isActive ? 'tắt' : 'bật'} coupon "${coupon.code}"`)
       await loadCoupons()
     } catch (err) {
       console.error('Failed to toggle coupon:', err)
-      alert('Bật/tắt coupon thất bại')
+      showToast('Bật/tắt coupon thất bại')
     }
   }
 
@@ -471,7 +485,6 @@ export default function CouponManagement() {
                     />
                   </label>
                 </div>
-                {editError && <p className="coupon-error">{editError}</p>}
               </div>
               <div className="coupon-modal-footer">
                 <button type="button" className="coupon-btn-cancel" onClick={closeEditModal}>
@@ -573,7 +586,6 @@ export default function CouponManagement() {
                     />
                   </label>
                 </div>
-                {createError && <p className="coupon-error">{createError}</p>}
               </div>
               <div className="coupon-modal-footer">
                 <button type="button" className="coupon-btn-cancel" onClick={closeCreateModal}>
@@ -673,6 +685,7 @@ export default function CouponManagement() {
           </div>
         </div>
       )}
+      <Toast visible={toast.visible} message={toast.message} onClose={() => setToast(prev => ({ ...prev, visible: false }))} />
     </div>
   )
 }

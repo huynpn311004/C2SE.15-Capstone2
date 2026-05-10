@@ -357,13 +357,13 @@ def update_delivery_status(db: Session, delivery_id: int, new_status: str, user_
     elif new_status == "completed":
         delivery.delivered_at = datetime.now()
 
-        # Update order status if order delivery
+        # Update order status
         if delivery.order_id:
             order = db.query(Order).filter(Order.id == delivery.order_id).first()
             if order:
                 order.status = "completed"
         
-        # Update donation status if donation delivery
+        # Update donation status
         if delivery.donation_request_id:
             donation = db.query(DonationRequest).filter(DonationRequest.id == delivery.donation_request_id).first()
             if donation:

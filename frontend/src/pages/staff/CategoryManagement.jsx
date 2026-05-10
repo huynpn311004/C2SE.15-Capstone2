@@ -18,6 +18,16 @@ export default function CategoryManagement() {
     loadCategories()
   }, [])
 
+  useEffect(() => {
+    if (success || error) {
+      const timer = setTimeout(() => {
+        setSuccess('')
+        setError('')
+      }, 4000)
+      return () => clearTimeout(timer)
+    }
+  }, [success, error])
+
   async function loadCategories() {
     try {
       setLoading(true)
@@ -75,7 +85,7 @@ export default function CategoryManagement() {
         setSuccess('Tạo danh mục thành công')
       }
       await loadCategories()
-      setTimeout(() => closeModal(), 800)
+      setTimeout(() => closeModal(), 1500)
     } catch (err) {
       setError(err.response?.data?.detail || err.message || 'Có lỗi xảy ra')
     } finally {
@@ -109,8 +119,7 @@ export default function CategoryManagement() {
           </div>
         </div>
 
-        {error && <div className="category-alert category-alert-error">{error}</div>}
-        {success && <div className="category-alert category-alert-success">{success}</div>}
+
 
         {/* CARD + TABLE */}
         <div className="category-card">
@@ -151,7 +160,7 @@ export default function CategoryManagement() {
                           onClick={() => openEditModal(cat)}
                         >
                           <svg className="category-icon" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+                            <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
                           </svg>
                           Sửa
                         </button>
@@ -160,7 +169,7 @@ export default function CategoryManagement() {
                           onClick={() => setDeleteConfirm(cat)}
                         >
                           <svg className="category-icon" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                            <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
                           </svg>
                           Xóa
                         </button>
@@ -194,7 +203,7 @@ export default function CategoryManagement() {
                     autoFocus
                   />
                 </label>
-                {error && <p className="category-error">{error}</p>}
+
               </div>
               <div className="category-modal-footer">
                 <button type="button" className="category-btn-cancel" onClick={closeModal}>
@@ -244,6 +253,26 @@ export default function CategoryManagement() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+      {/* TOAST NOTIFICATION */}
+      {(success || error) && (
+        <div className={`category-toast ${success ? 'success' : 'error'}`}>
+          <div className="toast-content">
+            <span className="toast-icon">
+              {success ? (
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+                </svg>
+              )}
+            </span>
+            <p className="toast-message">{success || error}</p>
+          </div>
+          <button className="toast-close" onClick={() => { setSuccess(''); setError(''); }}>×</button>
         </div>
       )}
     </StaffLayout>

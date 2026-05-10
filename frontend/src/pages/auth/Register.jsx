@@ -60,7 +60,7 @@ export default function Register() {
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [activePolicy, setActivePolicy] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
+  const [success, setSuccess] = useState('');
   const [error, setError] = useState('')
 
   const { register } = useAuth()
@@ -82,6 +82,16 @@ export default function Register() {
     return () => window.removeEventListener('keydown', handleEscape);
   }, [activePolicy]);
 
+  useEffect(() => {
+    if (success || error) {
+      const timer = setTimeout(() => {
+        setSuccess('')
+        setError('')
+      }, 4000)
+      return () => clearTimeout(timer)
+    }
+  }, [success, error])
+
   function openPolicyModal(type, event) {
     event.preventDefault();
     event.stopPropagation();
@@ -90,7 +100,7 @@ export default function Register() {
 
   async function handleSubmit(e) {
     e.preventDefault()
-    setMessage('')
+    setSuccess('')
     setError('')
 
     if (!fullName.trim()) {
@@ -135,7 +145,7 @@ export default function Register() {
         full_name: fullName.trim(),
         phone: phone.trim() || null,
       })
-      setMessage('Đăng ký thành công! Vui lòng đăng nhập.')
+      setSuccess('Đăng ký thành công! Vui lòng đăng nhập.')
       setTimeout(() => {
         navigate('/login')
       }, 1500)
@@ -298,23 +308,6 @@ export default function Register() {
               <button type="submit" className="register-submit" disabled={loading}>
                 {loading ? 'Đang Tạo Tài Khoản…' : 'Đăng Ký'}
               </button>
-
-              {error ? (
-                <p
-                  className="register-message register-message--error"
-                  role="alert"
-                >
-                  {error}
-                </p>
-              ) : null}
-              {message ? (
-                <p
-                  className="register-message register-message--info"
-                  role="status"
-                >
-                  {message}
-                </p>
-              ) : null}
             </form>
 
             <footer className="register-footer">
@@ -363,6 +356,27 @@ export default function Register() {
           </section>
         </div>
       ) : null}
+
+      {/* TOAST NOTIFICATION */}
+      {(success || error) && (
+        <div className={`register-toast ${success ? 'success' : 'error'}`}>
+          <div className="toast-content">
+            <span className="toast-icon">
+              {success ? (
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+                </svg>
+              )}
+            </span>
+            <p className="toast-message">{success || error}</p>
+          </div>
+          <button className="toast-close" onClick={() => { setSuccess(''); setError(''); }}>×</button>
+        </div>
+      )}
     </div>
   )
 }

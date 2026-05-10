@@ -1,11 +1,41 @@
 import { useEffect, useMemo, useState } from 'react'
-import { changeAdminUserPassword, updateAdminUser } from '../../services/adminApi'
-import { fetchSupermarketProfile, updateSupermarketProfile } from '../../services/supermarketAdminApi'
+import {
+  fetchSupermarketProfile,
+  updateSupermarketInfo,
+  updateSupermarketAdminUser,
+  changeSupermarketAdminPassword
+} from '../../services/supermarketAdminApi'
 import { useAuth } from '../../services/AuthContext'
 import './SupermarketAdminSettings.css'
 
 const ADMIN_PROFILE_STORAGE_KEY = 'supermarket_admin_profile'
 const AUTH_STORAGE_KEY = 'seims_auth_user'
+
+function Toast({ message, visible, onClose }) {
+  if (!visible) return null;
+
+  const isError = message.includes('Lỗi') || message.includes('thất bại') || message.includes('không khớp') || message.includes('Không tìm thấy');
+
+  return (
+    <div className={`sasettings-toast ${isError ? 'error' : 'success'}`}>
+      <div className="toast-content">
+        <span className="toast-icon">
+          {!isError ? (
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+            </svg>
+          )}
+        </span>
+        <p className="toast-message">{message}</p>
+      </div>
+      <button type="button" className="toast-close" onClick={onClose}>×</button>
+    </div>
+  );
+}
 
 const DEFAULT_ADMIN_PROFILE = {
   username: '',
@@ -21,14 +51,17 @@ export default function SupermarketAdminSettings() {
   const [formData, setFormData] = useState(DEFAULT_ADMIN_PROFILE)
   const [initialFormData, setInitialFormData] = useState(DEFAULT_ADMIN_PROFILE)
   const [loadingProfile, setLoadingProfile] = useState(true)
-  const [saveMessage, setSaveMessage] = useState('')
+  const [toast, setToast] = useState({ visible: false, message: '' })
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
     newPassword: '',
     confirmPassword: '',
   })
-  const [passwordMessage, setPasswordMessage] = useState('')
-  const [passwordError, setPasswordError] = useState('')
+
+  const showToast = (msg) => {
+    setToast({ visible: true, message: msg })
+    setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 2500)
+  }
 
   useEffect(() => {
     let active = true
@@ -83,10 +116,9 @@ export default function SupermarketAdminSettings() {
 
   async function handleSave(event) {
     event.preventDefault()
-    setSaveMessage('')
 
     if (!user?.id) {
-      setSaveMessage('Không tìm thấy thông tin tài khoản.')
+      showToast('Không tìm thấy thông tin tài khoản.')
       return
     }
 
@@ -99,12 +131,16 @@ export default function SupermarketAdminSettings() {
 
     try {
       await Promise.all([
-        updateAdminUser(user.id, {
+        updateSupermarketAdminUser(user.id, {
           fullName: nextProfile.fullName,
           email: nextProfile.email,
           phone: nextProfile.phone,
+          username: nextProfile.username,
         }),
-        updateSupermarketProfile({ name: nextProfile.supermarket, address: nextProfile.supermarketAddress }),
+        updateSupermarketInfo({
+          name: nextProfile.supermarket,
+          address: nextProfile.supermarketAddress
+        }),
       ])
 
       localStorage.setItem(ADMIN_PROFILE_STORAGE_KEY, JSON.stringify(nextProfile))
@@ -121,9 +157,10 @@ export default function SupermarketAdminSettings() {
       setFormData(nextProfile)
       setInitialFormData(nextProfile)
       window.dispatchEvent(new Event('supermarket-admin-profile-updated'))
-      setSaveMessage('Đã lưu thay đổi thành công.')
+      showToast('Đã lưu thay đổi thành công.')
     } catch (err) {
-      setSaveMessage(err?.response?.data?.detail || 'Lưu thay đổi thất bại.')
+      const errorMsg = err?.response?.data?.detail;
+      showToast(typeof errorMsg === 'string' ? errorMsg : (typeof errorMsg === 'object' ? JSON.stringify(errorMsg) : 'Lưu thay đổi thất bại.'));
     }
   }
 
@@ -137,26 +174,24 @@ export default function SupermarketAdminSettings() {
 
   async function handleChangePassword(event) {
     event.preventDefault()
-    setPasswordMessage('')
-    setPasswordError('')
 
     if (passwordData.newPassword.length < 6) {
-      setPasswordError('Mật khẩu mới phải có ít nhất 6 ký tự.')
+      showToast('Mật khẩu mới phải có ít nhất 6 ký tự.')
       return
     }
 
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      setPasswordError('Mật khẩu xác nhận không khớp.')
+      showToast('Mật khẩu xác nhận không khớp.')
       return
     }
 
     if (!user?.id) {
-      setPasswordError('Không tìm thấy thông tin tài khoản.')
+      showToast('Không tìm thấy thông tin tài khoản.')
       return
     }
 
     try {
-      await changeAdminUserPassword(user.id, {
+      await changeSupermarketAdminPassword({
         currentPassword: passwordData.currentPassword,
         newPassword: passwordData.newPassword,
       })
@@ -165,9 +200,9 @@ export default function SupermarketAdminSettings() {
         newPassword: '',
         confirmPassword: '',
       })
-      setPasswordMessage('Đổi mật khẩu thành công.')
+      showToast('Đổi mật khẩu thành công.')
     } catch (err) {
-      setPasswordError(err?.response?.data?.detail || 'Đổi mật khẩu thất bại.')
+      showToast(err?.response?.data?.detail || 'Đổi mật khẩu thất bại.')
     }
   }
 
@@ -183,7 +218,7 @@ export default function SupermarketAdminSettings() {
 
           <label className="sasettings-field">
             <span>Họ Và Tên</span>
-            <input type="text" name="fullName" value={formData.fullName} onChange={handleChange} disabled={loadingProfile} required />
+            <input type="text" name="fullName" value={formData.fullName} onChange={handleChange} required />
           </label>
 
           <label className="sasettings-field">
@@ -193,12 +228,12 @@ export default function SupermarketAdminSettings() {
 
           <label className="sasettings-field">
             <span>Email</span>
-            <input type="email" name="email" value={formData.email} onChange={handleChange} disabled={loadingProfile} required />
+            <input type="email" name="email" value={formData.email} onChange={handleChange} required />
           </label>
 
           <label className="sasettings-field">
             <span>Số Điện Thoại</span>
-            <input type="tel" name="phone" value={formData.phone} onChange={handleChange} disabled={loadingProfile} required />
+            <input type="tel" name="phone" value={formData.phone} onChange={handleChange} required />
           </label>
 
           <label className="sasettings-field">
@@ -207,7 +242,9 @@ export default function SupermarketAdminSettings() {
           </label>
         </div>
 
-        {saveMessage && <p className="sasettings-msg-success">{saveMessage}</p>}
+        <div className="sasettings-actions">
+          <button type="submit" className="sasettings-btn" disabled={!isDirty}>Lưu Thay Đổi</button>
+        </div>
       </form>
 
       <form className="sasettings-card" onSubmit={handleChangePassword}>
@@ -232,10 +269,8 @@ export default function SupermarketAdminSettings() {
         <div className="sasettings-actions">
           <button type="submit" className="sasettings-btn">Cập Nhật Mật Khẩu</button>
         </div>
-
-        {passwordError && <p className="sasettings-msg-error">{passwordError}</p>}
-        {passwordMessage && <p className="sasettings-msg-success">{passwordMessage}</p>}
       </form>
+      <Toast visible={toast.visible} message={toast.message} onClose={() => setToast(prev => ({ ...prev, visible: false }))} />
     </div>
   )
 }

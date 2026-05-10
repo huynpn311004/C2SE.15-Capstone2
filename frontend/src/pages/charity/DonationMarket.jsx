@@ -30,6 +30,16 @@ export default function DonationMarket() {
     loadOffers()
   }, [])
 
+  useEffect(() => {
+    if (submitSuccess || submitError) {
+      const timer = setTimeout(() => {
+        setSubmitSuccess('')
+        setSubmitError('')
+      }, 4000)
+      return () => clearTimeout(timer)
+    }
+  }, [submitSuccess, submitError])
+
   async function loadOffers() {
     setLoading(true)
     setError('')
@@ -255,8 +265,6 @@ export default function DonationMarket() {
                     )
                   })}
                 </div>
-                {submitError && <p className="chmarket-error">{submitError}</p>}
-                {submitSuccess && <p className="chmarket-success">{submitSuccess}</p>}
                 <div className="chmarket-form-footer">
                   <div className="chmarket-form-actions">
                     <button type="button" className="btn-large btn-close" onClick={clearSelection} disabled={submitting}>Hủy Đơn</button>
@@ -267,6 +275,27 @@ export default function DonationMarket() {
                 </div>
               </form>
             </div>
+          </div>
+        )}
+
+        {/* TOAST NOTIFICATION */}
+        {(submitSuccess || submitError) && (
+          <div className={`chmarket-toast ${submitSuccess ? 'success' : 'error'}`}>
+            <div className="toast-content">
+              <span className="toast-icon">
+                {submitSuccess ? (
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+                  </svg>
+                )}
+              </span>
+              <p className="toast-message">{submitSuccess || submitError}</p>
+            </div>
+            <button type="button" className="toast-close" onClick={() => { setSubmitSuccess(''); setSubmitError(''); }}>×</button>
           </div>
         )}
       </div>
