@@ -24,7 +24,7 @@ class Order(Base):
         nullable=True,
     )
     status: Mapped[str] = mapped_column(
-        Enum("pending", "preparing", "ready", "completed", "cancelled", "multi_store_pending", "expired", name="order_status"),
+        Enum("pending", "preparing", "ready", "shipped", "completed", "cancelled", "multi_store_pending", "expired", name="order_status"),
         nullable=False,
         default="pending",
     )

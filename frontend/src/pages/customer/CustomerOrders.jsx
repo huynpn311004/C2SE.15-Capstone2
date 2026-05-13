@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { fetchCustomerOrders, cancelCustomerOrder } from '../../services/customerApi';
+import { fetchCustomerOrders, cancelCustomerOrder, initiatePayment } from '../../services/customerApi';
 import './CustomerOrders.css';
 
 const STATUS_CONFIG = {
@@ -13,7 +13,7 @@ const STATUS_CONFIG = {
 const TABS = ['pending', 'preparing', 'shipped', 'completed', 'cancelled'];
 const TAB_LABELS = ['Đang xử lý', 'Đang chuẩn bị', 'Đang giao', 'Đã hoàn thành', 'Đã hủy'];
 
-function OrderCard({ order, onCancel, onCancelLoading }) {
+function OrderCard({ order, onCancel, onCancelLoading, onRepay, repayLoading }) {
   const config = STATUS_CONFIG[order.status] || { label: order.status, color: 'var(--seims-muted)', bg: 'rgba(0,0,0,0.05)' };
 
   return (
@@ -47,7 +47,9 @@ function OrderCard({ order, onCancel, onCancelLoading }) {
       )}
 
       {/* Payment Info */}
-      <p className="order-card-payment">Thanh toán: {order.paymentMethod === 'cod' ? 'Tiền mặt (COD)' : order.paymentMethod}</p>
+      <p className="order-card-payment">
+        Thanh toán: {order.paymentMethod?.toLowerCase().trim() === 'cod' ? 'Tiền mặt (COD)' : (order.paymentMethod?.toLowerCase().trim() === 'vnpay' ? 'VNPay (Online)' : order.paymentMethod)}
+      </p>
 
       {/* Footer */}
       <div className="order-card-footer">
@@ -64,15 +66,28 @@ function OrderCard({ order, onCancel, onCancelLoading }) {
       </div>
 
       {/* Actions */}
-      {(order.status === 'pending' || order.status === 'preparing') && (
-        <button
-          className="order-card-cancel-btn"
-          onClick={() => onCancel(order.orderId || order.id)}
-          disabled={onCancelLoading}
-        >
-          Hủy đơn hàng
-        </button>
-      )}
+      <div className="order-card-actions" style={{ display: 'flex', gap: '10px', marginTop: '1rem' }}>
+        {(order.status === 'pending' || order.status === 'preparing') && (
+          <button
+            className="order-card-cancel-btn"
+            onClick={() => onCancel(order.orderId || order.id)}
+            disabled={onCancelLoading || repayLoading}
+            style={{ flex: 1 }}
+          >
+            Hủy đơn hàng
+          </button>
+        )}
+
+        {order.paymentMethod === 'vnpay' && order.paymentStatus === 'pending' && order.status === 'pending' && (
+          <button
+            className="order-card-repay-btn"
+            onClick={() => onRepay(order.orderId || order.id)}
+            disabled={onCancelLoading || repayLoading}
+          >
+            {repayLoading ? 'Đang xử lý...' : 'Thanh toán ngay'}
+          </button>
+        )}
+      </div>
 
 
     </div>
@@ -87,6 +102,7 @@ const CustomerOrders = () => {
   const [toastSuccess, setToastSuccess] = useState('');
   const [toastError, setToastError] = useState('');
   const [cancellingId, setCancellingId] = useState(null);
+  const [repayingId, setRepayingId] = useState(null);
 
   useEffect(() => {
     if (toastSuccess || toastError) {
@@ -128,6 +144,24 @@ const CustomerOrders = () => {
       setToastError(err.response?.data?.detail || 'Không thể hủy đơn hàng.');
     } finally {
       setCancellingId(null);
+    }
+  };
+
+  const handleRepay = async (orderId) => {
+    try {
+      setRepayingId(orderId);
+      const result = await initiatePayment(orderId, 'vnpay');
+      const redirectUrl = result.redirect_url || result.payment_url;
+      if (redirectUrl) {
+        window.location.href = redirectUrl;
+      } else {
+        setToastError('Không thể tạo link thanh toán mới.');
+      }
+    } catch (err) {
+      console.error('Failed to initiate repayment:', err);
+      setToastError('Lỗi kết nối đến cổng thanh toán.');
+    } finally {
+      setRepayingId(null);
     }
   };
 
@@ -188,6 +222,8 @@ const CustomerOrders = () => {
                 order={order}
                 onCancel={handleCancel}
                 onCancelLoading={cancellingId === (order.orderId || order.id)}
+                onRepay={handleRepay}
+                repayLoading={repayingId === (order.orderId || order.id)}
               />
             ))}
           </div>

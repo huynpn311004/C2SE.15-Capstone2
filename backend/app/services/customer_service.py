@@ -213,7 +213,7 @@ def _get_or_create_order_group(
 		try:
 			from app.services.shipping_service import calculate_shipping_fee_sync
 			shipping_result = calculate_shipping_fee_sync(
-				db, store_id, shipping_address, float(final_amount)
+				db, store_id, shipping_address, float(total_amount)  # dùng subtotal trước coupon
 			)
 			if shipping_result.get("deliverable", True):
 				shipping_fee_value = Decimal(str(shipping_result.get("fee", 0) or 0))
@@ -349,11 +349,13 @@ def create_multi_store_order(
 	for item in items:
 		if isinstance(item, dict):
 			product_id = item.get("productId")
+			quantity = item.get("quantity", 1)
 		else:
 			product_id = item.productId
+			quantity = getattr(item, "quantity", 1)
 		product = db.query(Product.base_price).filter(Product.id == product_id).first()
 		if product:
-			total_order_amount += Decimal(str(product.base_price or 0))
+			total_order_amount += Decimal(str(product.base_price or 0)) * quantity
 	
 	# Validate coupon if provided
 	coupon_info = None
@@ -1352,20 +1354,14 @@ def cancel_customer_order(db: Session, order_id: int, user_id: int) -> dict:
 	).filter(OrderItem.order_id == order_id).all()
 
 	for item in item_rows:
-		if order.payment_status == "pending":
-			db.query(InventoryLot).filter(
-				InventoryLot.id == item.lot_id
-			).update(
-				{InventoryLot.qty_reserved: InventoryLot.qty_reserved - item.quantity},
-				synchronize_session=False
-			)
-		else:
-			db.query(InventoryLot).filter(
-				InventoryLot.id == item.lot_id
-			).update(
-				{InventoryLot.qty_on_hand: InventoryLot.qty_on_hand + item.quantity},
-				synchronize_session=False
-			)
+		# Luôn giải phóng lượng giữ chỗ (Reserved) vì ở giai đoạn pending/preparing 
+		# hàng chưa bị trừ khỏi kho thực tế (qty_on_hand)
+		db.query(InventoryLot).filter(
+			InventoryLot.id == item.lot_id
+		).update(
+			{InventoryLot.qty_reserved: InventoryLot.qty_reserved - item.quantity},
+			synchronize_session=False
+		)
 
 	order.status = 'cancelled'
 	db.commit()
@@ -1424,19 +1420,6 @@ def confirm_customer_order(db: Session, order_id: int, user_id: int) -> dict:
 		OrderItem.lot_id,
 		OrderItem.quantity
 	).filter(OrderItem.order_id == order_id).all()
-
-	# Convert reserved to actual deduction
-	for item in item_rows:
-		# Decrease reserved, decrease on_hand
-		db.query(InventoryLot).filter(
-			InventoryLot.id == item.lot_id
-		).update(
-			{
-				InventoryLot.qty_reserved: InventoryLot.qty_reserved - item.quantity,
-				InventoryLot.qty_on_hand: InventoryLot.qty_on_hand - item.quantity
-			},
-			synchronize_session=False
-		)
 
 	# Update order payment status, payment method and order status
 	update_data = {

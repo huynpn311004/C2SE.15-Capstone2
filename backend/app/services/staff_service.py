@@ -715,17 +715,21 @@ def update_staff_order_status(db: Session, order_id: int, store_id: int, new_sta
         if item.lot_id:
             lot = db.query(InventoryLot).filter(InventoryLot.id == item.lot_id).with_for_update().first()
             if lot:
+                # Trừ tồn kho thực tế và giải phóng lượng giữ chỗ
                 lot.qty_on_hand = max(0, (lot.qty_on_hand or 0) - item.quantity)
                 lot.qty_reserved = max(0, (lot.qty_reserved or 0) - item.quantity)
 
-    db.query(Order).filter(
+    # Cập nhật trạng thái đơn hàng
+    update_result = db.query(Order).filter(
         Order.id == order_id,
         Order.store_id == store_id
     ).update({Order.status: "ready"}, synchronize_session=False)
+    
+    if update_result == 0:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Đơn hàng không tồn tại hoặc không thuộc cửa hàng")
+    
     db.commit()
-
-    if result == 0:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Đơn hàng không tồn tại")
 
     # Audit log for order approval
     if user_id:

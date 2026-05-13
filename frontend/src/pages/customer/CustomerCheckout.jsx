@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { getProductImageUrl } from '../../services/staffApi';
-import { fetchCustomerProductDetail, createMultiStoreOrder, fetchAvailableCoupons, confirmCustomerOrder, estimateShipping } from '../../services/customerApi';
+import { fetchCustomerProductDetail, createMultiStoreOrder, fetchAvailableCoupons, confirmCustomerOrder, estimateShipping, initiatePayment } from '../../services/customerApi';
 import { LocationModal } from '../../components/map';
 import { getCart, clearCart } from '../../services/cartUtils';
 import './CustomerCheckout.css';
@@ -34,6 +34,16 @@ function Toast({ message, visible, onClose }) {
 
 // Coupon Modal Component
 function CouponModal({ isOpen, onClose, coupons, selectedCoupon, onSelectCoupon, orderTotal }) {
+  const [manualCode, setManualCode] = useState('');
+  const [tempSelected, setTempSelected] = useState(selectedCoupon);
+
+  // Sync temp selection when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setTempSelected(selectedCoupon);
+    }
+  }, [isOpen, selectedCoupon]);
+
   if (!isOpen) return null;
 
   const isCouponApplicable = (coupon) => {
@@ -41,6 +51,34 @@ function CouponModal({ isOpen, onClose, coupons, selectedCoupon, onSelectCoupon,
     const minAmount = coupon.minAmount || 0;
     return orderTotal >= minAmount;
   };
+
+  const handleApplyManualCode = () => {
+    const code = manualCode.trim().toUpperCase();
+    if (!code) return;
+    const found = coupons.find(c => c.code === code);
+    if (found) {
+      if (isCouponApplicable(found)) {
+        setTempSelected(found);
+        // Clear manual code after finding
+        setManualCode('');
+      } else {
+        alert(`Đơn hàng không đủ điều kiện cho mã này (Tối thiểu: ${found.minAmount?.toLocaleString()}đ)`);
+      }
+    } else {
+      alert('Mã ưu đãi không tồn tại hoặc đã hết hạn');
+    }
+  };
+
+  const handleConfirm = () => {
+    onSelectCoupon(tempSelected);
+    onClose();
+  };
+
+  // Filter coupons based on manualCode (Search functionality)
+  const filteredCoupons = coupons.filter(coupon =>
+    coupon.code.toLowerCase().includes(manualCode.toLowerCase()) ||
+    (coupon.description && coupon.description.toLowerCase().includes(manualCode.toLowerCase()))
+  );
 
   return (
     <div className="customer-checkout-coupon-modal-overlay" onClick={onClose}>
@@ -50,17 +88,36 @@ function CouponModal({ isOpen, onClose, coupons, selectedCoupon, onSelectCoupon,
           <button className="customer-checkout-coupon-modal-close" onClick={onClose}>×</button>
         </div>
         <div className="customer-checkout-coupon-modal-body">
-          {coupons.length === 0 ? (
-            <p className="customer-checkout-coupon-empty">Không có mã ưu đãi nào khả dụng</p>
+          {/* Manual Entry & Search Field */}
+          <div className="customer-checkout-coupon-manual">
+            <input
+              type="text"
+              placeholder="Tìm hoặc nhập mã ưu đãi..."
+              className="customer-checkout-coupon-input"
+              value={manualCode}
+              onChange={(e) => setManualCode(e.target.value)}
+            />
+            <button
+              className="customer-checkout-coupon-apply-btn"
+              onClick={handleApplyManualCode}
+            >
+              Tìm mã
+            </button>
+          </div>
+
+          {filteredCoupons.length === 0 ? (
+            <p className="customer-checkout-coupon-empty">
+              {manualCode ? 'Không tìm thấy mã ưu đãi phù hợp' : 'Không có mã ưu đãi nào khả dụng'}
+            </p>
           ) : (
-            coupons.map(coupon => {
+            filteredCoupons.map(coupon => {
               const applicable = isCouponApplicable(coupon);
-              const isSelected = selectedCoupon?.id === coupon.id;
+              const isSelected = tempSelected?.id === coupon.id;
               return (
                 <div
                   key={coupon.id}
                   className={`customer-checkout-coupon-item ${applicable ? 'applicable' : 'not-applicable'} ${isSelected ? 'selected' : ''}`}
-                  onClick={() => applicable && onSelectCoupon(isSelected ? null : coupon)}
+                  onClick={() => applicable && setTempSelected(isSelected ? null : coupon)}
                 >
                   <div className="customer-checkout-coupon-radio">
                     <input
@@ -89,7 +146,7 @@ function CouponModal({ isOpen, onClose, coupons, selectedCoupon, onSelectCoupon,
           )}
         </div>
         <div className="customer-checkout-coupon-modal-footer">
-          <button className="customer-checkout-coupon-btn" onClick={onClose}>
+          <button className="customer-checkout-coupon-btn" onClick={handleConfirm}>
             Xác nhận
           </button>
         </div>
@@ -242,10 +299,22 @@ const CustomerCheckout = () => {
       setShippingLoading(true);
       const newShippingData = {};
 
+      // Tính subtotal theo từng store để backend xét ngưỡng miễn phí ship đúng
+      const storeSubtotals = {};
+      const sourceItems = isMultiStore && cartItems.length > 0 ? cartItems : cart;
+      sourceItems.forEach(item => {
+        const sid = item.storeId || item.store_id;
+        if (sid) {
+          const price = item.salePrice || item.bestPrice || 0;
+          storeSubtotals[sid] = (storeSubtotals[sid] || 0) + price * (item.quantity || 1);
+        }
+      });
+
       for (const storeId of storeIds) {
         if (!storeId) continue;
         try {
-          const result = await estimateShipping(storeId, address, 0);
+          const orderAmount = storeSubtotals[storeId] || 0;
+          const result = await estimateShipping(storeId, address, orderAmount);
           newShippingData[storeId] = result;
         } catch (err) {
           console.warn(`Shipping estimate failed for store ${storeId}:`, err);
@@ -284,8 +353,10 @@ const CustomerCheckout = () => {
     ? cart.reduce((sum, item) => sum + (item.salePrice || item.bestPrice || 0) * item.quantity, 0)
     : cartItems.reduce((sum, item) => sum + (item.salePrice || item.bestPrice || 0) * item.quantity, 0);
 
+  // OLD flow: dùng totalAmount - shippingFee để lấy đúng product subtotal (sale_price thực tế)
+  // Tránh double-shipping: group.items dùng base_price không chính xác
   const productSubtotal = (isMultiStore && orderGroups.length > 0)
-    ? orderGroups.reduce((sum, group) => sum + group.items.reduce((s, item) => s + (item.unitPrice * item.quantity), 0), 0)
+    ? orderGroups.reduce((sum, g) => sum + (g.totalAmount - (g.shippingFee || 0)), 0)
     : cartSubtotal;
 
   // Prevent negative subtotal (edge case for old orders)
@@ -355,6 +426,7 @@ const CustomerCheckout = () => {
           items: itemsForOrder,
           paymentMethod,
           shippingAddress: formData.address,
+          couponId: selectedCoupon?.id || null,
         });
 
         if (paymentMethod === 'cod') {
@@ -365,7 +437,7 @@ const CustomerCheckout = () => {
           const orderCodes = result.orderGroups.map(g => g.orderCode).join(', ');
           setToast({
             visible: true,
-            message: ` ✅ Đặt hàng COD thành công!\n${result.totalOrders} đơn: ${orderCodes}`
+            message: `Đặt hàng COD thành công!\n${result.totalOrders} đơn: ${orderCodes}`
           });
           setTimeout(() => {
             setToast(prev => ({ ...prev, visible: false }));
@@ -405,7 +477,7 @@ const CustomerCheckout = () => {
           const orderCodes = orderGroups.map(g => g.orderCode).join(', ');
           setToast({
             visible: true,
-            message: `✅ Thanh toán thành công!\n${totalOrders} đơn: ${orderCodes}`
+            message: `Thanh toán thành công!\n${totalOrders} đơn: ${orderCodes}`
           });
           setTimeout(() => {
             setToast(prev => ({ ...prev, visible: false }));
@@ -661,21 +733,6 @@ const CustomerCheckout = () => {
                   </span>
                 </div>
 
-                {isMultiStore && orderGroups.length > 1 && (
-                  <div className="customer-checkout-multi-order-note">
-                    <p> Bạn có <strong>{orderGroups.length} đơn hàng</strong> từ các cửa hàng khác nhau.</p>
-                    <p>Mỗi cửa hàng sẽ giao hàng riêng biệt.</p>
-                  </div>
-                )}
-                {isMultiStore && cartItems.length > 0 && orderGroups.length === 0 && (() => {
-                  const storeCount = [...new Set(cartItems.map(i => i.storeId || i.store_id))].length;
-                  return storeCount > 1 && (
-                    <div className="customer-checkout-multi-order-note">
-                      <p> Bạn sẽ có <strong>{storeCount} đơn hàng</strong> từ các cửa hàng khác nhau.</p>
-                      <p>Mỗi cửa hàng sẽ giao hàng riêng biệt.</p>
-                    </div>
-                  );
-                })()}
               </>
             )}
           </div>

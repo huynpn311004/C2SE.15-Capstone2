@@ -15,7 +15,7 @@ const CustomerPayment = () => {
   useEffect(() => {
     const orderId = searchParams.get('orderId') || searchParams.get('order_id');
     const resultCode = parseInt(searchParams.get('resultCode') || '99');
-    
+
     async function checkPaymentStatus() {
       if (!orderId) {
         setStatus('failed');
@@ -26,10 +26,10 @@ const CustomerPayment = () => {
       try {
         const orderDetail = await fetchCustomerOrderDetail(orderId);
         setOrder(orderDetail);
-        
+
         if (resultCode === 0 || orderDetail.payment_status === 'paid') {
           setStatus('success');
-          
+
           // Reload orders list
           const recentOrders = await fetchCustomerOrders('pending');
           setOrders(recentOrders.slice(0, 3));
@@ -89,7 +89,7 @@ const CustomerPayment = () => {
             )}
 
             <div style={{ textAlign: 'center' }}>
-              <button 
+              <button
                 onClick={() => navigate('/customer/orders')}
                 style={{
                   padding: '1rem 2rem',
@@ -118,7 +118,7 @@ const CustomerPayment = () => {
               </p>
             </div>
             <div style={{ textAlign: 'center' }}>
-              <button 
+              <button
                 onClick={() => navigate('/customer/cart')}
                 style={{
                   padding: '1rem 2rem',
@@ -134,7 +134,7 @@ const CustomerPayment = () => {
               >
                 Quay lại giỏ hàng
               </button>
-              <button 
+              <button
                 onClick={() => navigate('/customer/orders')}
                 style={{
                   padding: '1rem 2rem',

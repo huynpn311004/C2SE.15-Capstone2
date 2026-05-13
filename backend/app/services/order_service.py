@@ -220,8 +220,8 @@ def create_multi_store_order(
         store = db.query(Store).filter(Store.id == store_id).first()
         store_name = store.name if store else f"Store {store_id}"
 
-        #  KHÔNG QUERY LẠI DB NỮA
-        items_response = []
+        # Build price map from order_items_data (giá thực tế đã tính discount)
+        price_map = {d["product_id"]: float(d["price"]) for d in order["_items_data"]} if order.get("_items_data") else {}
 
         for item in group_items:
             pid, qty = parse_item(item)
@@ -232,7 +232,7 @@ def create_multi_store_order(
                 "productId": pid,
                 "name": product.name if product else "",
                 "quantity": qty,
-                "unitPrice": float(product.base_price) if product else 0
+                "unitPrice": price_map.get(pid, float(product.base_price) if product else 0)
             })
 
         results.append({

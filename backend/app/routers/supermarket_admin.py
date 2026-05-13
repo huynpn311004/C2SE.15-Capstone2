@@ -10,6 +10,10 @@ from app.schemas.supermarket_admin_schemas import (
     UpdateStoreRequest,
     UpdateStaffRequest,
 )
+from app.schemas.admin_schemas import (
+    UpdateUserRequest,
+    ChangePasswordRequest,
+)
 from app.services import supermarket_admin_service, product_service, admin_service
 
 
@@ -249,4 +253,43 @@ def list_expiring_products(
         current_user.id,
         days=days,
         store_id=store_id,
+    )
+
+
+# ========== User Management (Self) ==========
+@router.put("/user/{user_id}")
+def update_supermarket_admin_user(
+    user_id: int,
+    data: UpdateUserRequest,
+    _=Depends(require_supermarket_admin),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Bạn không có quyền cập nhật thông tin của người khác."
+        )
+    return admin_service.update_user(
+        db,
+        user_id,
+        data.username,
+        data.fullName,
+        data.email,
+        data.phone,
+    )
+
+
+@router.post("/user/change-password")
+def change_supermarket_admin_password(
+    data: ChangePasswordRequest,
+    _=Depends(require_supermarket_admin),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return admin_service.change_user_password(
+        db,
+        current_user.id,
+        data.currentPassword,
+        data.newPassword,
     )

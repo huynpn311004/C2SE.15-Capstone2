@@ -344,15 +344,18 @@ def update_delivery_status(db: Session, delivery_id: int, new_status: str, user_
         if delivery.order_id:
             order = db.query(Order).filter(Order.id == delivery.order_id).first()
             if order and order.status == "ready":
-                order.status = "preparing" # Hoặc giữ nguyên chuẩn bị
+                pass # Giữ nguyên status 'ready' vì hàng đã được trừ kho ở bước này
         if delivery.donation_request_id:
             donation = db.query(DonationRequest).filter(DonationRequest.id == delivery.donation_request_id).first()
             if donation:
                 donation.status = "approved"
 
     elif new_status == "delivering":
-        # Khi shipper bắt đầu đi giao - Giữ nguyên trạng thái cũ của Order/Donation vì Enum không hỗ trợ 'shipped'
-        pass
+        # Khi shipper bắt đầu đi giao - Cập nhật Order status thành 'shipped'
+        if delivery.order_id:
+            order = db.query(Order).filter(Order.id == delivery.order_id).first()
+            if order:
+                order.status = "shipped"
 
     elif new_status == "completed":
         delivery.delivered_at = datetime.now()

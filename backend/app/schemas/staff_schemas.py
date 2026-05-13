@@ -159,6 +159,8 @@ class InventoryLotItem(BaseModel):
     salePrice: float
     discount: float
     daysLeft: int
+    reserved: int = 0
+    available: int = 0
 
 
 class InventoryLotsListResponse(BaseModel):

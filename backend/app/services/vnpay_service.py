@@ -130,11 +130,9 @@ def handle_vnpay_return(db: Session, params: Dict[str, str]) -> Dict[str, Any]:
             "message": "Order not found",
         }
 
-    if vnp_ResponseCode == "00":
-        # Thanh toán thành công: trạng thái + trừ kho
+        # Thanh toán thành công: chỉ cập nhật trạng thái, không trừ kho tại đây (để Staff/Ready xử lý)
         order.payment_status = "paid"
         order.status = "preparing"
-        _deduct_stock_for_order(db, order_id)
         db.commit()
         return {
             "success": True,
@@ -181,7 +179,6 @@ def handle_vnpay_ipn(db: Session, params: Dict[str, str]) -> Dict[str, Any]:
     if vnp_ResponseCode == "00":
         order.payment_status = "paid"
         order.status = "preparing"
-        _deduct_stock_for_order(db, order_id)
         db.commit()
         return {"RspCode": "00", "Message": "Confirmed"}
     else:
@@ -195,17 +192,6 @@ def handle_vnpay_ipn(db: Session, params: Dict[str, str]) -> Dict[str, Any]:
 # =======================
 # STOCK HELPERS
 # =======================
-def _deduct_stock_for_order(db: Session, order_id: int):
-    item_rows = db.query(
-        OrderItem.lot_id, OrderItem.quantity
-    ).filter(OrderItem.order_id == order_id).all()
-    for item in item_rows:
-        db.query(InventoryLot).filter(
-            InventoryLot.id == item.lot_id
-        ).update({
-            InventoryLot.qty_reserved: func.greatest(0, InventoryLot.qty_reserved - item.quantity),
-            InventoryLot.qty_on_hand: func.greatest(0, InventoryLot.qty_on_hand - item.quantity)
-        }, synchronize_session=False)
 
 
 def _release_reserved_for_order(db: Session, order_id: int):

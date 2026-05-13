@@ -62,8 +62,7 @@
 .customer-shop-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 1rem;
-  align-items: start;
+  gap: 1.25rem;
 }
 
 /* Empty */
@@ -85,10 +84,12 @@
   flex-direction: column;
   background: var(--seims-card);
   border: 1px solid var(--seims-border);
-  border-radius: 10px;
+  border-radius: 12px;
   overflow: hidden;
   cursor: pointer;
-  height: fit-content;
+  height: 100%;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
 }
 
 .customer-shop-product-card:hover {
@@ -110,16 +111,23 @@
   width: 100%;
   height: 100%;
   object-fit: contain;
-  padding: 0.5rem;
+  padding: 0.25rem;
 }
 
 /* Info */
 .customer-shop-product-info {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
-  padding: 0.75rem;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1rem;
   flex: 1;
+}
+
+.customer-shop-product-main-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
 }
 
 .customer-shop-product-store {
@@ -133,14 +141,14 @@
 }
 
 .customer-shop-product-title {
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   font-weight: 600;
   color: var(--seims-ink);
   margin: 0;
   line-height: 1.4;
+  height: 2.8em; /* Force 2 lines */
   display: -webkit-box;
   -webkit-line-clamp: 2;
-  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -192,20 +200,20 @@
 /* Add Button */
 .customer-shop-add-btn {
   width: 100%;
-  padding: 0.55rem 0;
-  margin-top: 0.5rem;
+  padding: 0.65rem 0;
   background: var(--seims-teal);
   color: white;
   border: none;
-  border-radius: 6px;
-  font-weight: 600;
-  font-size: 0.8rem;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.85rem;
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.3rem;
+  gap: 0.5rem;
+  margin-top: auto;
 }
 
 .customer-shop-add-btn:hover {

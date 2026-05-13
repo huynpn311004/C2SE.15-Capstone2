@@ -204,3 +204,19 @@ export async function updateSupermarketProfile(payload) {
   const response = await API.put('/supermarket-admin/profile?' + params.toString())
   return response.data
 }
+
+export async function updateSupermarketInfo(payload) {
+  return updateSupermarketProfile(payload)
+}
+
+export async function updateSupermarketAdminUser(userId, payload) {
+  requireSupermarketAdmin()
+  const response = await API.put(`/supermarket-admin/user/${userId}`, payload)
+  return response.data
+}
+
+export async function changeSupermarketAdminPassword(payload) {
+  requireSupermarketAdmin()
+  const response = await API.post('/supermarket-admin/user/change-password', payload)
+  return response.data
+}

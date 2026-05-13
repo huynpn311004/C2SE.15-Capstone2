@@ -497,7 +497,7 @@ export default function ProductManagement() {
                       {imagePreview ? (
                         <img src={imagePreview} alt="Preview" className="product-image-preview" />
                       ) : formData.imageUrl ? (
-                        <img src={formData.imageUrl} alt="Preview" className="product-image-preview"
+                        <img src={getProductImageUrl(formData.imageUrl)} alt="Preview" className="product-image-preview"
                           onError={(e) => { e.target.style.display = 'none' }} />
                       ) : null}
                       <button

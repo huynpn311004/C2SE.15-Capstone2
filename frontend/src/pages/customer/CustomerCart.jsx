@@ -290,7 +290,7 @@ const CustomerCart = () => {
 
       if (!validation.valid) {
         const outOfStock = validation.outOfStockItems.join('\n• ');
-        showToast(`⚠️ Một số sản phẩm hết hàng:\n• ${outOfStock}`);
+        showToast(`Một số sản phẩm hết hàng:\n• ${outOfStock}`);
         setIsProcessing(false);
         return;
       }
@@ -414,7 +414,7 @@ const CustomerCart = () => {
               <div className="cart-header-right">
                 {cart.length > 0 && (
                   <button className="cart-clear-btn" onClick={handleClearCart}>
-                    🗑 Xóa tất cả
+                    Xóa tất cả
                   </button>
                 )}
                 {cart.length > 0 && (
@@ -516,7 +516,7 @@ const CustomerCart = () => {
                           className="cart-item-remove"
                           title="Xóa khỏi giỏ hàng"
                         >
-                          🗑
+                          Xóa
                         </button>
                       </div>
                     ))}
@@ -583,7 +583,7 @@ const CustomerCart = () => {
                     style={{ padding: '0.875rem', fontSize: '1rem', marginTop: '0.5rem' }}
                     disabled={isProcessing}
                   >
-                    {isProcessing ? '⏳ Đang xử lý...' : 'Thanh toán ngay'}
+                    {isProcessing ? 'Đang xử lý...' : 'Thanh toán ngay'}
                   </button>
 
                   <button

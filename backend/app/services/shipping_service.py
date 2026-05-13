@@ -13,7 +13,7 @@ SHIPPING_TIERS = [
 
 WARNING_DISTANCE_KM = 10.0     # Bắt đầu cảnh báo từ 10km
 MAX_DELIVERY_DISTANCE_KM = 15.0  # Chặn hoàn toàn > 15km
-FREE_SHIPPING_THRESHOLD = 100000  # Miễn phí ship cho đơn >= 100.000đ
+FREE_SHIPPING_THRESHOLD = 500000  # Miễn phí ship cho đơn >= 500.000đ
 
 
 def calculate_shipping_fee(distance_km: float, order_amount: float = 0) -> dict:
@@ -45,11 +45,8 @@ def calculate_shipping_fee(distance_km: float, order_amount: float = 0) -> dict:
     else:
         zone = "normal"
 
-    # --- Miễn phí cho đơn lớn (chỉ áp dụng vùng normal) ---
-    free_shipping = (
-        zone == "normal"
-        and order_amount >= FREE_SHIPPING_THRESHOLD
-    )
+    # --- Miễn phí cho đơn lớn (áp dụng mọi vùng deliverable) ---
+    free_shipping = order_amount >= FREE_SHIPPING_THRESHOLD
     final_fee = 0 if free_shipping else fee
 
     # --- Message ---

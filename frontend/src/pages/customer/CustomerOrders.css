@@ -189,9 +189,7 @@
 
 /* Order Card Buttons */
 .order-card-cancel-btn {
-  margin-top: 0.75rem;
-  width: 100%;
-  padding: 0.55rem;
+  padding: 0.6rem;
   background: rgba(185, 28, 28, 0.08);
   color: var(--seims-error);
   border: 1px solid rgba(185, 28, 28, 0.2);
@@ -200,6 +198,10 @@
   font-weight: 600;
   font-size: 0.8rem;
   transition: all 0.2s ease;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .order-card-cancel-btn:not(:disabled):hover {
@@ -209,13 +211,39 @@
 
 .order-card-cancel-btn:disabled {
   cursor: not-allowed;
-  opacity: 0.6;
+  opacity: 0.5;
+}
+
+.order-card-repay-btn {
+  padding: 0.6rem;
+  background: linear-gradient(135deg, #005baa, #0077d9);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.8rem;
+  transition: all 0.2s ease;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.order-card-repay-btn:not(:disabled):hover {
+  filter: brightness(1.1);
+  box-shadow: 0 4px 12px rgba(0, 91, 170, 0.3);
+}
+
+.order-card-repay-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .order-card-review-btn {
   margin-top: 0.75rem;
   width: 100%;
-  padding: 0.55rem;
+  padding: 0.6rem;
   background: rgba(15, 118, 110, 0.08);
   color: var(--seims-teal);
   border: 1px solid rgba(15, 118, 110, 0.2);
