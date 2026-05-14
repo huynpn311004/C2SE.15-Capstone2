@@ -137,11 +137,14 @@ def handle_vnpay_return(db: Session, params: Dict[str, str]) -> Dict[str, Any]:
         db.commit()
         return {
             "success": True,
-            "message": "Thanh toán thành công! Đơn hàng đang được chuẩn bị.",
+            "message": "Thanh toán thành công!",
             "order_id": order_id,
-            "order_code": order.order_code,
+            "order_code": f"DH-{order.id}",
+
             "transaction_no": vnp_TransactionNo,
         }
+
+
 
     else:
         # Thanh toán thất bại: trạng thái + hoàn giữ chỗ
