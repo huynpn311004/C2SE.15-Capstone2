@@ -12,6 +12,8 @@ from app.models.user import User
 from app.models.product import Product
 from app.models.store import Store
 from app.services.discount_policy_service import calculate_discount
+from app.services.customer_service import _validate_and_calculate_coupon, _increment_coupon_usage, restore_expired_reserved_stock
+
 
 
 # =======================
@@ -35,8 +37,12 @@ def create_customer_order(
     shipping_address: str = "",
     shipping_phone: str = "",
     coupon_id: Optional[int] = None,
-    commit: bool = True
+    commit: bool = True,
+    allocated_discount: Decimal = Decimal("0")
 ) -> Dict:
+    # Auto-cleanup expired reservations
+    restore_expired_reserved_stock(db, timeout_minutes=3)
+    
     if not coupon_id or coupon_id == "":
         coupon_id = None
     else:
@@ -98,8 +104,16 @@ def create_customer_order(
                 "lot": lot
             })
 
+        # ===== CALCULATE COUPON DISCOUNT (If not pre-allocated) =====
+        applied_discount_amount = allocated_discount
+        if coupon_id and applied_discount_amount == 0:
+            coupon_info = _validate_and_calculate_coupon(db, coupon_id, store_id, total_amount)
+            if coupon_info.get("valid"):
+                applied_discount_amount = coupon_info.get("discount_amount", Decimal("0"))
+
         if not order_items_data:
             raise ValueError("No valid items")
+
 
         # ===== CALCULATE SHIPPING FEE =====
         shipping_fee_value = Decimal("0")
@@ -117,21 +131,25 @@ def create_customer_order(
                 import logging
                 logging.getLogger(__name__).warning(f"Shipping calc failed: {e}")
 
-        # ===== CREATE ORDER =====
+        # Tính tổng tiền cuối cùng (Hàng - Giảm giá + Ship)
+        final_total = max(Decimal("0"), total_amount - applied_discount_amount) + shipping_fee_value
+
         order = Order(
             store_id=store_id,
             customer_id=customer_id,
             coupon_id=coupon_id,
-            total_amount=total_amount + shipping_fee_value,
+            total_amount=final_total,
+            discount_amount=applied_discount_amount,
             shipping_fee=shipping_fee_value,
             delivery_distance=delivery_distance_value,
             payment_method=payment_method,
-            payment_status="paid" if payment_method == "cod" else "pending",
+            payment_status="pending",
             shipping_address=shipping_address,
             shipping_phone=shipping_phone,
             status="pending",
-            reserved_at=datetime.now()  # Đánh dấu thời điểm đặt chỗ tồn kho
+            reserved_at=datetime.now()
         )
+
 
         db.add(order)
         db.flush()
@@ -154,17 +172,25 @@ def create_customer_order(
             lot.qty_reserved = (lot.qty_reserved or 0) + data["quantity"]
 
         if commit:
+            # Chỉ increment lượt dùng coupon khi đây là đơn hàng đơn lẻ 
+            # (Đơn đa cửa hàng sẽ increment một lần duy nhất ở hàm cha)
+            if coupon_id and allocated_discount == 0:
+                _increment_coupon_usage(db, coupon_id)
             db.commit()
         else:
             db.flush()
 
+
         return {
             "orderId": order.id,
             "orderCode": f"SEIMS-{order.id:06d}",
-            "totalAmount": float(total_amount + shipping_fee_value),
+            "totalAmount": float(final_total),
+            "discountAmount": float(applied_discount_amount),
             "shippingFee": float(shipping_fee_value),
-            "deliveryDistance": delivery_distance_value
+            "deliveryDistance": delivery_distance_value,
+            "_items_data": order_items_data
         }
+
 
     except Exception as e:
         db.rollback()
@@ -199,10 +225,50 @@ def create_multi_store_order(
     if not store_map:
         raise ValueError("No valid store items")
 
-    results = []
-
-    # ===== PROCESS EACH STORE =====
+    # ===== CALCULATE TOTAL SUB-TOTAL FOR PRO-RATA DISCOUNT =====
+    total_cart_subtotal = Decimal("0")
+    store_subtotals = {}
+    
     for store_id, group_items in store_map.items():
+        store_subtotal = Decimal("0")
+        for item in group_items:
+            pid, qty = parse_item(item)
+            product = db.query(Product.base_price).filter(Product.id == pid).first()
+            if product:
+                store_subtotal += Decimal(str(product.base_price or 0)) * qty
+        store_subtotals[store_id] = store_subtotal
+        total_cart_subtotal += store_subtotal
+
+    # ===== VALIDATE COUPON FOR ENTIRE CART =====
+    total_coupon_discount = Decimal("0")
+    if coupon_id:
+        coupon_info = _validate_and_calculate_coupon(db, coupon_id, None, total_cart_subtotal)
+        if not coupon_info.get("valid"):
+            raise ValueError(coupon_info.get("error", "Coupon không hợp lệ"))
+        total_coupon_discount = coupon_info.get("discount_amount", Decimal("0"))
+
+    results = []
+    used_discount_amount = Decimal("0")
+    
+    # ===== PROCESS EACH STORE =====
+    store_ids = list(store_map.keys())
+    for i, store_id in enumerate(store_ids):
+        group_items = store_map[store_id]
+        
+        # Allocate discount using pro-rata logic
+        if i == len(store_ids) - 1:
+            # Last store takes the remainder to avoid rounding issues
+            store_allocated_discount = total_coupon_discount - used_discount_amount
+        else:
+            if total_cart_subtotal > 0:
+                ratio = store_subtotals[store_id] / total_cart_subtotal
+                store_allocated_discount = (total_coupon_discount * ratio).quantize(Decimal("0"))
+            else:
+                store_allocated_discount = Decimal("0")
+        
+        # Ensure we don't allocate more than the store subtotal (unlikely but safe)
+        store_allocated_discount = min(store_allocated_discount, store_subtotals[store_id])
+        used_discount_amount += store_allocated_discount
 
         order = create_customer_order(
             db,
@@ -213,7 +279,8 @@ def create_multi_store_order(
             shipping_address,
             shipping_phone,
             coupon_id,
-            commit=False # Không commit lẻ từng store
+            commit=False,
+            allocated_discount=store_allocated_discount
         )
 
         # Get store name from database
@@ -223,6 +290,7 @@ def create_multi_store_order(
         # Build price map from order_items_data (giá thực tế đã tính discount)
         price_map = {d["product_id"]: float(d["price"]) for d in order["_items_data"]} if order.get("_items_data") else {}
 
+        items_response = []
         for item in group_items:
             pid, qty = parse_item(item)
 
@@ -241,21 +309,31 @@ def create_multi_store_order(
             "orderId": order["orderId"],
             "orderCode": order["orderCode"],
             "totalAmount": order["totalAmount"],
+            "discountAmount": float(order["discountAmount"]),
             "shippingFee": order.get("shippingFee", 0),
             "deliveryDistance": order.get("deliveryDistance"),
             "items": items_response
         })
 
+    # ===== FINALIZE =====
+    if coupon_id and used_discount_amount > 0:
+        _increment_coupon_usage(db, coupon_id)
+    
+    db.commit()
+
+
     total_shipping = sum(o.get("shippingFee", 0) for o in results)
 
     response_data = {
         "success": True,
-        "message": "Create multi-store order successfully",
+        "message": "Đặt hàng đa cửa hàng thành công",
         "orderGroups": results,
         "totalOrders": len(results),
         "totalAmount": sum(o["totalAmount"] for o in results),
+        "totalDiscount": float(total_coupon_discount),
         "totalShippingFee": total_shipping
     }
+
 
     try:
         db.commit()
@@ -289,8 +367,7 @@ def cancel_customer_order(db: Session, order_id: int, customer_id: int):
         old_status = order.status
         order.status = "cancelled"
         order.payment_status = "pending"
-
-        items = db.query(OrderItem).filter(OrderItem.order_id == order.id).all()
+        order.cancelled_at = datetime.now()
 
         for item in items:
             lot = db.query(InventoryLot).filter(InventoryLot.id == item.lot_id).first()
@@ -302,7 +379,15 @@ def cancel_customer_order(db: Session, order_id: int, customer_id: int):
                     # Nếu đơn đang pending/preparing, chỉ cần giảm qty_reserved
                     lot.qty_reserved = max(0, (lot.qty_reserved or 0) - item.quantity)
 
+        # ===== RESTORE COUPON USAGE =====
+        if order.coupon_id:
+            from app.models.coupon import Coupon
+            coupon = db.query(Coupon).filter(Coupon.id == order.coupon_id).with_for_update().first()
+            if coupon and coupon.current_uses > 0:
+                coupon.current_uses -= 1
+
         db.commit()
+
         return {"success": True, "message": "Hủy đơn hàng thành công"}
         
     except HTTPException:

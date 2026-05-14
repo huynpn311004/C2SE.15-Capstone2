@@ -130,6 +130,7 @@ def handle_vnpay_return(db: Session, params: Dict[str, str]) -> Dict[str, Any]:
             "message": "Order not found",
         }
 
+    if vnp_ResponseCode == "00":
         # Thanh toán thành công: chỉ cập nhật trạng thái, không trừ kho tại đây (để Staff/Ready xử lý)
         order.payment_status = "paid"
         order.status = "preparing"
@@ -138,8 +139,10 @@ def handle_vnpay_return(db: Session, params: Dict[str, str]) -> Dict[str, Any]:
             "success": True,
             "message": "Thanh toán thành công! Đơn hàng đang được chuẩn bị.",
             "order_id": order_id,
+            "order_code": order.order_code,
             "transaction_no": vnp_TransactionNo,
         }
+
     else:
         # Thanh toán thất bại: trạng thái + hoàn giữ chỗ
         order.payment_status = "failed"
@@ -152,6 +155,7 @@ def handle_vnpay_return(db: Session, params: Dict[str, str]) -> Dict[str, Any]:
             "order_id": order_id,
             "response_code": vnp_ResponseCode,
         }
+
 
 
 def handle_vnpay_ipn(db: Session, params: Dict[str, str]) -> Dict[str, Any]:

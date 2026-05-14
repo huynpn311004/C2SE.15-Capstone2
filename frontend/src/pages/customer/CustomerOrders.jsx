@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
+
 import { fetchCustomerOrders, cancelCustomerOrder, initiatePayment } from '../../services/customerApi';
 import './CustomerOrders.css';
 
@@ -103,6 +105,24 @@ const CustomerOrders = () => {
   const [toastError, setToastError] = useState('');
   const [cancellingId, setCancellingId] = useState(null);
   const [repayingId, setRepayingId] = useState(null);
+  const location = useLocation();
+
+  useEffect(() => {
+    // Kiểm tra xem có thông báo từ VNPay/Momo gửi về không
+    if (location.state?.toastSuccess) {
+      setToastSuccess(location.state.toastSuccess);
+      if (location.state.clearCart) {
+        localStorage.removeItem('seims_cart');
+      }
+      // Xóa state để không hiện lại khi refresh
+      window.history.replaceState({}, document.title);
+    }
+    if (location.state?.toastError) {
+      setToastError(location.state.toastError);
+      window.history.replaceState({}, document.title);
+    }
+  }, [location]);
+
 
   useEffect(() => {
     if (toastSuccess || toastError) {

@@ -1421,13 +1421,18 @@ def confirm_customer_order(db: Session, order_id: int, user_id: int) -> dict:
 		OrderItem.quantity
 	).filter(OrderItem.order_id == order_id).all()
 
+	# Mặc định phương thức thanh toán là COD nếu chưa có
+	effective_payment_method = order.payment_method if order.payment_method else 'cod'
+
 	# Update order payment status, payment method and order status
 	update_data = {
-		Order.payment_status: 'paid',
-		Order.status: 'preparing'
+		Order.status: 'preparing',
+		Order.payment_method: effective_payment_method
 	}
-	if order.payment_method is None:
-		update_data[Order.payment_method] = 'cod'
+	
+	# Chỉ chuyển sang 'paid' nếu không phải COD (giả sử là thanh toán online thành công qua VNPay)
+	if effective_payment_method != 'cod':
+		update_data[Order.payment_status] = 'paid'
 
 	db.query(Order).filter(Order.id == order_id).update(
 		update_data,

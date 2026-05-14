@@ -348,7 +348,7 @@ def update_delivery_status(db: Session, delivery_id: int, new_status: str, user_
         if delivery.donation_request_id:
             donation = db.query(DonationRequest).filter(DonationRequest.id == delivery.donation_request_id).first()
             if donation:
-                donation.status = "approved"
+                donation.status = "APPROVED"
 
     elif new_status == "delivering":
         # Khi shipper bắt đầu đi giao - Cập nhật Order status thành 'shipped'
@@ -365,12 +365,16 @@ def update_delivery_status(db: Session, delivery_id: int, new_status: str, user_
             order = db.query(Order).filter(Order.id == delivery.order_id).first()
             if order:
                 order.status = "completed"
+                order.delivered_at = datetime.now()
+                if order.payment_method == "cod":
+                    order.payment_status = "paid"
         
         # Update donation status
         if delivery.donation_request_id:
             donation = db.query(DonationRequest).filter(DonationRequest.id == delivery.donation_request_id).first()
             if donation:
-                donation.status = "completed"
+                donation.status = "RECEIVED"
+                donation.received_at = datetime.now()
 
     db.commit()
 

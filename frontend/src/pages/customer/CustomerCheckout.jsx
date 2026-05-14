@@ -201,6 +201,9 @@ const CustomerCheckout = () => {
     note: '',
   });
 
+
+
+
   useEffect(() => {
     async function loadCartWithFreshPrices() {
       const storedCart = cartItems.length > 0 ? cartItems : getCart();
@@ -301,14 +304,24 @@ const CustomerCheckout = () => {
 
       // Tính subtotal theo từng store để backend xét ngưỡng miễn phí ship đúng
       const storeSubtotals = {};
-      const sourceItems = isMultiStore && cartItems.length > 0 ? cartItems : cart;
-      sourceItems.forEach(item => {
-        const sid = item.storeId || item.store_id;
-        if (sid) {
-          const price = item.salePrice || item.bestPrice || 0;
-          storeSubtotals[sid] = (storeSubtotals[sid] || 0) + price * (item.quantity || 1);
-        }
-      });
+      
+      if (isMultiStore && orderGroups.length > 0) {
+        // Nếu đã có đơn hàng (bước xác nhận), lấy tiền từ đơn hàng
+        orderGroups.forEach(group => {
+          storeSubtotals[group.storeId] = group.totalAmount - (group.shippingFee || 0);
+        });
+      } else {
+        // Nếu chưa có đơn hàng (đang ở giỏ hàng), tính từ cartItems/cart
+        const sourceItems = isMultiStore && cartItems.length > 0 ? cartItems : cart;
+        sourceItems.forEach(item => {
+          const sid = item.storeId || item.store_id;
+          if (sid) {
+            const price = item.salePrice || item.bestPrice || 0;
+            storeSubtotals[sid] = (storeSubtotals[sid] || 0) + price * (item.quantity || 1);
+          }
+        });
+      }
+
 
       for (const storeId of storeIds) {
         if (!storeId) continue;
@@ -477,7 +490,7 @@ const CustomerCheckout = () => {
           const orderCodes = orderGroups.map(g => g.orderCode).join(', ');
           setToast({
             visible: true,
-            message: `Thanh toán thành công!\n${totalOrders} đơn: ${orderCodes}`
+            message: `Đặt hàng thành công!\n${totalOrders} đơn: ${orderCodes}`
           });
           setTimeout(() => {
             setToast(prev => ({ ...prev, visible: false }));
@@ -549,7 +562,7 @@ const CustomerCheckout = () => {
           </div>
 
           <div style={{ padding: '1rem', overflowY: 'auto', flex: 1 }}>
-            {cart.length === 0 && orderGroups.length === 0 && itemsForOrder.length === 0 ? (
+            {(cart.length === 0 && orderGroups.length === 0 && itemsForOrder.length === 0) ? (
               <div className="customer-checkout-empty">
                 <p>Giỏ hàng trống</p>
                 <button
@@ -821,31 +834,14 @@ const CustomerCheckout = () => {
                   <span style={{ fontSize: '0.95rem', fontWeight: '500' }}>VNPay (Thanh toán online)</span>
                 </label>
               </div>
-              {paymentMethod === 'vnpay' && (
-                <p style={{ fontSize: '0.8rem', color: 'var(--seims-teal-dark)', marginTop: '0.5rem' }}>
-                  Thanh toán qua VNPay. Hỗ trợ tất cả ngân hàng nội địa.
-                </p>
-              )}
+
             </div>
 
             <div className="customer-checkout-note">
               <p className="customer-checkout-note-title">Lưu ý quan trọng</p>
               <ul className="customer-checkout-note-list">
                 <li>Vui lòng kiểm tra kỹ thông tin trước khi đặt hàng</li>
-                {paymentMethod === 'vnpay' && <li>Thanh toán VNPay: Chuyển đến cổng VNPay để thanh toán qua ngân hàng</li>}
-                {isMultiStore && orderGroups.length > 1 && (
-                  <li style={{ color: 'var(--seims-warning)' }}>
-                    Bạn sẽ nhận {orderGroups.length} gói hàng từ các cửa hàng khác nhau
-                  </li>
-                )}
-                {isMultiStore && cartItems.length > 0 && orderGroups.length === 0 && (() => {
-                  const storeCount = [...new Set(cartItems.map(i => i.storeId || i.store_id))].length;
-                  return storeCount > 1 && (
-                    <li style={{ color: 'var(--seims-info)' }}>
-                      Bạn sẽ nhận {storeCount} gói hàng từ các cửa hàng khác nhau
-                    </li>
-                  );
-                })()}
+
                 <li>Thời gian giao hàng dự kiến: 30-60 phút</li>
               </ul>
             </div>
@@ -855,7 +851,7 @@ const CustomerCheckout = () => {
               className="customer-checkout-submit"
               disabled={(cart.length === 0 && orderGroups.length === 0 && itemsForOrder.length === 0) || submitting || hasBlockedStore || shippingLoading}
             >
-              {submitting ? 'Đang xử lý...' : shippingLoading ? 'Đang tính phí ship...' : hasBlockedStore ? 'Ngoài phạm vi giao hàng' : (orderGroups.length > 0 ? 'Xác nhận thanh toán' : 'Xác nhận đặt hàng')}
+              {submitting ? 'Đang xử lý...' : shippingLoading ? 'Đang tính phí ship...' : hasBlockedStore ? 'Ngoài phạm vi giao hàng' : (paymentMethod === 'vnpay' ? 'Thanh toán ngay' : 'Đặt hàng ngay')}
             </button>
           </form>
         </div>
