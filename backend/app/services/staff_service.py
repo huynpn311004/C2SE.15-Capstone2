@@ -306,29 +306,55 @@ def _upsert_inventory_lot(
     product_id: int | None = None,
     manufacturing_date: date | None = None,
 ) -> str:
-    lot = db.query(InventoryLot.id).filter(
+    # 1. Tim lo hang hien tai theo store va lot_code
+    existing_lot = db.query(InventoryLot).filter(
         InventoryLot.store_id == store_id,
         InventoryLot.lot_code == lot_code
     ).first()
 
     if product_id is None:
         product_id = _resolve_or_create_product(db, supermarket_id, product_name)
+    
     lot_status = _normalize_status_value(manual_status, expiry_date)
 
-    if lot:
-        db.query(InventoryLot).filter(InventoryLot.id == lot.id).update(
+    if existing_lot:
+        # 2. KIỂM TRA CHẶN GHI ĐÈ SẢN PHẨM: Nếu trùng mã lô nhưng khác sản phẩm -> Báo lỗi
+        if existing_lot.product_id != product_id:
+            old_p = db.query(Product.name).filter(Product.id == existing_lot.product_id).first()
+            new_p = db.query(Product.name).filter(Product.id == product_id).first()
+            old_name = old_p.name if old_p else f"ID:{existing_lot.product_id}"
+            new_name = new_p.name if new_p else f"ID:{product_id}"
+            raise ValueError(
+                f"Mã lô '{lot_code}' đã tồn tại cho sản phẩm '{old_name}'. "
+                f"Không thể dùng cho sản phẩm khác là '{new_name}'. "
+                "Vui lòng kiểm tra lại hoặc sử dụng mã lô khác."
+            )
+
+        # 3. Kiểm tra nếu trùng mã lô, ngày hết hạn và ngày sản xuất có khớp không
+        if existing_lot.expiry_date != expiry_date or existing_lot.manufacturing_date != manufacturing_date:
+            raise ValueError(
+                f"Mã lô '{lot_code}' đã tồn tại với thông tin ngày khác "
+                f"(NSX: {existing_lot.manufacturing_date}, HSD: {existing_lot.expiry_date}). "
+                f"Không thể cộng dồn với dữ liệu mới (NSX: {manufacturing_date}, HSD: {expiry_date}). "
+                "Vui lòng kiểm tra lại hoặc dùng mã lô khác."
+            )
+        
+        # 4. Nếu khớp tất cả thông tin -> Thực hiện CỘNG DỒN số lượng
+        new_qty = (existing_lot.qty_on_hand or 0) + quantity
+        new_imported = (existing_lot.qty_imported or existing_lot.qty_on_hand or 0) + quantity
+        
+        db.query(InventoryLot).filter(InventoryLot.id == existing_lot.id).update(
             {
-                InventoryLot.product_id: product_id,
-                InventoryLot.expiry_date: expiry_date,
-                InventoryLot.qty_on_hand: quantity,
+                InventoryLot.qty_on_hand: new_qty,
+                InventoryLot.qty_imported: new_imported,
                 InventoryLot.status: lot_status,
-                InventoryLot.manufacturing_date: manufacturing_date,
             },
             synchronize_session=False
         )
         db.flush()
         return "updated"
 
+    # 4. Nếu chưa có -> Tạo mới
     new_lot = InventoryLot(
         store_id=store_id,
         product_id=product_id,
@@ -336,6 +362,7 @@ def _upsert_inventory_lot(
         expiry_date=expiry_date,
         manufacturing_date=manufacturing_date,
         qty_on_hand=quantity,
+        qty_imported=quantity,
         qty_reserved=0,
         status=lot_status
     )
@@ -426,16 +453,24 @@ def update_staff_profile(db: Session, user_id: int, full_name: str, email: str, 
     phone = phone.strip()
 
     if not full_name:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Họ tên không được trống")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Họ tên không được để trống")
     if not email:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email không được trống")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email không được để trống")
 
-    existing = db.query(User.id).filter(
+    existing_email = db.query(User.id).filter(
         User.email == email,
         User.id != user_id
     ).first()
-    if existing:
+    if existing_email:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email đã được sử dụng")
+
+    if phone:
+        existing_phone = db.query(User.id).filter(
+            User.phone == phone,
+            User.id != user_id
+        ).first()
+        if existing_phone:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Số điện thoại đã được sử dụng")
 
     db.query(User).filter(User.id == user_id).update(
         {
@@ -499,7 +534,11 @@ def list_staff_orders(db: Session, store_id: int) -> dict:
         User, User.id == Order.customer_id
     ).filter(
         Order.store_id == store_id,
-        Order.payment_status == 'paid'
+        Order.status != 'cancelled',
+        or_(
+            Order.payment_status == 'paid',
+            Order.payment_method == 'cod'
+        )
     ).order_by(
         Order.created_at.desc()
     ).limit(100).all()
@@ -711,12 +750,27 @@ def update_staff_order_status(db: Session, order_id: int, store_id: int, new_sta
 
     # Deduct stock as the order is marked 'ready' (packed and handed to delivery)
     order_items = db.query(OrderItem).filter(OrderItem.order_id == order_id).all()
+    from app.services.audit_service import log_action
+    
     for item in order_items:
         if item.lot_id:
             lot = db.query(InventoryLot).filter(InventoryLot.id == item.lot_id).with_for_update().first()
             if lot:
+                # KIỂM TRA SAI LỆCH KHO (Race Condition Check)
+                on_hand = lot.qty_on_hand or 0
+                if on_hand < item.quantity:
+                    # Ghi log cảnh báo lệch kho nghiêm trọng để Admin kiểm tra sau
+                    log_action(
+                        db, user_id=user_id, store_id=store_id,
+                        action="INVENTORY_MISMATCH",
+                        entity_type="order_item",
+                        entity_id=item.id,
+                        old_value={"qty_on_hand": on_hand},
+                        new_value={"required": item.quantity, "msg": f"Xuất kho vượt quá tồn thực tế cho đơn hàng DH-{order_id}"}
+                    )
+
                 # Trừ tồn kho thực tế và giải phóng lượng giữ chỗ
-                lot.qty_on_hand = max(0, (lot.qty_on_hand or 0) - item.quantity)
+                lot.qty_on_hand = max(0, on_hand - item.quantity)
                 lot.qty_reserved = max(0, (lot.qty_reserved or 0) - item.quantity)
 
     # Cập nhật trạng thái đơn hàng
@@ -797,7 +851,8 @@ def get_staff_order_detail(db: Session, order_id: int, store_id: int) -> dict:
         "amount": f"{float(order_row.total_amount or 0):,.0f} VNĐ" if order_row.total_amount else "0 VNĐ",
         "paymentMethod": order_row.payment_method or "—",
         "paymentMethodText": "Tiền mặt" if order_row.payment_method == "cod"
-                             else ("VNPay" if order_row.payment_method == "vnpay" else "—"),
+                             else ("VNPay" if order_row.payment_method == "vnpay"
+                             else ("Ví SEIMS" if order_row.payment_method == "wallet" else "—")),
         "paymentStatus": order_row.payment_status,
         "createdAt": order_row.created_at.strftime("%d/%m/%Y %H:%M"),
         "deliveredAt": order_row.delivered_at.strftime("%d/%m/%Y %H:%M") if order_row.delivered_at else None,
@@ -1137,7 +1192,8 @@ def list_product_categories(db: Session, supermarket_id: int) -> dict:
 # ========== Dashboard Business Logic ==========
 def staff_dashboard_summary(db: Session, store_id: int) -> dict:
     total_lots = db.query(func.count(InventoryLot.id)).filter(
-        InventoryLot.store_id == store_id
+        InventoryLot.store_id == store_id,
+        InventoryLot.qty_on_hand > 0
     ).scalar() or 0
 
     total_inventory_qty = db.query(func.sum(InventoryLot.qty_on_hand)).filter(
@@ -1159,20 +1215,30 @@ def staff_dashboard_summary(db: Session, store_id: int) -> dict:
 
     orders_today = db.query(func.count(Order.id)).filter(
         Order.store_id == store_id,
+        Order.status != 'cancelled',
+        or_(
+            Order.payment_status == 'paid',
+            Order.payment_method == 'cod'
+        ),
         func.date(Order.created_at) == date.today()
     ).scalar() or 0
 
     orders_pending = db.query(func.count(Order.id)).filter(
         Order.store_id == store_id,
-        Order.status == 'pending'
+        Order.status == 'pending',
+        or_(
+            Order.payment_status == 'paid',
+            Order.payment_method == 'cod'
+        )
     ).scalar() or 0
 
     orders_completed = db.query(func.count(Order.id)).filter(
         Order.store_id == store_id,
-        Order.status == 'completed'
+        Order.status == 'completed',
+        func.date(Order.created_at) == date.today()
     ).scalar() or 0
 
-    pending_requests = db.query(func.count(DonationRequest.id)).join(
+    pending_requests = db.query(func.count(func.distinct(DonationRequest.id))).join(
         DonationRequestItem, DonationRequestItem.request_id == DonationRequest.id
     ).join(
         DonationOffer, DonationOffer.id == DonationRequestItem.offer_id
@@ -1547,16 +1613,25 @@ def delete_donation_offer(db: Session, user_id: int, offer_id: int) -> dict:
             detail="Chỉ có thể xóa đề nghị đang ở trạng thái Open"
         )
 
-    lot = db.query(InventoryLot).filter(InventoryLot.id == offer.lot_id).first()
+    lot = db.query(InventoryLot).filter(InventoryLot.id == offer.lot_id).with_for_update().first()
     if lot:
-        lot.qty_on_hand += offer.offered_qty
+        pending_requests = db.query(DonationRequestItem).join(
+            DonationRequest, DonationRequest.id == DonationRequestItem.request_id
+        ).filter(
+            DonationRequestItem.offer_id == offer_id,
+            DonationRequest.status == 'PENDING'
+        ).all()
+
+        for req_item in pending_requests:
+            lot.qty_reserved = max(0, (lot.qty_reserved or 0) - req_item.quantity)
+            req_item.status = 'REJECTED'
 
     db.delete(offer)
     db.commit()
 
     return {
         "success": True,
-        "message": "Đã xóa đề nghị quyên góp và hoàn trả số lượng vào kho"
+        "message": "Đã xóa đề nghị quyên góp"
     }
 
 
@@ -1825,6 +1900,8 @@ def list_inventory_lots(db: Session, store_id: int, status_filter: str = "all") 
         InventoryLot.lot_code,
         InventoryLot.qty_on_hand,
         InventoryLot.qty_reserved,
+        InventoryLot.qty_disposed,
+        InventoryLot.qty_imported,
         InventoryLot.expiry_date,
         InventoryLot.manufacturing_date,
         InventoryLot.status,
@@ -1870,6 +1947,9 @@ def list_inventory_lots(db: Session, store_id: int, status_filter: str = "all") 
                 "productName": item["product_name"],
                 "quantity": int(item["qty_on_hand"] or 0),
                 "reserved": int(item["qty_reserved"] or 0),
+                "disposed": int(item["qty_disposed"] or 0),
+                "imported": max(int(item["qty_imported"] or 0), 
+                                int(item["qty_on_hand"] or 0) + int(item["qty_reserved"] or 0) + int(item["qty_disposed"] or 0)),
                 "available": max(0, int(item["qty_on_hand"] or 0) - int(item["qty_reserved"] or 0)),
                 "manufacturingDate": item["manufacturing_date"].strftime("%Y-%m-%d") if item["manufacturing_date"] else None,
                 "expiryDate": expiry_date.strftime("%Y-%m-%d"),
@@ -1932,12 +2012,25 @@ def update_inventory_lot(db: Session, lot_id: int, store_id: int, supermarket_id
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-    exists = db.query(InventoryLot.id).filter(
+    existing_lot = db.query(InventoryLot).filter(
         InventoryLot.id == lot_id,
         InventoryLot.store_id == store_id
     ).first()
-    if not exists:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lo hang khong ton tai")
+    if not existing_lot:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lô hàng không tồn tại")
+
+    # Kiểm tra nếu trùng mã lô nhưng khác ID (tránh đổi mã lô thành một mã đã có ở record khác)
+    duplicate_code = db.query(InventoryLot).filter(
+        InventoryLot.lot_code == lot_code,
+        InventoryLot.store_id == store_id,
+        InventoryLot.id != lot_id
+    ).first()
+    
+    if duplicate_code:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail=f"Mã lô '{lot_code}' đã được sử dụng cho một lô hàng khác trong cửa hàng."
+        )
 
     product_id = _resolve_or_create_product(db, supermarket_id, product_name)
     next_status = _normalize_status_value(manual_status, expiry_date)
@@ -1980,10 +2073,96 @@ def delete_inventory_lot(db: Session, lot_id: int, store_id: int) -> dict:
             detail=f"Không thể xóa lô hàng đang có {lot.qty_reserved} đơn vị được đặt trước. Vui lòng hủy các đơn hàng liên quan trước."
         )
     
+    # KIỂM TRA RÀNG BUỘC QUYÊN GÓP: Chặn xóa nếu có Donation Offer
+    has_offers = db.query(DonationOffer.id).filter(DonationOffer.lot_id == lot_id).first()
+    if has_offers:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Không thể xóa lô hàng đang có đề nghị quyên góp. Vui lòng xóa đề nghị quyên góp trước."
+        )
+    
     db.delete(lot)
     db.commit()
 
     return {"success": True}
+
+
+def dispose_inventory_lot(db: Session, user_id: int, lot_id: int, quantity: int, reason: str = "Hết hạn") -> dict:
+    """Xác nhận tiêu hủy hàng hết hạn hoặc hư hỏng."""
+    scope = _get_staff_scope(db, user_id)
+    store_id = scope["store_id"]
+
+    # 1. Tìm lô hàng và khóa để cập nhật
+    lot = db.query(InventoryLot).filter(
+        InventoryLot.id == lot_id,
+        InventoryLot.store_id == store_id
+    ).with_for_update().first()
+
+    if not lot:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lô hàng không tồn tại")
+
+    # 2. Kiểm tra số lượng khả dụng để hủy
+    available_to_dispose = (lot.qty_on_hand or 0) - (lot.qty_reserved or 0)
+    if quantity > available_to_dispose:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Số lượng hủy ({quantity}) vượt quá số lượng khả dụng ({available_to_dispose})"
+        )
+    
+    if quantity <= 0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Số lượng hủy phải lớn hơn 0")
+
+    # 3. Cập nhật số lượng
+    old_on_hand = lot.qty_on_hand
+    old_disposed = lot.qty_disposed or 0
+    
+    lot.qty_on_hand -= quantity
+    lot.qty_disposed = old_disposed + quantity
+
+    # 4. TỰ ĐỘNG CẬP NHẬT DONATION OFFER (Nếu có)
+    offer = db.query(DonationOffer).filter(
+        DonationOffer.lot_id == lot_id,
+        DonationOffer.status == 'open'
+    ).first()
+    
+    if offer:
+        # Nếu số lượng sau khi hủy nhỏ hơn số lượng đang rao quyên góp
+        if offer.offered_qty > lot.qty_on_hand:
+            offer.offered_qty = lot.qty_on_hand
+            
+        # Nếu kho đã hết sạch hàng khả dụng cho quyên góp -> Đóng Offer
+        if offer.offered_qty <= 0:
+            offer.status = 'closed'
+    
+    # 5. Nếu hết sạch hàng thì cập nhật status sang disposed (tùy chọn)
+    if lot.qty_on_hand == 0 and lot.qty_reserved == 0:
+        lot.status = "disposed"
+
+    db.flush()
+
+    # 4. Ghi nhật ký Audit
+    from app.services.audit_service import log_action
+    from app.core.audit_actions import DISPOSE_LOT, ENTITY_INVENTORY_LOT
+    
+    log_action(
+        db, 
+        user_id=user_id, 
+        store_id=store_id,
+        action=DISPOSE_LOT,
+        entity_type=ENTITY_INVENTORY_LOT,
+        entity_id=lot_id,
+        old_value={"qty_on_hand": old_on_hand, "qty_disposed": old_disposed},
+        new_value={"qty_on_hand": lot.qty_on_hand, "qty_disposed": lot.qty_disposed, "reason": reason}
+    )
+
+    db.commit()
+
+    return {
+        "success": True, 
+        "message": f"Đã tiêu hủy {quantity} sản phẩm. Lý do: {reason}",
+        "newQtyOnHand": lot.qty_on_hand,
+        "totalDisposed": lot.qty_disposed
+    }
 
 
 # ========== File Upload & Import Business Logic ==========

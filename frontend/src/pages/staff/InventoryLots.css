@@ -503,6 +503,7 @@
     transform: translateX(120%);
     opacity: 0;
   }
+
   to {
     transform: translateX(0);
     opacity: 1;
@@ -631,4 +632,67 @@
     width: calc(100vw - 1.2rem);
     max-height: 95vh;
   }
+}
+/* NEW DISPOSAL STYLES */
+.badge-dark {
+  background: rgba(31, 41, 55, 0.15);
+  color: #1f2937;
+  border: 1px solid #1f2937;
+}
+
+.inventory-btn-dispose {
+  background: #ffffff;
+  color: #7f8c8d;
+  border: 1px solid #bdc3c7;
+  border-radius: 6px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.inventory-btn-dispose:hover:not(:disabled) {
+  background: #7f8c8d;
+  color: #ffffff;
+  border-color: #7f8c8d;
+}
+
+.inventory-btn-dispose:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: #f5f6f7;
+}
+
+.inventory-btn-danger {
+  background: #b91c1c;
+  color: #ffffff;
+  border: 1px solid #b91c1c;
+  border-radius: 8px;
+  padding: 0.5rem 1rem;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.inventory-btn-danger:hover:not(:disabled) {
+  background: #991b1b;
+}
+
+.dispose-info {
+  background: #f0faf9;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+  border: 1px solid #d1e7e4;
+}
+
+.dispose-info p {
+  margin: 0.25rem 0;
+  font-size: 0.84rem;
+  color: #134e4a;
 }

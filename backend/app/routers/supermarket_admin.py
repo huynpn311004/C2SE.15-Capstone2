@@ -14,7 +14,7 @@ from app.schemas.admin_schemas import (
     UpdateUserRequest,
     ChangePasswordRequest,
 )
-from app.services import supermarket_admin_service, product_service, admin_service
+from app.services import supermarket_admin_service, product_service, admin_service, wallet_service
 
 
 router = APIRouter(prefix="/supermarket-admin", tags=["supermarket-admin"])
@@ -242,11 +242,11 @@ def list_supermarket_audit_logs(
 # ========== Expiring Products ==========
 @router.get("/expiring-products")
 def list_expiring_products(
-	days: int = Query(default=7, ge=1, le=90, description="Số ngày còn lại để xem sản phẩm sắp hết hạn"),
-	store_id: int | None = Query(default=None, description="Lọc theo store cụ thể"),
-	_=Depends(require_supermarket_admin),
-	current_user: User = Depends(get_current_user),
-	db: Session = Depends(get_db),
+    days: int = Query(default=7, ge=1, le=90, description="Số ngày còn lại để xem sản phẩm sắp hết hạn"),
+    store_id: int | None = Query(default=None, description="Lọc theo store cụ thể"),
+    _=Depends(require_supermarket_admin),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     return supermarket_admin_service.list_expiring_products(
         db,
@@ -254,6 +254,17 @@ def list_expiring_products(
         days=days,
         store_id=store_id,
     )
+
+
+@router.get("/wallet/history")
+def get_wallet_history(
+    limit: int = Query(default=50, ge=1, le=100),
+    store_id: int | None = Query(default=None),
+    _=Depends(require_supermarket_admin),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return supermarket_admin_service.get_wallet_transactions(db, current_user.id, limit, store_id)
 
 
 # ========== User Management (Self) ==========

@@ -7,11 +7,7 @@ class Coupon(Base):
     __tablename__ = "coupons"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    supermarket_id: Mapped[int] = mapped_column(
-        BigInteger,
-        ForeignKey("supermarkets.id", ondelete="CASCADE"),
-        nullable=False,
-    )
+    supermarket_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("supermarkets.id", ondelete="CASCADE"), nullable=False)
     code: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
     description: Mapped[str] = mapped_column(String(255), nullable=True)
     discount_percent: Mapped[float] = mapped_column(nullable=False)  # 0-100

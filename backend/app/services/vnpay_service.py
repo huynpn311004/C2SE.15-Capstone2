@@ -18,7 +18,7 @@ from app.models.inventory_lot import InventoryLot
 
 
 def create_vnpay_payment(
-    order_id: int,
+    order_id: Any,  # Can be int or list of ints
     amount: float,
     order_info: str = "",
     ip_address: str = "127.0.0.1",
@@ -28,8 +28,16 @@ def create_vnpay_payment(
     vnp_TmnCode = VNPAY_TMN_CODE
     vnp_Amount = int(amount * 100)  # VNPay yêu cầu amount * 100
     vnp_CurrCode = "VND"
-    vnp_TxnRef = str(order_id)
-    vnp_OrderInfo = order_info or f"Thanh toan don hang {order_id}"
+    
+    # Hỗ trợ thanh toán gộp cho nhiều đơn hàng (Multi-store)
+    if isinstance(order_id, list):
+        vnp_TxnRef = "MSG_" + "_".join(map(str, order_id))
+        display_id = order_id[0]
+    else:
+        vnp_TxnRef = str(order_id)
+        display_id = order_id
+
+    vnp_OrderInfo = order_info or f"Thanh toan don hang {display_id}"
     vnp_OrderType = "other"
     vnp_Locale = "vn"
     vnp_ReturnUrl = VNPAY_RETURN_URL
@@ -72,11 +80,11 @@ def create_vnpay_payment(
     final_query = urllib.parse.urlencode(sorted(params.items()))
     payment_url = f"{VNPAY_URL}?{final_query}"
 
-    print(f"[VNPay] Generated URL: {payment_url}")
+    print(f"[VNPay] Generated URL for {vnp_TxnRef}: {payment_url}")
 
     return {
         "payment_url": payment_url,
-        "order_id": order_id,
+        "order_id": display_id,
         "txn_ref": vnp_TxnRef,
     }
 
@@ -116,46 +124,59 @@ def handle_vnpay_return(db: Session, params: Dict[str, str]) -> Dict[str, Any]:
         }
 
     try:
-        order_id = int(vnp_TxnRef)
+        if vnp_TxnRef.startswith("MSG_"):
+            order_ids = [int(x) for x in vnp_TxnRef.replace("MSG_", "").split("_")]
+        else:
+            order_ids = [int(vnp_TxnRef)]
     except (ValueError, TypeError):
         return {
             "success": False,
             "message": "Invalid order reference",
         }
 
-    order = db.query(Order).filter(Order.id == order_id).first()
-    if not order:
+    orders = db.query(Order).filter(Order.id.in_(order_ids)).all()
+    if not orders:
         return {
             "success": False,
             "message": "Order not found",
         }
 
     if vnp_ResponseCode == "00":
-        # Thanh toán thành công: chỉ cập nhật trạng thái, không trừ kho tại đây (để Staff/Ready xử lý)
-        order.payment_status = "paid"
-        order.status = "preparing"
+        # Thanh toán thành công: chỉ cập nhật trạng thái cho tất cả các đơn trong nhóm
+        for order in orders:
+            order.payment_status = "paid"
+            order.status = "preparing"
+        
         db.commit()
         return {
             "success": True,
             "message": "Thanh toán thành công!",
-            "order_id": order_id,
-            "order_code": f"DH-{order.id}",
-
+            "order_id": order_ids[0],
+            "order_code": f"DH-{order_ids[0]}",
             "transaction_no": vnp_TransactionNo,
         }
 
 
 
     else:
-        # Thanh toán thất bại: trạng thái + hoàn giữ chỗ
-        order.payment_status = "failed"
-        order.status = "cancelled"
-        _release_reserved_for_order(db, order_id)
+        # Thanh toán thất bại: huỷ các đơn trong nhóm + hoàn giữ chỗ kho
+        for order in orders:
+            order.payment_status = "pending"
+            order.status = "cancelled"
+            _release_reserved_for_order(db, order.id)
+
+            # Restore coupon usage
+            if order.coupon_id:
+                from app.models.coupon import Coupon
+                coupon = db.query(Coupon).filter(Coupon.id == order.coupon_id).with_for_update().first()
+                if coupon and coupon.current_uses > 0:
+                    coupon.current_uses -= 1
+
         db.commit()
         return {
             "success": False,
             "message": "Thanh toán thất bại. Vui lòng thử lại.",
-            "order_id": order_id,
+            "order_id": order_ids[0],
             "response_code": vnp_ResponseCode,
         }
 
@@ -171,27 +192,42 @@ def handle_vnpay_ipn(db: Session, params: Dict[str, str]) -> Dict[str, Any]:
         return {"RspCode": "97", "Message": "Invalid signature"}
 
     try:
-        order_id = int(vnp_TxnRef)
+        if vnp_TxnRef.startswith("MSG_"):
+            order_ids = [int(x) for x in vnp_TxnRef.replace("MSG_", "").split("_")]
+        else:
+            order_ids = [int(vnp_TxnRef)]
     except (ValueError, TypeError):
         return {"RspCode": "01", "Message": "Order not found"}
 
-    order = db.query(Order).filter(Order.id == order_id).first()
-    if not order:
+    orders = db.query(Order).filter(Order.id.in_(order_ids)).all()
+    if not orders:
         return {"RspCode": "01", "Message": "Order not found"}
 
-    if order.payment_status == "paid":
+    # Kiểm tra xem đơn đầu tiên đã paid chưa (đại diện cho cả nhóm)
+    if orders[0].payment_status == "paid":
         # Đã xử lý rồi
         return {"RspCode": "02", "Message": "Order already updated"}
 
     if vnp_ResponseCode == "00":
-        order.payment_status = "paid"
-        order.status = "preparing"
+        for order in orders:
+            order.payment_status = "paid"
+            order.status = "preparing"
         db.commit()
         return {"RspCode": "00", "Message": "Confirmed"}
     else:
-        order.payment_status = "failed"
-        order.status = "cancelled"
-        _release_reserved_for_order(db, order_id)
+        # Thanh toán thất bại: huỷ các đơn trong nhóm + hoàn giữ chỗ kho
+        for order in orders:
+            order.payment_status = "pending"
+            order.status = "cancelled"
+            _release_reserved_for_order(db, order.id)
+
+            # Restore coupon usage
+            if order.coupon_id:
+                from app.models.coupon import Coupon
+                coupon = db.query(Coupon).filter(Coupon.id == order.coupon_id).with_for_update().first()
+                if coupon and coupon.current_uses > 0:
+                    coupon.current_uses -= 1
+
         db.commit()
         return {"RspCode": "00", "Message": "Confirmed"}
 

@@ -53,6 +53,18 @@ export async function changeCustomerPassword(payload) {
   return response.data
 }
 
+export async function depositToWallet(amount) {
+  requireCustomer()
+  const response = await API.post('/customer/wallet/deposit', { amount })
+  return response.data
+}
+
+export async function fetchWalletHistory() {
+  requireCustomer()
+  const response = await API.get('/customer/wallet/history')
+  return response.data
+}
+
 // Products APIs
 // KHONG can dang nhap - moi nguoi deu xem duoc san pham
 export async function fetchCustomerProducts({ supermarketId, storeId, categoryId, search, latitude, longitude } = {}) {
@@ -146,17 +158,19 @@ export async function cancelCustomerOrder(orderId) {
   return response.data
 }
 
-export async function confirmCustomerOrder(orderId) {
+export async function confirmCustomerOrder(orderId, paymentMethod = 'cod') {
   requireCustomer()
-  const response = await API.put(`/customer/orders/${orderId}/confirm-payment`)
+  const response = await API.put(`/customer/orders/${orderId}/confirm-payment`, { paymentMethod })
   return response.data
 }
 
 // Payment APIs
-export async function initiatePayment(orderId, paymentMethod = 'momo') {
+export async function initiatePayment(orderId, paymentMethod = 'vnpay') {
   requireCustomer()
+  // Nếu là list (đa cửa hàng), lấy ID đầu tiên làm lead ID cho URL
+  const leadId = Array.isArray(orderId) ? orderId[0] : orderId
   const payload = { order_id: orderId, payment_method: paymentMethod }
-  const response = await API.post(`/payment/orders/${orderId}/pay`, payload)
+  const response = await API.post(`/payment/orders/${leadId}/pay`, payload)
   return response.data
 }
 

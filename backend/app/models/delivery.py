@@ -33,11 +33,7 @@ class Delivery(Base):
     receiver_phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
     receiver_address: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="assigned")
-    assigned_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=False),
-        nullable=False,
-        server_default=func.now(),
-    )
+    assigned_at: Mapped[datetime] = mapped_column(DateTime(timezone=False), nullable=False, server_default=func.now())
     delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=False), nullable=True)
 
     # Relationships

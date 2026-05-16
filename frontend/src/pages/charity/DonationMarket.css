@@ -567,6 +567,7 @@
 .chmarket-form-actions {
   display: flex;
   gap: 0.75rem;
+  justify-content: flex-end;
 }
 
 .btn-large {
@@ -682,6 +683,61 @@
 .chsettings-error-banner p,
 .chsettings-error-banner span {
   margin: 0;
+}
+
+/* SHIPPING FEE IN MODAL (UPDATED) */
+.chmarket-item-shipping {
+  font-size: 0.7rem !important;
+  color: var(--char-teal) !important;
+  font-weight: 600;
+  margin-top: 0.1rem;
+}
+
+.chmarket-form-actions-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  width: 100%;
+}
+
+.chmarket-shipping-breakdown {
+  background: rgba(15, 118, 110, 0.04);
+  border: 1px solid var(--char-border);
+  border-radius: 10px;
+  padding: 0.85rem;
+}
+
+.chmarket-shipping-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 0.6rem;
+}
+
+.chmarket-shipping-item {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.78rem;
+  color: var(--char-muted);
+}
+
+.chmarket-shipping-total-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 0.6rem;
+  border-top: 1px dashed var(--char-border);
+}
+
+.chmarket-shipping-total-row span {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--char-ink);
+}
+
+.chmarket-shipping-total-row strong {
+  font-size: 1rem;
+  color: var(--char-teal-dark);
 }
 
 .chmarket-retry-btn,

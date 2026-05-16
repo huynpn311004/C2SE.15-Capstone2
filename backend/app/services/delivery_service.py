@@ -1,4 +1,6 @@
+from typing import Any
 from datetime import datetime, timedelta
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 from fastapi import HTTPException, status
 
@@ -13,7 +15,9 @@ from app.models.inventory_lot import InventoryLot
 from app.models.supermarket import Supermarket
 from app.models.donation_request import DonationRequest
 from app.models.charity_organization import CharityOrganization
+from app.models.wallet_transaction import WalletTransaction
 from app.core.security import get_password_hash, verify_password
+from decimal import Decimal
 
 
 # ========== Helper Functions ==========
@@ -96,15 +100,9 @@ def get_donation_items_detail(db: Session, donation_request_id: int) -> tuple:
     return ", ".join(formatted_items) if formatted_items else "Không có sản phẩm", items_list, total_quantity
 
 
-def calculate_reward(total_amount: float) -> float:
-    if not total_amount or total_amount < 50000:
-        return 15000.0
-    elif total_amount < 100000:
-        return 20000.0
-    elif total_amount < 200000:
-        return 25000.0
-    else:
-        return 30000.0
+def calculate_reward(shipping_fee: Any) -> Decimal:
+    # Shipper nhận 80% phí vận chuyển
+    return Decimal(str(shipping_fee or 0)) * Decimal('0.8')
 
 
 def format_delivery_data(delivery: Delivery, db: Session, include_order_detail: bool = True) -> dict:
@@ -131,10 +129,8 @@ def format_delivery_data(delivery: Delivery, db: Session, include_order_detail: 
         # Get items detail
         items_str, items_list, total_quantity = get_order_items_detail(db, order.id)
         
-        # Calculate reward: Shipper gets 80% of shipping fee, minimum 15,000 VND
-        order_amount = float(order.total_amount) if order.total_amount else 0
-        shipping_fee = float(order.shipping_fee or 0)
-        reward = max(15000, shipping_fee * 0.8)
+        # Calculate reward
+        reward = calculate_reward(float(order.shipping_fee or 0))
         
         entity_id = order.id
         entity_data = {
@@ -142,6 +138,7 @@ def format_delivery_data(delivery: Delivery, db: Session, include_order_detail: 
             "delivery_code": delivery.delivery_code,
             "delivery_type": "order",
             "order_id": order.id,
+            "order_code": f"DH-{order.id}",
             "customer_id": order.customer_id,
             "customer_name": customer.full_name if customer else "Không có",
             "customer_phone": delivery.receiver_phone or (customer.phone if customer else ""),
@@ -154,10 +151,14 @@ def format_delivery_data(delivery: Delivery, db: Session, include_order_detail: 
             "items": items_str,
             "items_list": items_list,
             "quantity": total_quantity,
-            "total_amount": order_amount,
+            "total_amount": float(order.total_amount or 0),
             "payment_method": order.payment_method or "cod",
+            "payment_method_text": "Tiền mặt (COD)" if (order.payment_method or "cod") == "cod" 
+                                   else ("Ví SEIMS" if order.payment_method == "wallet" 
+                                   else ("VNPay" if order.payment_method == "vnpay" else order.payment_method)),
             "payment_status": order.payment_status or "pending",
             "order_status": order.status,
+            "shipping_fee": float(order.shipping_fee or 0),
             "status": delivery.status,
             "assigned_at": delivery.assigned_at.strftime("%Y-%m-%d %H:%M:%S") if delivery.assigned_at else "",
             "delivered_at": delivery.delivered_at.strftime("%Y-%m-%d %H:%M:%S") if delivery.delivered_at else None,
@@ -212,7 +213,7 @@ def format_delivery_data(delivery: Delivery, db: Session, include_order_detail: 
             "quantity": total_quantity,
             "total_amount": 0,
             "payment_method": "donation",
-            "payment_status": "N/A",
+            "payment_status": "COD",
             "order_status": donation.status,
             "donation_status": donation.status,
             "status": delivery.status,
@@ -220,7 +221,8 @@ def format_delivery_data(delivery: Delivery, db: Session, include_order_detail: 
             "delivered_at": delivery.delivered_at.strftime("%Y-%m-%d %H:%M:%S") if delivery.delivered_at else None,
             "completed_at": delivery.delivered_at.strftime("%Y-%m-%d %H:%M:%S") if delivery.delivered_at else None,
             "created_at": donation.created_at.strftime("%Y-%m-%d %H:%M:%S") if donation.created_at else "",
-            "reward": 20000.0,  # Fixed reward for donations
+            "shipping_fee": float(donation.shipping_fee or 0),
+            "reward": calculate_reward(float(donation.shipping_fee or 0)),
         }
     
     else:
@@ -330,7 +332,7 @@ def update_delivery_status(db: Session, delivery_id: int, new_status: str, user_
             detail="Không tìm thấy đơn giao hàng"
         )
 
-    valid_statuses = ["assigned", "picking_up", "delivering", "completed"]
+    valid_statuses = ["assigned", "picking_up", "delivering", "completed", "cancelled"]
     if new_status not in valid_statuses:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -350,31 +352,174 @@ def update_delivery_status(db: Session, delivery_id: int, new_status: str, user_
             if donation:
                 donation.status = "APPROVED"
 
+    # Đảm bảo wallet_balance không bị NULL trước khi tính toán
+    if dp.wallet_balance is None:
+        dp.wallet_balance = Decimal('0')
+
+    if new_status == "picking_up":
+        # Kiểm tra số dư nếu là đơn COD
+        if delivery.order_id:
+            order = db.query(Order).filter(Order.id == delivery.order_id).first()
+            if order and order.payment_method == "cod":
+                ship_fee = Decimal(str(order.shipping_fee or 0))
+                order_amount = Decimal(str(order.total_amount or 0))
+                # Shipper cần đủ tiền để trả: Tiền hàng + 20% ship (hoa hồng hệ thống)
+                # Tương đương: Total - 80% ship
+                required_amount = order_amount - (ship_fee * Decimal('0.8'))
+                
+                if dp.wallet_balance < required_amount:
+                    raise HTTPException(
+                        status_code=400, 
+                        detail=f"Số dư ví không đủ để nhận đơn COD này. Cần tối thiểu {float(required_amount):,.0f}đ"
+                    )
+        # Kiểm tra số dư cho đơn Charity (Luôn là COD)
+        elif delivery.donation_request_id:
+            donation = db.query(DonationRequest).filter(DonationRequest.id == delivery.donation_request_id).first()
+            if donation:
+                ship_fee = Decimal(str(donation.shipping_fee or 0))
+                platform_profit = ship_fee * Decimal('0.2')
+                if dp.wallet_balance < platform_profit:
+                    raise HTTPException(
+                        status_code=400, 
+                        detail=f"Số dư ví không đủ để trả phí nền tảng (20%). Cần tối thiểu {float(platform_profit):,.0f}đ"
+                    )
+
     elif new_status == "delivering":
-        # Khi shipper bắt đầu đi giao - Cập nhật Order status thành 'shipped'
+        # Khi shipper xác nhận đã lấy hàng và bắt đầu đi giao
         if delivery.order_id:
             order = db.query(Order).filter(Order.id == delivery.order_id).first()
             if order:
                 order.status = "shipped"
+                
+                # NẾU LÀ ĐƠN COD - TRỪ TIỀN VÍ NGAY LÚC NÀY (GIỐNG GRAB)
+                if order.payment_method == "cod":
+                    store = db.query(Store).filter(Store.id == order.store_id).first()
+                    if store and store.supermarket_id:
+                        supermarket = db.query(Supermarket).filter(Supermarket.id == store.supermarket_id).first()
+                        if supermarket:
+                            if supermarket.wallet_balance is None:
+                                supermarket.wallet_balance = Decimal('0')
+                            
+                            ship_fee = Decimal(str(order.shipping_fee or 0))
+                            order_amount = Decimal(str(order.total_amount or 0))
+                            platform_profit = ship_fee * Decimal('0.2')
+                            
+                            # Cửa hàng/Siêu thị nhận: Tiền hàng
+                            # Hệ thống nhận: 20% phí ship
+                            # Shipper giữ lại: 80% phí ship (nên deduction = Total - 80% Ship)
+                            deduction = order_amount - (ship_fee * Decimal('0.8'))
+                            # Sử dụng wallet_service để đảm bảo đồng bộ số dư và lịch sử
+                            from app.services import wallet_service
+                            
+                            # 1. Shipper trả tiền hàng + 20% phí ship
+                            wallet_service.add_transaction(
+                                db, entity_type='shipper', entity_id=dp.id, amount=deduction,
+                                transaction_type='order_settlement', reference_id=order.id, reference_type='order',
+                                description=f"Thanh toán lấy đơn COD #{order.id} từ Store (Hàng + 20% ship)"
+                            )
+                            
+                            # 2. Siêu thị nhận tiền hàng
+                            product_price = order_amount - ship_fee
+                            wallet_service.add_transaction(
+                                db, entity_type='supermarket', entity_id=supermarket.id, amount=product_price,
+                                transaction_type='order_payment', reference_id=order.id, reference_type='order',
+                                description=f"Nhận tiền hàng đơn COD #{order.id} khi Shipper lấy hàng"
+                            )
+
+        # Đơn quyên góp Charity (Cũng trừ phí 20% ngay khi lấy hàng)
+        elif delivery.donation_request_id:
+            donation = db.query(DonationRequest).filter(DonationRequest.id == delivery.donation_request_id).first()
+            if donation:
+                donation.status = "SHIPPING"  # Cập nhật trạng thái đang giao
+                ship_fee = Decimal(str(donation.shipping_fee or 0))
+                platform_profit = ship_fee * Decimal('0.2')
+                dp.wallet_balance -= platform_profit
+                
+                db.add(WalletTransaction(
+                    entity_type='shipper', entity_id=dp.id, amount=-platform_profit,
+                    transaction_type='commission', reference_id=donation.id, reference_type='donation',
+                    description=f"Khấu trừ hoa hồng đơn Charity #{donation.id} khi lấy hàng (20% ship)"
+                ))
 
     elif new_status == "completed":
         delivery.delivered_at = datetime.now()
 
-        # Update order status
+        # Update order status and handle VNPay settlement
         if delivery.order_id:
             order = db.query(Order).filter(Order.id == delivery.order_id).first()
             if order:
                 order.status = "completed"
                 order.delivered_at = datetime.now()
-                if order.payment_method == "cod":
-                    order.payment_status = "paid"
+                order.payment_status = "paid"  # Khi giao thành công thì chắc chắn là đã thanh toán (dù là COD hay Prepaid)
+                
+                # Nếu là VNPay thì mới cộng tiền lúc này (vì COD đã xử lý lúc lấy hàng)
+                if order.payment_method != "cod":
+                    store = db.query(Store).filter(Store.id == order.store_id).first()
+                    if store and store.supermarket_id:
+                        supermarket = db.query(Supermarket).filter(Supermarket.id == store.supermarket_id).first()
+                        if supermarket:
+                            if supermarket.wallet_balance is None:
+                                supermarket.wallet_balance = Decimal('0')
+                            
+                            ship_fee = Decimal(str(order.shipping_fee or 0))
+                            order_amount = Decimal(str(order.total_amount or 0))
+                            shipper_reward = ship_fee * Decimal('0.8')
+                            
+                            from app.services import wallet_service
+                            
+                            shipper_reward = ship_fee * Decimal('0.8')
+                            product_price = order_amount - ship_fee
+                            
+                            # 1. Shipper nhận 80% phí ship
+                            wallet_service.add_transaction(
+                                db, entity_type='shipper', entity_id=dp.id, amount=shipper_reward,
+                                transaction_type='shipping_fee', reference_id=order.id, reference_type='order',
+                                description=f"Thù lao giao đơn VNPay #{order.id} (80% ship)"
+                            )
+                            
+                            # 2. Siêu thị nhận tiền hàng
+                            wallet_service.add_transaction(
+                                db, entity_type='supermarket', entity_id=supermarket.id, amount=product_price,
+                                transaction_type='order_payment', reference_id=order.id, reference_type='order',
+                                description=f"Nhận tiền hàng đơn VNPay #{order.id}"
+                            )
         
-        # Update donation status
+        # Cập nhật trạng thái Charity (Tiền phí đã trừ lúc lấy hàng rồi)
         if delivery.donation_request_id:
             donation = db.query(DonationRequest).filter(DonationRequest.id == delivery.donation_request_id).first()
             if donation:
                 donation.status = "RECEIVED"
                 donation.received_at = datetime.now()
+
+    elif new_status == "cancelled":
+        # Xử lý hoàn tiền cho đơn quyên góp nếu đã bị trừ trước đó
+        if delivery.donation_request_id:
+            donation = db.query(DonationRequest).filter(DonationRequest.id == delivery.donation_request_id).first()
+            if donation:
+                # Nếu đã ở trạng thái lấy hàng (đã trừ 20%), thì hoàn lại
+                if delivery.status in ["delivering", "shipped"]:
+                    ship_fee = Decimal(str(donation.shipping_fee or 0))
+                    platform_profit = ship_fee * Decimal('0.2')
+                    
+                    if dp.wallet_balance is None: dp.wallet_balance = Decimal('0')
+                    dp.wallet_balance += platform_profit
+                    
+                    db.add(WalletTransaction(
+                        entity_type='shipper', entity_id=dp.id, amount=platform_profit,
+                        transaction_type='refund', reference_id=donation.id, reference_type='donation',
+                        description=f"Hoàn phí 20% đơn Charity #{donation.id} do đơn bị hủy"
+                    ))
+                
+                # Trả lại trạng thái APPROVED để người khác có thể nhận
+                donation.status = "APPROVED"
+
+        # Nếu là đơn hàng Order bình thường (đã có logic hoàn tiền bên order_service.cancel_customer_order)
+        # Ở đây chỉ cần đảm bảo status đơn hàng cũng được đồng bộ nếu cần
+        if delivery.order_id:
+            order = db.query(Order).filter(Order.id == delivery.order_id).first()
+            if order and order.status != "cancelled":
+                order.status = "cancelled"
+                order.cancelled_at = datetime.now()
 
     db.commit()
 
@@ -418,27 +563,63 @@ def get_delivery_detail(db: Session, delivery_id: int, user_id: int) -> dict:
 def get_delivery_stats(db: Session, user_id: int) -> dict:
     dp = get_delivery_partner_user(db, user_id)
 
-    deliveries = db.query(Delivery).filter(Delivery.delivery_partner_id == dp.id).all()
+    # 1. Đếm số lượng đơn bằng các query riêng biệt để chính xác và nhanh
+    total_orders = db.query(Delivery).filter(Delivery.delivery_partner_id == dp.id).count()
+    completed_orders = db.query(Delivery).filter(
+        Delivery.delivery_partner_id == dp.id, 
+        Delivery.status == "completed"
+    ).count()
+    active_orders = db.query(Delivery).filter(
+        Delivery.delivery_partner_id == dp.id,
+        Delivery.status.in_(["assigned", "picking_up", "delivering"])
+    ).count()
 
-    total_orders = len(deliveries)
-    completed_orders = len([d for d in deliveries if d.status == "completed"])
-    active_orders = len([d for d in deliveries if d.status in ["assigned", "picking_up", "delivering"]])
+    # 2. Tính tổng thu nhập (80% phí ship) - Tối ưu bằng cách join trực tiếp
+    # Tính từ đơn hàng thương mại
+    order_earnings = db.query(func.sum(Order.shipping_fee)).join(
+        Delivery, Delivery.order_id == Order.id
+    ).filter(
+        Delivery.delivery_partner_id == dp.id,
+        Delivery.status == "completed"
+    ).scalar() or 0
 
-    total_earnings = 0.0
-    for d in deliveries:
-        if d.status == "completed" and d.order_id:
-            order = db.query(Order).filter(Order.id == d.order_id).first()
-            if order and order.total_amount:
-                total_earnings += calculate_reward(float(order.total_amount))
+    # Tính từ đơn quyên góp
+    donation_earnings = db.query(func.sum(DonationRequest.shipping_fee)).join(
+        Delivery, Delivery.donation_request_id == DonationRequest.id
+    ).filter(
+        Delivery.delivery_partner_id == dp.id,
+        Delivery.status == "completed"
+    ).scalar() or 0
 
-    average_earning = total_earnings / completed_orders if completed_orders > 0 else 0
+    # Tổng thu nhập = 80% của tổng phí ship (có bảo vệ phí sàn 15k cho mỗi đơn)
+    # Tuy nhiên để đơn giản và chính xác theo logic calculate_reward, chúng ta nên lấy từng đơn
+    # Nhưng nếu muốn nhanh thì dùng công thức 0.8 * total_shipping_fee là xấp xỉ đúng 
+    # Ở đây tôi sẽ dùng logic chính xác nhất:
+    
+    total_earnings = Decimal('0')
+    completed_deliveries = db.query(Delivery).filter(
+        Delivery.delivery_partner_id == dp.id, 
+        Delivery.status == "completed"
+    ).options(joinedload(Delivery.order), joinedload(Delivery.donation_request)).all()
+
+    for d in completed_deliveries:
+        ship_fee = 0
+        if d.order:
+            ship_fee = d.order.shipping_fee
+        elif d.donation_request:
+            ship_fee = d.donation_request.shipping_fee
+        
+        total_earnings += calculate_reward(ship_fee)
+
+    average_earning = total_earnings / completed_orders if completed_orders > 0 else Decimal('0')
 
     return {
         "total_orders": total_orders,
         "completed_orders": completed_orders,
         "active_orders": active_orders,
-        "total_earnings": total_earnings,
-        "average_earning": average_earning,
+        "total_earnings": float(total_earnings),
+        "average_earning": float(average_earning),
+        "wallet_balance": float(dp.wallet_balance or 0),
     }
 
 
@@ -582,6 +763,7 @@ def get_delivery_profile(db: Session, user_id: int) -> dict:
         "phone": user.phone,
         "vehicle_type": dp.vehicle_type if dp else None,
         "vehicle_plate": dp.vehicle_plate if dp else None,
+        "wallet_balance": float(dp.wallet_balance) if dp else 0,
         "is_active": dp.is_active if dp else False,
         "created_at": user.created_at.strftime("%Y-%m-%d %H:%M:%S") if user.created_at else None,
     }
@@ -610,12 +792,20 @@ def update_delivery_profile(db: Session, user_id: int, full_name: str, email: st
             detail="Email không được để trống"
         )
 
-    existing = db.query(User).filter(User.email == email, User.id != user_id).first()
-    if existing:
+    existing_email = db.query(User).filter(User.email == email, User.id != user_id).first()
+    if existing_email:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email đã được sử dụng"
         )
+
+    if phone:
+        existing_phone = db.query(User).filter(User.phone == phone, User.id != user_id).first()
+        if existing_phone:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Số điện thoại đã được sử dụng"
+            )
 
     user.full_name = full_name
     user.email = email
@@ -649,3 +839,30 @@ def change_delivery_password(db: Session, user_id: int, current_password: str, n
     db.commit()
 
     return {"success": True, "message": "Đổi mật khẩu thành công"}
+
+
+def top_up_wallet(db: Session, user_id: int, amount: float) -> dict:
+    dp = get_delivery_partner_user(db, user_id)
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="Số tiền nạp phải lớn hơn 0")
+
+    amount_decimal = Decimal(str(amount))
+    if dp.wallet_balance is None:
+        dp.wallet_balance = Decimal('0')
+    dp.wallet_balance += amount_decimal
+
+    # Ghi lại lịch sử
+    db.add(WalletTransaction(
+        entity_type='shipper',
+        entity_id=dp.id,
+        amount=amount_decimal,
+        transaction_type='deposit',
+        description="Tự nạp tiền vào ví (Demo)"
+    ))
+    db.commit()
+
+    return {
+        "success": True, 
+        "message": f"Đã nạp {amount:,.0f}đ thành công!",
+        "new_balance": float(dp.wallet_balance)
+    }

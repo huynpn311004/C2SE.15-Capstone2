@@ -9,11 +9,7 @@ class Store(Base):
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    supermarket_id: Mapped[int] = mapped_column(
-        BigInteger,
-        ForeignKey("supermarkets.id", ondelete="CASCADE"),
-        nullable=False,
-    )
+    supermarket_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("supermarkets.id", ondelete="CASCADE"), nullable=False)
     code: Mapped[str] = mapped_column(String(50), nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     location: Mapped[str | None] = mapped_column(Text, nullable=True)

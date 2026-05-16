@@ -1,21 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../../services/AuthContext'
-import { fetchSupermarketDashboardSummary } from '../../services/supermarketAdminApi'
+import { fetchSupermarketDashboardSummary, fetchWalletHistory } from '../../services/supermarketAdminApi'
 import './SupermarketAdminDashboard.css'
 
 function fmtCurrency(v) {
   return Number(v || 0).toLocaleString('vi-VN') + 'đ'
-}
-
-function fmtPct(v) {
-  const n = Number(v || 0)
-  return (n >= 0 ? '+' : '') + n.toFixed(1) + '%'
-}
-
-function GrowthBadge({ value }) {
-  const n = Number(value || 0)
-  const cls = n > 0 ? 'growth-up' : n < 0 ? 'growth-down' : 'growth-neutral'
-  return <span className={`growth-badge ${cls}`}>{fmtPct(value)}</span>
 }
 
 function SimpleBar({ value, max, color }) {
@@ -33,7 +22,11 @@ export default function SupermarketAdminDashboard() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [showMoney, setShowMoney] = useState(true)
   const [activeTab, setActiveTab] = useState('overview')
+  const [walletHistory, setWalletHistory] = useState([])
+  const [walletLoading, setWalletLoading] = useState(false)
+  const [storeFilter, setStoreFilter] = useState('all')
 
   useEffect(() => {
     let cancelled = false
@@ -53,14 +46,33 @@ export default function SupermarketAdminDashboard() {
     return () => { cancelled = true }
   }, [period])
 
+  useEffect(() => {
+    if (activeTab === 'wallet') {
+      loadWalletHistory()
+    }
+  }, [activeTab, storeFilter])
+
+  async function loadWalletHistory() {
+    try {
+      setWalletLoading(true)
+      const sid = storeFilter === 'all' ? null : storeFilter
+      const history = await fetchWalletHistory(50, sid)
+      setWalletHistory(history)
+    } catch (err) {
+      console.error('Lỗi tải lịch sử ví:', err)
+    } finally {
+      setWalletLoading(false)
+    }
+  }
+
   const stats = useMemo(() => {
     if (!data) return []
     const s = data.stats
     return [
-      { label: 'Tổng Store', value: s.totalStores, sub: 'cửa hàng', color: 'teal' },
-      { label: 'Nhân Viên', value: s.totalStaff, sub: 'nhân viên', color: 'blue' },
-      { label: 'Sản Phẩm', value: s.totalProducts, sub: 'sản phẩm', color: 'purple' },
-      { label: 'Sắp Hết Hạn', value: s.nearExpiry, sub: 'trong 7 ngày', color: s.nearExpiry > 0 ? 'orange' : 'teal' },
+      { label: 'Tổng Store', value: s.totalStores, color: 'teal' },
+      { label: 'Nhân Viên', value: s.totalStaff, color: 'blue' },
+      { label: 'Sản Phẩm', value: s.totalProducts, color: 'purple' },
+      { label: 'Sắp Hết Hạn', value: s.nearExpiry, color: s.nearExpiry > 0 ? 'orange' : 'teal' },
     ]
   }, [data])
 
@@ -68,10 +80,11 @@ export default function SupermarketAdminDashboard() {
     if (!data) return []
     const s = data.stats
     return [
-      { label: 'Tổng Đơn', value: s.totalOrders, sub: 'đơn hàng', color: 'teal' },
-      { label: 'Đơn Hoàn Thành', value: s.completedOrders, sub: 'đơn', color: 'green' },
-      { label: 'Doanh Thu', value: fmtCurrency(s.totalRevenue), sub: 'VNĐ', color: 'blue' },
-      { label: 'Quyên Góp', value: s.donationCount, sub: `${s.donationProducts} sản phẩm`, color: 'purple' },
+      { label: 'Tổng Đơn', value: s.totalOrders, color: 'teal' },
+      { label: 'Đơn Hoàn Thành', value: s.completedOrders, color: 'green' },
+      { label: 'Doanh Thu', value: fmtCurrency(s.totalRevenue), color: 'blue', isMoney: true },
+      { label: 'Số Dư Ví', value: fmtCurrency(s.walletBalance), color: 'warning', isMoney: true },
+      { label: 'Quyên Góp', value: s.donationCount, color: 'purple' },
     ]
   }, [data])
 
@@ -84,7 +97,6 @@ export default function SupermarketAdminDashboard() {
     <div className="sadashboard-page">
       {/* PERIOD FILTER */}
       <div className="sadashboard-header">
-        <h2 className="sadashboard-title">Dashboard Quản Lý</h2>
         <div className="sadashboard-period-filter">
           {['daily', 'weekly', 'monthly'].map(p => (
             <button
@@ -118,7 +130,6 @@ export default function SupermarketAdminDashboard() {
               <div key={i} className="sadashboard-stat-card">
                 <div className={`sadashboard-stat-value sad-stat-${s.color}`}>{s.value}</div>
                 <div className="sadashboard-stat-label">{s.label}</div>
-                <div className="sadashboard-stat-sub">{s.sub}</div>
               </div>
             ))}
           </div>
@@ -128,12 +139,30 @@ export default function SupermarketAdminDashboard() {
             {orderStats.map((s, i) => (
               <div key={i} className="sadashboard-stat-card sad-stat-card-secondary">
                 <div className="sadashboard-stat-header-row">
-                  <span className={`sadashboard-stat-value sad-stat-${s.color}`}>{s.value}</span>
-                  {i === 0 && <GrowthBadge value={data.growth?.orders} />}
-                  {i === 2 && <GrowthBadge value={data.growth?.revenue} />}
+                  <span className={`sadashboard-stat-value sad-stat-${s.color}`}>
+                    {s.isMoney ? (showMoney ? s.value : '******đ') : s.value}
+                  </span>
+                  {s.isMoney && (
+                    <button 
+                      className="sad-eye-btn" 
+                      onClick={() => setShowMoney(!showMoney)}
+                      title={showMoney ? "Ẩn số tiền" : "Hiện số tiền"}
+                    >
+                      {showMoney ? (
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                          <circle cx="12" cy="12" r="3" />
+                        </svg>
+                      ) : (
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                          <line x1="1" y1="1" x2="23" y2="23" />
+                        </svg>
+                      )}
+                    </button>
+                  )}
                 </div>
                 <div className="sadashboard-stat-label">{s.label}</div>
-                <div className="sadashboard-stat-sub">{s.sub}</div>
               </div>
             ))}
           </div>
@@ -143,6 +172,7 @@ export default function SupermarketAdminDashboard() {
             <button className={`sad-tab ${activeTab === 'overview' ? 'active' : ''}`} onClick={() => setActiveTab('overview')}>Tổng Quan</button>
             <button className={`sad-tab ${activeTab === 'orders' ? 'active' : ''}`} onClick={() => setActiveTab('orders')}>Đơn Hàng</button>
             <button className={`sad-tab ${activeTab === 'donations' ? 'active' : ''}`} onClick={() => setActiveTab('donations')}>Quyên Góp</button>
+            <button className={`sad-tab ${activeTab === 'wallet' ? 'active' : ''}`} onClick={() => setActiveTab('wallet')}>Ví & Giao Dịch</button>
           </div>
 
           {/* TAB CONTENT */}
@@ -284,6 +314,74 @@ export default function SupermarketAdminDashboard() {
                               </tr>
                             )
                           })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'wallet' && (
+              <div className="sadashboard-content-grid">
+                <div className="sadashboard-card sad-full-card">
+                  <div className="sad-card-header-flex">
+                    <div className="sad-header-left">
+                      <h3 className="sadashboard-card-title">Biến Động Số Dư Ví</h3>
+                      <div className="sad-store-filter-wrap">
+                        <select 
+                          className="sad-store-select" 
+                          value={storeFilter} 
+                          onChange={(e) => setStoreFilter(e.target.value)}
+                        >
+                          <option value="all">Tất cả cửa hàng</option>
+                          {data?.storeStats?.map(s => (
+                            <option key={s.id} value={s.id}>{s.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <button className="sad-refresh-btn" onClick={loadWalletHistory} disabled={walletLoading}>
+                      {walletLoading ? 'Đang tải...' : 'Làm mới'}
+                    </button>
+                  </div>
+                  
+                  <div className="sad-table-wrap">
+                    <table className="sad-table">
+                      <thead>
+                        <tr>
+                          <th>Thời Gian</th>
+                          <th>Loại</th>
+                          <th>Mã Đơn</th>
+                          <th>Cửa Hàng</th>
+                          <th>Nội Dung</th>
+                          <th className="text-right">Số Tiền</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {walletLoading && walletHistory.length === 0 ? (
+                          <tr><td colSpan="6" className="sad-td-empty">Đang tải lịch sử...</td></tr>
+                        ) : walletHistory.length === 0 ? (
+                          <tr><td colSpan="6" className="sad-td-empty">Chưa có giao dịch nào.</td></tr>
+                        ) : (
+                          walletHistory.map(tx => (
+                            <tr key={tx.id}>
+                              <td className="sad-td-time">{tx.createdAt}</td>
+                              <td>
+                                <span className={`sad-tx-badge tx-${tx.type}`}>
+                                  {(tx.type === 'order_income' || tx.type === 'order_payment') ? 'Doanh Thu' : 
+                                   tx.type === 'refund' ? 'Hoàn Tiền' : 
+                                   tx.type === 'commission' ? 'Hoa Hồng' : tx.type}
+                                </span>
+                              </td>
+                              <td><span className="sad-tx-order-code">{tx.orderCode}</span></td>
+                              <td>{tx.storeName}</td>
+                              <td className="sad-td-desc">{tx.description}</td>
+                              <td className={`sad-td-amount text-right ${tx.amount >= 0 ? 'text-green' : 'text-red'}`}>
+                                {tx.amount >= 0 ? '+' : ''}{showMoney ? fmtCurrency(tx.amount) : '******đ'}
+                              </td>
+                            </tr>
+                          ))
                         )}
                       </tbody>
                     </table>

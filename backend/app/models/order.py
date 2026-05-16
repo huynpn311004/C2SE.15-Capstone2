@@ -1,58 +1,31 @@
 from datetime import datetime
 from decimal import Decimal
+from typing import List, TYPE_CHECKING
 from sqlalchemy import BigInteger, DECIMAL, DateTime, Enum, Float, ForeignKey, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
+
+if TYPE_CHECKING:
+    from app.models.user import User
+    from app.models.store import Store
+    from app.models.coupon import Coupon
+    from app.models.order_item import OrderItem
 
 class Order(Base):
     __tablename__ = "orders"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    store_id: Mapped[int] = mapped_column(
-        BigInteger,
-        ForeignKey("stores.id"),
-        nullable=False,
-    )
-    customer_id: Mapped[int] = mapped_column(
-        BigInteger,
-        ForeignKey("users.id"),
-        nullable=False,
-    )
-    coupon_id: Mapped[int | None] = mapped_column(
-        BigInteger,
-        ForeignKey("coupons.id", ondelete="SET NULL"),
-        nullable=True,
-    )
-    status: Mapped[str] = mapped_column(
-        Enum("pending", "preparing", "ready", "shipped", "completed", "cancelled", "multi_store_pending", "expired", name="order_status"),
-        nullable=False,
-        default="pending",
-    )
+    store_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("stores.id"), nullable=False)
+    customer_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"), nullable=False)
+    coupon_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("coupons.id", ondelete="SET NULL"), nullable=True)
+    status: Mapped[str] = mapped_column(String(50), nullable=False, default="pending")
     total_amount: Mapped[Decimal | None] = mapped_column(DECIMAL(10, 2), nullable=True)
     discount_amount: Mapped[Decimal | None] = mapped_column(DECIMAL(10, 2), nullable=True, default=0)
-    payment_method: Mapped[str | None] = mapped_column(
-        Enum("cod", "vnpay", name="order_payment_method"),
-        nullable=True,
-    )
-    payment_status: Mapped[str] = mapped_column(
-        Enum("pending", "paid", name="order_payment_status"),
-        nullable=False,
-        default="pending",
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=False),
-        nullable=False,
-        server_default=func.now(),
-    )
-    reserved_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=False),
-        nullable=True,
-    )
-
-    delivered_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=False),
-        nullable=True,
-    )
+    payment_method: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    payment_status: Mapped[str] = mapped_column(String(50), nullable=False, default="pending")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=False), nullable=False, server_default=func.now())
+    reserved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=False), nullable=True)
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=False), nullable=True)
     shipping_fee: Mapped[Decimal | None] = mapped_column(DECIMAL(12, 2), nullable=True, default=0)
     delivery_distance: Mapped[float | None] = mapped_column(Float, nullable=True)
     shipping_address: Mapped[str | None] = mapped_column(String(500), nullable=True)
@@ -62,3 +35,4 @@ class Order(Base):
     customer: Mapped["User"] = relationship("User", foreign_keys=[customer_id])
     store: Mapped["Store"] = relationship("Store", foreign_keys=[store_id])
     coupon: Mapped["Coupon"] = relationship("Coupon", foreign_keys=[coupon_id])
+    items: Mapped[List["OrderItem"]] = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")

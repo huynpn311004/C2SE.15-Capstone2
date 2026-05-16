@@ -6,6 +6,7 @@ import './DonationHistory.css'
 const statusBadge = {
   pending: 'badge-warning',
   approved: 'badge-info',
+  shipping: 'badge-teal',
   received: 'badge-success',
   rejected: 'badge-danger',
 }
@@ -13,6 +14,7 @@ const statusBadge = {
 const statusLabel = {
   pending: 'Đang Chờ',
   approved: 'Đã Duyệt',
+  shipping: 'Đang Giao',
   received: 'Đã Nhận',
   rejected: 'Từ Chối',
 }
@@ -137,6 +139,7 @@ export default function DonationHistory() {
               <option value="all">Tất Cả</option>
               <option value="pending">Đang Chờ</option>
               <option value="approved">Đã Duyệt</option>
+              <option value="shipping">Đang Giao</option>
               <option value="received">Đã Nhận</option>
               <option value="rejected">Từ Chối</option>
             </select>
@@ -199,7 +202,7 @@ export default function DonationHistory() {
                             </svg>
                             Xem
                           </button>
-                          {statusKey === 'approved' && (
+                          {['approved', 'shipping'].includes(statusKey) && (
                             <button
                               className="orders-btn-update"
                               onClick={() => handleConfirmReceived(req)}
@@ -301,7 +304,7 @@ export default function DonationHistory() {
               )}
             </div>
             <div className="orders-modal-footer">
-              {selectedRequest.status === 'approved' && (
+              {['approved', 'shipping'].includes(selectedRequest.status?.toLowerCase()) && (
                 <button
                   className="orders-btn-confirm"
                   onClick={() => handleConfirmReceived(selectedRequest)}

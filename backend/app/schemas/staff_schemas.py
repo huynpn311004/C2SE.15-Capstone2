@@ -161,6 +161,8 @@ class InventoryLotItem(BaseModel):
     daysLeft: int
     reserved: int = 0
     available: int = 0
+    disposed: int = 0
+    imported: int = 0
 
 
 class InventoryLotsListResponse(BaseModel):
@@ -184,6 +186,11 @@ class UpdateInventoryLotRequest(BaseModel):
     manufacturingDate: str | date | None = None
     expiryDate: str | date = Field(...)
     status: str | None = None
+
+
+class DisposeInventoryLotRequest(BaseModel):
+    quantity: int = Field(..., gt=0)
+    reason: str = "Hết hạn"
 
 
 # ========== File Import Response Schemas ==========

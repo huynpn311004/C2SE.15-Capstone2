@@ -34,6 +34,12 @@ CREATE_CATEGORY = "CREATE_CATEGORY"
 UPDATE_CATEGORY = "UPDATE_CATEGORY"
 DELETE_CATEGORY = "DELETE_CATEGORY"
 
+# Inventory actions
+CREATE_LOT  = "CREATE_LOT"
+UPDATE_LOT  = "UPDATE_LOT"
+DELETE_LOT  = "DELETE_LOT"
+DISPOSE_LOT = "DISPOSE_LOT"
+
 # All actions (useful for validation/enum-like patterns)
 ALL_ACTIONS = frozenset({
     CREATE_PRODUCT,
@@ -56,11 +62,17 @@ ALL_ACTIONS = frozenset({
     CREATE_CATEGORY,
     UPDATE_CATEGORY,
     DELETE_CATEGORY,
+    CREATE_LOT,
+    UPDATE_LOT,
+    DELETE_LOT,
+    DISPOSE_LOT,
+    "INVENTORY_MISMATCH",
 })
 
 # Entity type constants
-ENTITY_PRODUCT   = "product"
-ENTITY_ORDER     = "order"
-ENTITY_STORE     = "store"
-ENTITY_USER      = "user"
-ENTITY_CATEGORY  = "category"
+ENTITY_PRODUCT       = "product"
+ENTITY_ORDER         = "order"
+ENTITY_STORE         = "store"
+ENTITY_USER          = "user"
+ENTITY_CATEGORY      = "category"
+ENTITY_INVENTORY_LOT = "inventory_lot"

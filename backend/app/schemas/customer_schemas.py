@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import date
+from decimal import Decimal
 
 
 # ========== Profile Schemas ==========
@@ -15,6 +16,7 @@ class CustomerProfileResponse(BaseModel):
 	address: str = ""
 	latitude: Optional[float] = None
 	longitude: Optional[float] = None
+	walletBalance: Decimal = Decimal('0.00')
 	createdAt: str
 
 
@@ -33,6 +35,16 @@ class ChangePasswordRequest(BaseModel):
 class SuccessResponse(BaseModel):
 	success: bool
 	message: str
+
+
+class WalletDepositRequest(BaseModel):
+	amount: float = Field(gt=0)
+
+
+class WalletDepositResponse(BaseModel):
+	success: bool
+	message: str
+	newBalance: float
 
 
 # ========== Product Schemas ==========
@@ -219,6 +231,10 @@ class CreateOrderRequest(BaseModel):
 	shippingAddress: Optional[str] = None
 	couponId: Optional[int] = None  # ID của coupon được áp dụng
 	shippingPhone: Optional[str] = Field(default=None, max_length=20)  # Số điện thoại liên hệ khi giao hàng
+
+
+class ConfirmPaymentRequest(BaseModel):
+	paymentMethod: Optional[str] = "cod"
 
 
 class CreateOrderResponse(BaseModel):

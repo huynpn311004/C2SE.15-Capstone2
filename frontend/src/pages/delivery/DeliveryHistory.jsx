@@ -5,7 +5,7 @@ import './DeliveryHistory.css'
 
 function Toast({ message, visible, onClose }) {
   if (!visible) return null;
-  
+
   const isError = message.includes('Không thể') || message.includes('Lỗi') || message.includes('thất bại');
 
   return (

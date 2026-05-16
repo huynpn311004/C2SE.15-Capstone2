@@ -6,6 +6,7 @@ from fastapi import HTTPException, status
 
 from app.core.security import get_password_hash, verify_password
 from app.services.geocoding_service import calculate_distance
+from app.services.shipping_service import calculate_shipping_fee
 from app.models.user import User
 from app.models.charity_organization import CharityOrganization
 from app.models.donation_offer import DonationOffer
@@ -101,16 +102,16 @@ def update_charity_profile(db: Session, user_id: int, full_name: str, email: str
     address = (address or "").strip()
 
     if not full_name:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ho ten khong duoc trong")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Họ tên không được để trống")
     if not email:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email khong duoc trong")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email không được để trống")
 
     existing_email = db.query(User.id).filter(
         User.email == email,
         User.id != user_id
     ).first()
     if existing_email:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email da duoc su dung")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email đã được sử dụng")
 
     if phone:
         existing_phone = db.query(User.id).filter(
@@ -296,6 +297,7 @@ def list_charity_donation_offers(db: Session, user_id: int) -> dict:
         Supermarket.address.label('supermarket_address'),
         Store.latitude,
         Store.longitude,
+        DonationOffer.store_id,
         func.count(DonationRequestItem.id).label('request_count')
     ).join(
         InventoryLot, InventoryLot.id == DonationOffer.lot_id
@@ -317,7 +319,7 @@ def list_charity_donation_offers(db: Session, user_id: int) -> dict:
         InventoryLot.expiry_date >= date.today(),
         func.date(DonationOffer.created_at) == date.today()
     ).group_by(
-        DonationOffer.id, Product.name, InventoryLot.expiry_date, Store.name, Supermarket.name, Supermarket.address, Store.latitude, Store.longitude
+        DonationOffer.id, Product.name, InventoryLot.expiry_date, Store.name, Supermarket.name, Supermarket.address, Store.latitude, Store.longitude, DonationOffer.store_id
     )
 
     rows = base_query.order_by(
@@ -326,13 +328,13 @@ def list_charity_donation_offers(db: Session, user_id: int) -> dict:
 
     items = []
     for row in rows:
+        dist = None
         # Nếu charity có tọa độ → lọc theo bán kính 10km
         if charity_lat is not None and charity_lng is not None:
-            if row.latitude is None or row.longitude is None:
-                continue  # store không có tọa độ → loại bỏ
-            dist = calculate_distance(charity_lat, charity_lng, row.latitude, row.longitude)
-            if dist > 10.0:  # 10km
-                continue  # quá xa → loại bỏ
+            if row.latitude is not None and row.longitude is not None:
+                dist = calculate_distance(charity_lat, charity_lng, row.latitude, row.longitude)
+                if dist > 10.0:  # 10km
+                    continue  # quá xa → loại bỏ
 
         display_status = "available"
         if row.offered_qty <= 0:
@@ -346,11 +348,14 @@ def list_charity_donation_offers(db: Session, user_id: int) -> dict:
             "qty": int(row.offered_qty or 0),
             "exp": _format_date(row.expiry_date),
             "store": row.store_name or "",
+            "storeId": row.store_id,
             "supermarket": row.supermarket_name or "",
             "supermarketAddress": row.supermarket_address or "",
             "status": display_status,
             "myRequestId": None,
             "myRequestStatus": "pending" if row.request_count > 0 else "",
+            "shippingFee": calculate_shipping_fee(dist, order_amount=0).get("fee", 0) if dist is not None else 0,
+            "distanceKm": round(dist, 2) if dist is not None else 0,
         })
 
     return {"items": items}
@@ -462,12 +467,28 @@ def create_charity_donation_request(db: Session, user_id: int, items: list) -> d
 
         # Create one DonationRequest per store
         created_requests = []
+        charity_org = db.query(CharityOrganization).filter(CharityOrganization.user_id == user_id).first()
+        charity_lat = charity_org.latitude if charity_org else None
+        charity_lng = charity_org.longitude if charity_org else None
+
         for store_id, store_items in items_by_store.items():
             total_qty = sum(qty for _, qty, _ in store_items)
+            
+            # Calculate shipping fee for this store
+            store = db.query(Store).filter(Store.id == store_id).first()
+            shipping_fee = 0
+            distance_km = 0
+            if charity_lat and charity_lng and store and store.latitude and store.longitude:
+                distance_km = calculate_distance(charity_lat, charity_lng, store.latitude, store.longitude)
+                ship_calc = calculate_shipping_fee(distance_km, order_amount=0) # Donations are "free" products
+                shipping_fee = ship_calc.get("fee", 0)
+
             new_request = DonationRequest(
                 charity_id=user_id,
                 request_qty=total_qty,
-                status='PENDING'
+                status='PENDING',
+                shipping_fee=shipping_fee,
+                delivery_distance=distance_km
             )
             db.add(new_request)
             db.flush()  # Get request ID
@@ -491,7 +512,9 @@ def create_charity_donation_request(db: Session, user_id: int, items: list) -> d
                 "store_id": store_id,
                 "store_name": store_names.get(store_id, f"Cua hang {store_id}"),
                 "item_count": len(store_items),
-                "total_qty": total_qty
+                "total_qty": total_qty,
+                "shipping_fee": shipping_fee,
+                "distance_km": round(distance_km, 2)
             })
 
         db.commit()
@@ -567,6 +590,8 @@ def list_charity_donation_requests_new(db: Session, user_id: int) -> dict:
             "charity_address": charity_org.address if charity_org else None,
             "status": req.status.lower() if req.status else "pending",
             "total_items": len(item_details),
+            "shipping_fee": req.shipping_fee or 0,
+            "delivery_distance": req.delivery_distance or 0,
             "created_at": _format_date(req.created_at),
             "received_at": _format_datetime(req.received_at) if req.received_at else None,
             "items": item_details,
@@ -583,6 +608,8 @@ def list_charity_donation_requests(db: Session, user_id: int) -> dict:
         DonationRequest.status,
         DonationRequest.received_at,
         DonationRequest.created_at,
+        DonationRequest.shipping_fee,
+        DonationRequest.delivery_distance
     ).filter(
         DonationRequest.charity_id == user_id
     ).order_by(
@@ -626,6 +653,8 @@ def list_charity_donation_requests(db: Session, user_id: int) -> dict:
             "receivedDate": _format_datetime(row.received_at) if row.received_at else "-",
             "items": item_details,
             "totalItems": len(item_details),
+            "shippingFee": row.shipping_fee or 0,
+            "deliveryDistance": row.delivery_distance or 0,
         })
 
     return {"items": items}
@@ -729,6 +758,8 @@ def get_charity_donation_request_detail(db: Session, user_id: int, request_id: i
         "charity_address": charity_org.address if charity_org else None,
         "status": request.status,
         "total_items": len(items),
+        "shipping_fee": request.shipping_fee or 0,
+        "delivery_distance": request.delivery_distance or 0,
         "created_at": _format_datetime(request.created_at),
         "received_at": _format_datetime(request.received_at) if request.received_at else None,
         "items": items,

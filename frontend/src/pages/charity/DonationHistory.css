@@ -66,6 +66,7 @@
     transform: translateX(120%);
     opacity: 0;
   }
+
   to {
     transform: translateX(0);
     opacity: 1;
@@ -447,7 +448,9 @@
 }
 
 @keyframes orders-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Chi tiết sản phẩm trong modal */
@@ -519,6 +522,7 @@
 
 /* RESPONSIVE */
 @media (max-width: 600px) {
+
   .orders-table th,
   .orders-table td {
     padding: 0.5rem 0.6rem;

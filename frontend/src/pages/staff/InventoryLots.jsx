@@ -5,6 +5,7 @@ import {
   createInventoryLot,
   updateInventoryLot,
   deleteInventoryLot,
+  disposeInventoryLot,
   importInventoryLots,
 } from '../../services/staffApi'
 import './InventoryLots.css'
@@ -13,12 +14,14 @@ const statusColors = {
   'Moi': 'badge-new',
   'Sap Het Han': 'badge-warning',
   'Het Han': 'badge-danger',
+  'disposed': 'badge-dark',
 }
 
 const badgeTextMap = {
   'Moi': 'Mới',
   'Sap Het Han': 'Sắp Hết Hạn',
   'Het Han': 'Hết Hạn',
+  'disposed': 'Đã Tiêu Hủy',
 }
 
 const lotStatusOptions = ['Moi', 'Sap Het Han', 'Het Han']
@@ -27,6 +30,7 @@ function getStatusLabel(status) {
   if (status === 'Moi') return 'Mới'
   if (status === 'Sap Het Han') return 'Sắp Hết Hạn'
   if (status === 'Het Han') return 'Hết Hạn'
+  if (status === 'disposed') return 'Đã Tiêu Hủy'
   return status
 }
 
@@ -42,6 +46,10 @@ export default function InventoryLots() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [isImporting, setIsImporting] = useState(false)
+
+  const [showDisposeModal, setShowDisposeModal] = useState(false)
+  const [disposeQty, setDisposeQty] = useState('')
+  const [disposeReason, setDisposeReason] = useState('Hết hạn')
 
   const [editForm, setEditForm] = useState({
     lotCode: '',
@@ -308,6 +316,60 @@ export default function InventoryLots() {
     }
   }
 
+  async function handleDisposeLot(event) {
+    event.preventDefault()
+    if (!selectedLot) return
+
+    const qty = Number(disposeQty)
+    if (isNaN(qty) || qty <= 0) {
+      setError('Số lượng hủy phải lớn hơn 0.')
+      return
+    }
+    const currentAvailable = selectedLot.available ?? selectedLot.quantity
+    if (qty > currentAvailable) {
+      setError('Số lượng hủy không được vượt quá số lượng khả dụng.')
+      return
+    }
+
+    try {
+      setIsSubmitting(true)
+      const res = await disposeInventoryLot(selectedLot.id, {
+        quantity: qty,
+        reason: disposeReason
+      })
+      
+      setLots((prev) =>
+        prev.map((item) =>
+          item.id === selectedLot.id
+            ? {
+              ...item,
+              quantity: res.newQtyOnHand,
+              disposed: res.totalDisposed,
+              available: Math.max(0, res.newQtyOnHand - (item.reserved || 0)),
+              status: res.newQtyOnHand === 0 && (item.reserved || 0) === 0 ? 'disposed' : item.status
+            }
+            : item
+        )
+      )
+      
+      setSuccess(`Đã tiêu hủy ${qty} sản phẩm thành công.`)
+      setShowDisposeModal(false)
+      setDisposeQty('')
+      setDisposeReason('Hết hạn')
+    } catch (err) {
+      setError(err?.response?.data?.detail || 'Tiêu hủy hàng thất bại.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  function openDisposeModal(lot) {
+    setSelectedLot(lot)
+    setDisposeQty('')
+    setDisposeReason('Hết hạn')
+    setShowDisposeModal(true)
+  }
+
   if (loading) {
     return (
       <StaffLayout>
@@ -363,8 +425,10 @@ export default function InventoryLots() {
                 <tr>
                   <th>Mã Lô</th>
                   <th>Tên Sản Phẩm</th>
-                  <th>Tổng</th>
+                  <th>Tổng Nhập</th>
+                  <th>Tồn Hiện Tại</th>
                   <th>Đã Giữ</th>
+                  <th>Đã Hủy</th>
                   <th>Còn Lại</th>
                   <th>Ngày SX</th>
                   <th>Ngày HH</th>
@@ -380,9 +444,13 @@ export default function InventoryLots() {
                         <span className="lot-code">{lot.lotCode}</span>
                       </td>
                       <td>{lot.productName}</td>
+                      <td style={{ fontWeight: 600, color: '#2c3e50' }}>{lot.imported}</td>
                       <td>{lot.quantity}</td>
                       <td style={{ color: (lot.reserved || 0) > 0 ? '#e67e22' : 'inherit', fontWeight: (lot.reserved || 0) > 0 ? 600 : 400 }}>
                         {lot.reserved || 0}
+                      </td>
+                      <td style={{ color: (lot.disposed || 0) > 0 ? '#7f8c8d' : 'inherit' }}>
+                        {lot.disposed || 0}
                       </td>
                       <td style={{ color: (lot.available ?? lot.quantity) === 0 ? '#e74c3c' : '#27ae60', fontWeight: 600 }}>
                         {lot.available ?? lot.quantity}
@@ -408,6 +476,16 @@ export default function InventoryLots() {
                               <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
                             </svg>
                             Sửa
+                          </button>
+                          <button
+                            className="inventory-btn-dispose"
+                            onClick={() => openDisposeModal(lot)}
+                            disabled={lot.status === 'disposed' || (lot.available ?? lot.quantity) === 0}
+                          >
+                            <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+                              <path d="M16,9V19H8V9H16M14.5,3H9.5L8.5,4H5V6H19V4H15.5L14.5,3M18,7H6V19C6,20.1 6.9,21 8,21H16C17.1,21 18,20.1 18,19V7Z" />
+                            </svg>
+                            Hủy
                           </button>
                           <button
                             className="inventory-btn-delete"
@@ -601,6 +679,60 @@ export default function InventoryLots() {
             </div>
           </div>
         )}
+
+        {/* DISPOSE MODAL */}
+        {showDisposeModal && selectedLot && (
+          <div className="inventory-modal-overlay" onClick={() => setShowDisposeModal(false)}>
+            <div className="inventory-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="inventory-modal-header">
+                <h3>Tiêu Hủy Hàng Hóa</h3>
+                <button className="inventory-modal-close" onClick={() => setShowDisposeModal(false)}>×</button>
+              </div>
+              <form onSubmit={handleDisposeLot}>
+                <div className="inventory-modal-body">
+                  <div className="dispose-info">
+                    <p>Sản phẩm: <strong>{selectedLot.productName}</strong></p>
+                    <p>Mã lô: <strong>{selectedLot.lotCode}</strong></p>
+                    <p>Khả dụng để hủy: <strong>{selectedLot.available ?? selectedLot.quantity}</strong></p>
+                  </div>
+                  <label className="inventory-field">
+                    <span>Số lượng hủy <em>*</em></span>
+                    <input
+                      type="number"
+                      value={disposeQty}
+                      onChange={(e) => setDisposeQty(e.target.value)}
+                      placeholder="Nhập số lượng cần tiêu hủy"
+                      min="1"
+                      max={selectedLot.available ?? selectedLot.quantity}
+                      required
+                    />
+                  </label>
+                  <label className="inventory-field">
+                    <span>Lý do hủy</span>
+                    <select
+                      value={disposeReason}
+                      onChange={(e) => setDisposeReason(e.target.value)}
+                    >
+                      <option value="Hết hạn">Hết hạn</option>
+                      <option value="Hư hỏng">Hư hỏng / Ôi thiu</option>
+                      <option value="Lỗi bao bì">Lỗi bao bì</option>
+                      <option value="Khác">Khác</option>
+                    </select>
+                  </label>
+                </div>
+                <div className="inventory-modal-footer">
+                  <button type="button" className="inventory-btn-cancel" onClick={() => setShowDisposeModal(false)}>
+                    Hủy
+                  </button>
+                  <button type="submit" className="inventory-btn-danger" disabled={isSubmitting}>
+                    {isSubmitting ? 'Đang xử lý...' : 'Xác Nhận Hủy'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
         {/* TOAST NOTIFICATION */}
         {(success || error) && (
           <div className={`product-toast ${success ? 'success' : 'error'}`}>

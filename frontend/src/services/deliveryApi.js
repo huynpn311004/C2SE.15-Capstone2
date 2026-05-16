@@ -143,3 +143,15 @@ export async function updateDonationDeliveryStatus(deliveryId, newStatus) {
   )
   return response.data
 }
+
+export async function topUpWallet(amount) {
+  requireDelivery()
+  const response = await API.post('/delivery/wallet/top-up', { amount })
+  return response.data
+}
+
+export async function fetchWalletHistory(limit = 50) {
+  requireDelivery()
+  const response = await API.get('/delivery/wallet/history', { params: { limit } })
+  return response.data
+}

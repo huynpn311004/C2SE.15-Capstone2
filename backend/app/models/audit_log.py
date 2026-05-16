@@ -15,8 +15,4 @@ class AuditLog(Base):
     entity_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     old_value: Mapped[str | None] = mapped_column(Text, nullable=True)
     new_value: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=False),
-        nullable=False,
-        server_default=func.now(),
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=False),nullable=False, server_default=func.now())

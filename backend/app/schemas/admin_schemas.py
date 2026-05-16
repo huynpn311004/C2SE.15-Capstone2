@@ -18,6 +18,7 @@ class MetricsData(BaseModel):
 	activePartners: str
 	revenueTrend: str
 	ordersTrend: str
+	shippingProfit: Optional[str] = None
 
 
 class SupermarketMetric(BaseModel):

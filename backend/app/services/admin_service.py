@@ -3,7 +3,7 @@ from decimal import Decimal
 import re
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, or_, func, case
+from sqlalchemy import and_, or_, func, case, String, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -15,6 +15,8 @@ from app.models.delivery_partner import DeliveryPartner
 from app.models.order import Order
 from app.models.store import Store
 from app.models.delivery import Delivery
+from app.models.donation_request import DonationRequest
+from app.models.wallet_transaction import WalletTransaction
 
 
 # ========== Helper Functions ==========
@@ -82,149 +84,85 @@ def _get_supermarket_admin(db: Session, supermarket_id: int):
 # ========== Dashboard ==========
 
 def get_dashboard_summary(db: Session) -> dict:
-	supermarkets_count = db.query(func.count(Supermarket.id)).scalar() or 0
-	charities_count = db.query(func.count(CharityOrganization.id)).scalar() or 0
-	deliveries_count = db.query(func.count(DeliveryPartner.id)).scalar() or 0
-	users_count = db.query(func.count(User.id)).filter(User.role != 'system_admin').scalar() or 0
+	# 1. Chỉ đếm các Siêu thị đang hoạt động (có tài khoản admin và không bị khóa)
+	active_supermarkets_count = db.query(func.count(Supermarket.id)).join(
+		User, and_(User.supermarket_id == Supermarket.id, User.role == 'supermarket_admin')
+	).filter(User.is_active == 1).scalar() or 0
 
-	pending_supermarkets = db.query(func.count(Supermarket.id)).outerjoin(
-		User, and_(
-			User.supermarket_id == Supermarket.id,
-			User.role == 'supermarket_admin'
-		)
-	).filter(User.id.is_(None)).scalar() or 0
-
-	pending_charities = db.query(func.count(CharityOrganization.id)).outerjoin(
+	# 2. Chỉ đếm các Tổ chức từ thiện đang hoạt động (tài khoản không bị khóa)
+	active_charities_count = db.query(func.count(CharityOrganization.id)).join(
 		User, User.id == CharityOrganization.user_id
-	).filter(User.id.is_(None)).scalar() or 0
+	).filter(User.is_active == 1).scalar() or 0
 
-	pending_deliveries = db.query(func.count(DeliveryPartner.id)).outerjoin(
+	# 3. Chỉ đếm các Đối tác giao hàng đang hoạt động
+	active_deliveries_count = db.query(func.count(DeliveryPartner.id)).join(
 		User, User.id == DeliveryPartner.user_id
-	).filter(User.id.is_(None)).scalar() or 0
+	).filter(User.is_active == 1).scalar() or 0
+
+	# 4. Đếm tổng số người dùng đang hoạt động (trừ system_admin)
+	active_users_count = db.query(func.count(User.id)).filter(
+		User.role != 'system_admin',
+		User.is_active == 1
+	).scalar() or 0
 
 	return {
-		"supermarkets": int(supermarkets_count),
-		"charities": int(charities_count),
-		"deliveries": int(deliveries_count),
-		"users": int(users_count),
-		"pendingRequests": int(pending_supermarkets + pending_charities + pending_deliveries),
+		"supermarkets": int(active_supermarkets_count),
+		"charities": int(active_charities_count),
+		"deliveries": int(active_deliveries_count),
+		"users": int(active_users_count),
 	}
+
+
 
 
 def get_reports(db: Session, days: int = 30) -> dict:
 	current_from = datetime.now() - timedelta(days=days)
-	previous_from = datetime.now() - timedelta(days=days * 2)
 
-	metrics = db.query(
-		func.coalesce(
-			func.sum(case((Order.payment_status == 'paid', Order.total_amount), else_=0)), 0
-		).label("revenue"),
-		func.count(Order.id).label("orders"),
-		func.coalesce(
-			func.sum(case((Order.status == 'completed', 1), else_=0)), 0
-		).label("completed_orders")
-	).filter(Order.created_at >= current_from).first()
+	# 1. Tính lợi nhuận vận chuyển từ Đơn hàng (Order)
+	# Chỉ tính các đơn đã hoàn thành (completed) trong khoảng thời gian yêu cầu
+	order_fees = db.query(Order.shipping_fee).filter(
+		and_(Order.status == 'completed', Order.created_at >= current_from)
+	).all()
+	
+	order_profit = Decimal('0')
+	for o in order_fees:
+		fee = Decimal(str(o.shipping_fee or 0))
+		# Platform lấy 20% hoa hồng từ phí vận chuyển
+		order_profit += (fee * Decimal('0.2'))
 
-	current_revenue = float(metrics.revenue or 0)
-	current_orders = int(metrics.orders or 0)
-	completed_orders = int(metrics.completed_orders or 0)
-	delivered_rate = (completed_orders * 100.0 / current_orders) if current_orders else 0.0
+	# 2. Tính lợi nhuận vận chuyển từ Quyên góp (DonationRequest)
+	donation_fees = db.query(DonationRequest.shipping_fee).filter(
+		and_(DonationRequest.status == 'RECEIVED', DonationRequest.created_at >= current_from)
+	).all()
+	
+	donation_profit = Decimal('0')
+	for d in donation_fees:
+		fee = Decimal(str(d.shipping_fee or 0))
+		# Platform lấy 20% hoa hồng
+		donation_profit += (fee * Decimal('0.2'))
 
-	previous_orders = db.query(func.count(Order.id)).filter(
-		and_(Order.created_at >= previous_from, Order.created_at < current_from)
-	).scalar() or 0
+	current_shipping_profit = order_profit + donation_profit
 
-	revenue_trend = db.query(
-		func.coalesce(
-			func.sum(case((Order.payment_status == 'paid', Order.total_amount), else_=0)), 0
-		)
-	).filter(
-		and_(Order.created_at >= previous_from, Order.created_at < current_from)
-	).scalar() or 0
-
+	# 3. Đếm số shipper đang hoạt động (đã kích hoạt tài khoản)
 	active_partners = db.query(func.count(User.id)).filter(
 		and_(User.role == 'delivery_partner', User.is_active == 1)
 	).scalar() or 0
 
-	top_supermarkets_query = db.query(
-		Supermarket.name,
-		func.count(Order.id).label("orders")
-	).join(Store, Store.supermarket_id == Supermarket.id)\
-	 .join(Order, Order.store_id == Store.id)\
-	 .filter(Order.created_at >= current_from)\
-	 .group_by(Supermarket.id, Supermarket.name)\
-	 .order_by(func.count(Order.id).desc())\
-	 .limit(4)
-
-	top_supermarkets = [
-		{"name": row.name, "orders": int(row.orders or 0)}
-		for row in top_supermarkets_query.all()
-	]
-
-	top_delivery_query = db.query(
-		func.coalesce(User.full_name, func.concat('Partner #', func.cast(DeliveryPartner.id, str))).label("name"),
-		func.count(Delivery.id).label("total_deliveries"),
-		func.coalesce(
-			func.sum(case((Delivery.status == 'delivered', 1), else_=0)), 0
-		).label("delivered_count"),
-		func.avg(
-			case(
-				(Delivery.delivered_at.isnot(None),
-				 func.extract('epoch', Delivery.delivered_at - Delivery.assigned_at) / 60),
-				else_=None
-			)
-		).label("avg_minutes")
-	).join(DeliveryPartner, DeliveryPartner.id == Delivery.delivery_partner_id)\
-	 .outerjoin(User, User.id == DeliveryPartner.user_id)\
-	 .filter(Delivery.assigned_at >= current_from)\
-	 .group_by(DeliveryPartner.id, User.full_name)\
-	 .order_by(func.sum(case((Delivery.status == 'delivered', 1), else_=0)).desc())\
-	 .limit(3)
-
-	top_delivery = [
-		{
-			"name": row.name,
-			"completion": f"{(int(row.delivered_count or 0) * 100.0 / int(row.total_deliveries or 1)):.1f}%" if row.total_deliveries else "0%",
-			"avgTime": f"{int(row.avg_minutes) if row.avg_minutes else 0} phút"
-		}
-		for row in top_delivery_query.all()
-	]
-
-	previous_orders = int(previous_orders)
-	previous_revenue = float(previous_orders and revenue_trend or 0)
-
-	order_growth = (
-		round(((current_orders - previous_orders) / previous_orders) * 100, 1)
-		if previous_orders
-		else (100 if current_orders > 0 else 0)
-	)
-	revenue_growth = (
-		round(((current_revenue - previous_revenue) / previous_revenue) * 100, 1)
-		if previous_revenue
-		else (100 if current_revenue > 0 else 0)
-	)
-
-	supermarket_rows = [
-		{
-			"name": item["name"],
-			"orders": item["orders"],
-			"growth": "N/A",
-		}
-		for item in top_supermarkets
-	]
-
 	return {
 		"metrics": {
-			"revenue": f"{current_revenue:,.0f} VND".replace(",", "."),
-			"orders": f"{current_orders:,}".replace(",", "."),
-			"deliveredRate": f"{delivered_rate:.1f}%",
 			"activePartners": str(int(active_partners)),
-			"revenueTrend": f"{revenue_growth:+.1f}%",
-			"ordersTrend": f"{order_growth:+.1f}%",
+			"shippingProfit": f"{current_shipping_profit:,.0f} VND".replace(",", "."),
+			# Giữ các trường này nhưng để giá trị mặc định để tránh lỗi frontend (nếu có)
+			"revenue": "0 VND",
+			"orders": "0",
+			"deliveredRate": "0%",
+			"revenueTrend": "+0%",
+			"ordersTrend": "+0%",
 		},
-		"supermarketTop": supermarket_rows,
-		"deliveryTop": top_delivery,
+		"supermarketTop": [],
+		"deliveryTop": [],
 	}
+
 
 
 # ========== User Management ==========
@@ -341,8 +279,18 @@ def update_user(db: Session, user_id: int, username: str = None, full_name: str 
 	if existing_email:
 		raise HTTPException(
 			status_code=status.HTTP_400_BAD_REQUEST,
-			detail="Email đã tồn tại.",
+			detail="Email đã được sử dụng",
 		)
+
+	if phone:
+		existing_phone = db.query(User.id).filter(
+			and_(User.phone == phone, User.id != user_id)
+		).first()
+		if existing_phone:
+			raise HTTPException(
+				status_code=status.HTTP_400_BAD_REQUEST,
+				detail="Số điện thoại đã được sử dụng",
+			)
 
 	db.query(User).filter(User.id == user_id).update({
 		User.username: username,
@@ -394,6 +342,15 @@ def delete_user(db: Session, user_id: int) -> dict:
 			status_code=status.HTTP_403_FORBIDDEN,
 			detail="Không thể xóa tài khoản System Admin.",
 		)
+
+	# Check for orders if customer
+	if (user.role or "").lower() == "customer":
+		has_orders = db.query(Order.id).filter(Order.customer_id == user_id).first()
+		if has_orders:
+			raise HTTPException(
+				status_code=status.HTTP_400_BAD_REQUEST,
+				detail="Không thể xóa khách hàng này vì đã có lịch sử đơn hàng. Hãy khóa tài khoản thay vì xóa."
+			)
 
 	db.query(User).filter(User.id == user_id).delete()
 	db.commit()
@@ -599,8 +556,21 @@ def toggle_supermarket_lock(db: Session, supermarket_id: int) -> dict:
 
 
 def delete_supermarket(db: Session, supermarket_id: int) -> dict:
+	# Check for orders in any store of this supermarket
+	has_orders = db.query(Order.id).join(Store, Store.id == Order.store_id).filter(
+		Store.supermarket_id == supermarket_id
+	).first()
+	
+	if has_orders:
+		raise HTTPException(
+			status_code=status.HTTP_400_BAD_REQUEST,
+			detail="Không thể xóa siêu thị này vì đã có dữ liệu đơn hàng liên quan. Hãy khóa tài khoản thay vì xóa."
+		)
+
 	try:
 		db.query(User).filter(User.supermarket_id == supermarket_id).delete()
+		# Stores will be deleted by CASCADE in DB if configured, but let's be safe
+		db.query(Store).filter(Store.supermarket_id == supermarket_id).delete()
 		db.query(Supermarket).filter(Supermarket.id == supermarket_id).delete()
 		db.commit()
 		return {"success": True}
@@ -608,8 +578,8 @@ def delete_supermarket(db: Session, supermarket_id: int) -> dict:
 		db.rollback()
 		raise HTTPException(
 			status_code=status.HTTP_400_BAD_REQUEST,
-			detail="Cannot delete supermarket with related data",
-		) from exc
+			detail=f"Lỗi khi xóa siêu thị: {str(exc)}"
+		)
 
 
 # ========== Charity Management ==========
@@ -820,6 +790,14 @@ def toggle_charity_lock(db: Session, charity_id: int) -> dict:
 
 
 def delete_charity(db: Session, charity_id: int) -> dict:
+	# Check for donation requests
+	has_requests = db.query(DonationRequest.id).filter(DonationRequest.charity_id == charity_id).first()
+	if has_requests:
+		raise HTTPException(
+			status_code=status.HTTP_400_BAD_REQUEST,
+			detail="Không thể xóa tổ chức từ thiện này vì đã có yêu cầu quyên góp liên quan. Hãy khóa tài khoản thay vì xóa."
+		)
+
 	charity = db.query(CharityOrganization).filter(CharityOrganization.id == charity_id).first()
 	if charity and charity.user_id:
 		db.query(User).filter(User.id == charity.user_id).delete()
@@ -1026,6 +1004,14 @@ def toggle_delivery_lock(db: Session, delivery_id: int) -> dict:
 
 
 def delete_delivery_partner(db: Session, delivery_id: int) -> dict:
+	# Check for deliveries
+	has_deliveries = db.query(Delivery.id).filter(Delivery.delivery_partner_id == delivery_id).first()
+	if has_deliveries:
+		raise HTTPException(
+			status_code=status.HTTP_400_BAD_REQUEST,
+			detail="Không thể xóa đối tác vận chuyển này vì đã có lịch sử giao hàng. Hãy khóa tài khoản thay vì xóa."
+		)
+
 	delivery = db.query(DeliveryPartner).filter(DeliveryPartner.id == delivery_id).first()
 	if delivery and delivery.user_id:
 		db.query(User).filter(User.id == delivery.user_id).delete()

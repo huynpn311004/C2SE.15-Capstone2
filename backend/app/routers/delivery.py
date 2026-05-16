@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Body
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -10,12 +10,32 @@ from app.schemas.delivery_schemas import (
     DeliveryStatsResponse,
     DeliveryProfileResponse,
     UpdateDeliveryStatusRequest,
+    UpdateDeliveryProfileRequest,
+    ChangePasswordRequest,
     StatusUpdateResponse,
 )
-from app.services import delivery_service
+from app.services import delivery_service, wallet_service
 
 
 router = APIRouter(prefix="/delivery", tags=["delivery"])
+
+@router.get("/wallet/history")
+def get_wallet_history(
+    limit: int = Query(50),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    dp = delivery_service.get_delivery_partner_user(db, current_user.id)
+    return wallet_service.get_wallet_history(db, "shipper", dp.id, limit)
+
+
+@router.post("/wallet/top-up")
+def top_up_wallet(
+    amount: float = Body(..., embed=True),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    return delivery_service.top_up_wallet(db, current_user.id, amount)
 
 
 
@@ -138,21 +158,18 @@ def get_delivery_profile(
 
 @router.put("/profile", response_model=StatusUpdateResponse)
 def update_delivery_profile(
-	full_name: str = Query(...),
-	email: str = Query(...),
-	phone: str = Query(default=""),
+	data: UpdateDeliveryProfileRequest,
 	current_user: User = Depends(get_current_user),
 	db: Session = Depends(get_db),
 ):
-    delivery_service.update_delivery_profile(db, current_user.id, full_name, email, phone)
-    return {"success": True}
+    delivery_service.update_delivery_profile(db, current_user.id, data.fullName, data.email, data.phone)
+    return {"success": True, "message": "Cập nhật thông tin thành công"}
 
 
 @router.post("/change-password", response_model=StatusUpdateResponse)
 def change_delivery_password(
-	current_password: str = Query(...),
-	new_password: str = Query(...),
+	data: ChangePasswordRequest,
 	current_user: User = Depends(get_current_user),
 	db: Session = Depends(get_db),
 ):
-    return delivery_service.change_delivery_password(db, current_user.id, current_password, new_password)
+    return delivery_service.change_delivery_password(db, current_user.id, data.currentPassword, data.newPassword)

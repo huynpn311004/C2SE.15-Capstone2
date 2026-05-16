@@ -55,6 +55,7 @@ class DeliveryStatsResponse(BaseModel):
     active_orders: int
     total_earnings: float
     average_earning: float
+    wallet_balance: float
 
     class Config:
         from_attributes = True
@@ -80,6 +81,17 @@ class UpdateDeliveryStatusRequest(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class UpdateDeliveryProfileRequest(BaseModel):
+    fullName: str
+    email: str
+    phone: str
+
+
+class ChangePasswordRequest(BaseModel):
+    currentPassword: str
+    newPassword: str
 
 
 class StatusUpdateResponse(BaseModel):

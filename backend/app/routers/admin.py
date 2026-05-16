@@ -36,6 +36,22 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
 	return admin_service.get_dashboard_summary(db)
 
 
+@router.get("/reports")
+def get_admin_reports(
+	range: str = Query(default="30d"),
+	db: Session = Depends(get_db),
+	_: User = Depends(require_admin)
+):
+	# Chuyển đổi range (ví dụ "30d", "7d") sang số ngày (int)
+	days = 30
+	if range.endswith("d"):
+		try:
+			days = int(range[:-1])
+		except ValueError:
+			pass
+	return admin_service.get_reports(db, days)
+
+
 # ========== User Management ==========
 
 @router.get("/users")

@@ -413,6 +413,7 @@
     transform: translateX(120%);
     opacity: 0;
   }
+
   to {
     transform: translateX(0);
     opacity: 1;
@@ -515,7 +516,7 @@
   gap: 1rem 1.5rem;
 }
 
-.charities-create-modal .charities-create-grid + .charities-create-grid {
+.charities-create-modal .charities-create-grid+.charities-create-grid {
   margin-top: 1.25rem;
 }
 

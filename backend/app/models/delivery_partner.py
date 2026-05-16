@@ -1,4 +1,5 @@
-from sqlalchemy import BigInteger, ForeignKey, String, UniqueConstraint
+from decimal import Decimal
+from sqlalchemy import BigInteger, ForeignKey, String, UniqueConstraint, DECIMAL
 from sqlalchemy.orm import Mapped, mapped_column
 from app.core.database import Base
 
@@ -7,11 +8,8 @@ class DeliveryPartner(Base):
     __table_args__ = (UniqueConstraint("user_id", name="uq_dp_user"),)
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(
-        BigInteger,
-        ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
-    )
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     phone: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
     vehicle_type: Mapped[str | None] = mapped_column(String(10), nullable=True)
     vehicle_plate: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    wallet_balance: Mapped[Decimal] = mapped_column(DECIMAL(12, 2), nullable=False, default=Decimal('0.00'))

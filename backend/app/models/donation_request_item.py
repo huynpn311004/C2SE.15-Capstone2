@@ -8,16 +8,8 @@ class DonationRequestItem(Base):
     __tablename__ = "donation_request_items"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    request_id: Mapped[int] = mapped_column(
-        BigInteger,
-        ForeignKey("donation_requests.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    offer_id: Mapped[int] = mapped_column(
-        BigInteger,
-        ForeignKey("donation_offers.id"),
-        nullable=False,
-    )
+    request_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("donation_requests.id", ondelete="CASCADE"), nullable=False)
+    offer_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("donation_offers.id"), nullable=False)
     quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="PENDING")
 

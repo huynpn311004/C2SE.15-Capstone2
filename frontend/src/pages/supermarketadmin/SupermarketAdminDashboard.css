@@ -77,7 +77,7 @@
 }
 
 .sadashboard-stats-secondary {
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
 }
 
 .sadashboard-stat-card {
@@ -90,23 +90,67 @@
 
 .sadashboard-stat-header-row {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
-  margin-bottom: 0.1rem;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.sad-eye-btn {
+  background: none;
+  border: none;
+  color: var(--sa-muted);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s;
+  opacity: 0.7;
+}
+
+.sad-eye-btn:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--sa-ink);
 }
 
 .sadashboard-stat-value {
-  font-size: 1.4rem;
+  font-size: 1.5rem;
   font-weight: 700;
+  line-height: 1.2;
   color: var(--sa-ink);
   margin-bottom: 0.15rem;
+  display: inline-block;
+  min-width: 140px;
+  height: 1.8rem;
+  white-space: nowrap;
 }
 
-.sad-stat-teal { color: var(--sa-teal); }
-.sad-stat-green { color: var(--sa-success); }
-.sad-stat-blue { color: var(--sa-blue); }
-.sad-stat-purple { color: var(--sa-purple); }
-.sad-stat-orange { color: var(--sa-orange); }
+.sad-stat-teal {
+  color: var(--sa-teal);
+}
+
+.sad-stat-green {
+  color: var(--sa-success);
+}
+
+.sad-stat-blue {
+  color: var(--sa-blue);
+}
+
+.sad-stat-purple {
+  color: var(--sa-purple);
+}
+
+.sad-stat-orange {
+  color: var(--sa-orange);
+}
+
+.sad-stat-warning {
+  color: var(--sa-warning);
+}
 
 .sadashboard-stat-label {
   font-size: 0.75rem;
@@ -263,8 +307,14 @@
   transition: width 0.5s ease;
 }
 
-.sad-bar-sales { background: var(--sa-teal); }
-.sad-bar-donation { background: var(--sa-purple); opacity: 0.8; }
+.sad-bar-sales {
+  background: var(--sa-teal);
+}
+
+.sad-bar-donation {
+  background: var(--sa-purple);
+  opacity: 0.8;
+}
 
 .sad-bar-values {
   display: flex;
@@ -274,8 +324,17 @@
   justify-content: flex-end;
 }
 
-.sad-val-sales { font-size: 0.72rem; color: var(--sa-teal); font-weight: 600; }
-.sad-val-donation { font-size: 0.72rem; color: var(--sa-purple); font-weight: 600; }
+.sad-val-sales {
+  font-size: 0.72rem;
+  color: var(--sa-teal);
+  font-weight: 600;
+}
+
+.sad-val-donation {
+  font-size: 0.72rem;
+  color: var(--sa-purple);
+  font-weight: 600;
+}
 
 .sad-chart-legend {
   display: flex;
@@ -300,8 +359,13 @@
   flex-shrink: 0;
 }
 
-.sad-legend-sales { background: var(--sa-teal); }
-.sad-legend-donation { background: var(--sa-purple); }
+.sad-legend-sales {
+  background: var(--sa-teal);
+}
+
+.sad-legend-donation {
+  background: var(--sa-purple);
+}
 
 /* TABLE */
 .sad-table-wrap {
@@ -414,7 +478,9 @@
   color: var(--sa-teal);
 }
 
-.text-orange { color: var(--sa-orange) !important; }
+.text-orange {
+  color: var(--sa-orange) !important;
+}
 
 /* BADGES */
 .badge {
@@ -427,8 +493,17 @@
   border: 1px solid;
 }
 
-.badge-success { color: var(--sa-success); background: rgba(16, 185, 129, 0.15); border-color: var(--sa-success); }
-.badge-warning { color: var(--sa-warning); background: rgba(245, 158, 11, 0.15); border-color: var(--sa-warning); }
+.badge-success {
+  color: var(--sa-success);
+  background: rgba(16, 185, 129, 0.15);
+  border-color: var(--sa-success);
+}
+
+.badge-warning {
+  color: var(--sa-warning);
+  background: rgba(245, 158, 11, 0.15);
+  border-color: var(--sa-warning);
+}
 
 /* LOADING / ERROR */
 .sadashboard-loading {
@@ -452,7 +527,9 @@
 }
 
 @keyframes sa-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .sadashboard-error {
@@ -511,4 +588,165 @@
   .sad-bar-values {
     width: 80px;
   }
+}
+
+/* WALLET & TRANSACTIONS */
+.sad-card-header-flex {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--sa-bg);
+  border-bottom: 1px solid var(--sa-border);
+  padding-right: 0.75rem;
+}
+
+.sad-header-left {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.sad-header-left .sadashboard-card-title {
+  border-bottom: none;
+}
+
+.sad-store-select {
+  padding: 0.35rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid var(--sa-border);
+  font-size: 0.75rem;
+  color: var(--sa-ink);
+  background: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  outline: none;
+}
+
+.sad-store-select:focus {
+  border-color: var(--sa-teal);
+}
+
+.sad-refresh-btn {
+  padding: 0.3rem 0.7rem;
+  border-radius: 6px;
+  border: 1px solid var(--sa-border);
+  background: #fff;
+  color: var(--sa-teal);
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.sad-refresh-btn:hover {
+  background: var(--sa-teal);
+  color: #fff;
+}
+
+.sad-tx-badge {
+  display: inline-block;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.tx-order_income {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--sa-success);
+}
+
+.tx-order_payment {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--sa-success);
+}
+
+.tx-refund {
+  background: rgba(185, 28, 28, 0.1);
+  color: var(--sa-error);
+}
+
+.tx-commission {
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--sa-blue);
+}
+
+.sad-tx-order-code {
+  font-family: monospace;
+  font-weight: 600;
+  color: var(--sa-teal);
+  background: rgba(15, 118, 110, 0.05);
+  padding: 0.1rem 0.3rem;
+  border-radius: 3px;
+}
+
+/* TABLE WALLET FIXED WIDTHS */
+.sad-table th:nth-child(1) {
+  width: 130px;
+}
+
+/* Thời gian */
+.sad-table th:nth-child(2) {
+  width: 120px;
+}
+
+/* Loại */
+.sad-table th:nth-child(3) {
+  width: 100px;
+}
+
+/* Mã đơn */
+.sad-table th:nth-child(4) {
+  width: 150px;
+}
+
+/* Cửa hàng */
+.sad-table th:nth-child(5) {
+  width: auto;
+}
+
+/* Nội dung - co giãn */
+.sad-table th:nth-child(6) {
+  width: 120px;
+}
+
+/* Số tiền */
+
+.sad-td-time {
+  white-space: nowrap;
+  color: var(--sa-muted);
+  font-size: 0.72rem;
+}
+
+.sad-td-desc {
+  max-width: 250px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  color: var(--sa-muted);
+}
+
+.sad-td-amount {
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.text-green {
+  color: var(--sa-success) !important;
+}
+
+.text-red {
+  color: var(--sa-error) !important;
+}
+
+.text-right {
+  text-align: right !important;
+}
+
+.badge-teal {
+  color: var(--sa-teal);
+  background: rgba(15, 118, 110, 0.1);
+  border-color: var(--sa-teal);
 }

@@ -15,19 +15,19 @@ def _check_supermarket_admin(db: Session, user_id: int) -> int:
     user = db.query(User).filter(User.id == user_id).first()
 
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy người dùng")
 
     role = (user.role or "").lower()
     if role != "supermarket_admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Chi co Quan Ly Siêu Thị moi co quyen chinh sua chinh sach giam gia.",
+            detail="Chỉ có Quản lý Siêu thị mới có quyền chỉnh sửa chính sách giảm giá.",
         )
 
     if not user.supermarket_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Tai khoan chua duoc gan siêu thị.",
+            detail="Tài khoản chưa được gán siêu thị.",
         )
 
     return int(user.supermarket_id)
@@ -40,7 +40,7 @@ def _validate_category_id(db: Session, category_id: int | None) -> None:
     exists = db.query(Category).filter(Category.id == category_id).first()
     
     if not exists:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Danh muc khong ton tai")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Danh mục không tồn tại")
 
 
 def _validate_product_id(db: Session, product_id: int | None) -> None:
@@ -50,7 +50,7 @@ def _validate_product_id(db: Session, product_id: int | None) -> None:
     exists = db.query(Product.id).filter(Product.id == product_id).first()
     
     if not exists:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="San pham khong ton tai")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sản phẩm không tồn tại")
 
 
 def _check_policy_overlap(
@@ -126,7 +126,7 @@ def list_discount_policies(db: Session, user_id: int | None = None, supermarket_
             else:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Tai khoan khong co quyen xem chinh sach giam gia.",
+                    detail="Tài khoản không có quyền xem chính sách giảm giá.",
                 )
 
     query = db.query(
@@ -170,7 +170,7 @@ def list_discount_policies(db: Session, user_id: int | None = None, supermarket_
             "categoryName": row[9],
             "productId": row[8],
             "productName": row[10],
-            "appliesTo": row[10] or row[9] or "Tat ca san pham",
+            "appliesTo": row[10] or row[9] or "Tất cả sản phẩm",
         }
         for row in rows
     ]
@@ -198,7 +198,7 @@ def get_discount_policy(db: Session, policy_id: int) -> dict:
     ).filter(DiscountPolicy.id == policy_id).first()
 
     if not row:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Khong tim thay chinh sach")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy chính sách")
 
     return {
         "id": row[0],
@@ -212,7 +212,7 @@ def get_discount_policy(db: Session, policy_id: int) -> dict:
         "categoryName": row[9],
         "productId": row[8],
         "productName": row[10],
-        "appliesTo": row[10] or row[9] or "Tat ca san pham",
+        "appliesTo": row[10] or row[9] or "Tất cả sản phẩm",
     }
 
 
@@ -233,27 +233,27 @@ def create_discount_policy(
     name = (name or "").strip()
 
     if not name:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ten chinh sach khong duoc trong")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tên chính sách không được trống")
     if min_days is None or min_days < 0:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ngay toi thieu khong hop le")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ngày tối thiểu không hợp lệ")
     if max_days is None or max_days < min_days:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ngay toi da phai lon hon ngay toi thieu")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ngày tối đa phải lớn hơn ngày tối thiểu")
     if discount is None or discount < 0 or discount > 100:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Phan tram giam gia khong hop le (0-100)")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Phần trăm giảm giá không hợp lệ (0-100)")
 
     if supermarket_id_scope is not None:
         supermarket_id = supermarket_id_scope
     elif supermarket_id is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Phai chon siêu thị.",
+            detail="Phải chọn siêu thị.",
         )
 
     # Validate that only one of category_id or product_id is set
     if category_id is not None and product_id is not None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Chi set Danh muc hoac San pham, khong phai ca hai",
+            detail="Chỉ chọn Danh mục hoặc Sản phẩm, không chọn cả hai",
         )
 
     # Validate category and product if provided
@@ -275,7 +275,7 @@ def create_discount_policy(
     db.add(new_policy)
     db.commit()
 
-    return {"success": True, "message": "Tao chinh sach thanh cong"}
+    return {"success": True, "message": "Tạo chính sách thành công"}
 
 
 def update_discount_policy(
@@ -295,24 +295,24 @@ def update_discount_policy(
     if name is not None:
         name = (name or "").strip()
         if not name:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ten chinh sach khong duoc trong")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tên chính sách không được trống")
     if min_days is not None and min_days < 0:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ngay toi thieu khong hop le")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ngày tối thiểu không hợp lệ")
     if max_days is not None and min_days is not None and max_days < min_days:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ngay toi da phai lon hon ngay toi thieu")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ngày tối đa phải lớn hơn ngày tối thiểu")
     if discount is not None and (discount < 0 or discount > 100):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Phan tram giam gia khong hop le (0-100)")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Phần trăm giảm giá không hợp lệ (0-100)")
 
     # Check if policy exists using ORM
     policy = db.query(DiscountPolicy).filter(DiscountPolicy.id == policy_id).first()
     if not policy:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Khong tim thay chinh sach")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy chính sách")
 
     # Validate that only one of category_id or product_id is set
     if category_id is not None and product_id is not None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Chi set Danh muc hoac San pham, khong phai ca hai",
+            detail="Chỉ chọn Danh mục hoặc Sản phẩm, không chọn cả hai",
         )
 
     # Validate category and product if provided
@@ -341,12 +341,10 @@ def update_discount_policy(
         if overlap_result.get("hasOverlap"):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=f"Chinh sach xung dot voi {overlap_result['count']} chinh sach hien tai. "
-                       f"Vui long sua lai cac chinh sach cu trc: "
-                       f"{'; '.join(p['message'] for p in overlap_result['overlappingPolicies'])}"
+                detail=f"Chính sách xung đột với {overlap_result['count']} chính sách hiện tại. Vui lòng sửa lại các chính sách cũ trước."
             )
 
-    # Build update values dictionary - no SQL concatenation
+    # Build update values dictionary
     update_values = {}
     
     if name is not None:
@@ -357,15 +355,14 @@ def update_discount_policy(
         update_values["max_days_left"] = max_days
     if discount is not None:
         update_values["discount_percent"] = float(discount)
-    if category_id is not None or (category_id is None and "category_id" in locals()):
+    if category_id is not None:
         update_values["category_id"] = category_id
-    if product_id is not None or (product_id is None and "product_id" in locals()):
+    if product_id is not None:
         update_values["product_id"] = product_id
     if is_active is not None:
         update_values["is_active"] = is_active
 
     if update_values:
-        # Use SQLAlchemy update() method - completely parameterized, no SQL string building
         db.execute(
             update(DiscountPolicy)
             .where(DiscountPolicy.id == policy_id)
@@ -373,7 +370,7 @@ def update_discount_policy(
         )
         db.commit()
 
-    return {"success": True, "message": "Cap nhat chinh sach thanh cong"}
+    return {"success": True, "message": "Cập nhật chính sách thành công"}
 
 
 def delete_discount_policy(db: Session, policy_id: int, user_id: int) -> dict:
@@ -384,9 +381,9 @@ def delete_discount_policy(db: Session, policy_id: int, user_id: int) -> dict:
     db.commit()
 
     if result == 0:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Khong tim thay chinh sach")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy chính sách")
 
-    return {"success": True, "message": "Xoa chinh sach thanh cong"}
+    return {"success": True, "message": "Xóa chính sách thành công"}
 
 
 def toggle_discount_policy(db: Session, policy_id: int, user_id: int) -> dict:
@@ -397,12 +394,12 @@ def toggle_discount_policy(db: Session, policy_id: int, user_id: int) -> dict:
     ).first()
     
     if not policy:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Khong tim thay chinh sach")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy chính sách")
     
     policy.is_active = not policy.is_active
     db.commit()
 
-    return {"success": True, "message": "Cap nhat trang thai thanh cong"}
+    return {"success": True, "message": "Cập nhật trạng thái thành công"}
 
 
 # ========== Discount Calculation ==========
@@ -416,7 +413,7 @@ def calculate_discount(
     try:
         expiry = datetime.strptime(expiry_date, "%Y-%m-%d").date()
     except (ValueError, TypeError):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ngay het han khong hop le")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ngày hết hạn không hợp lệ")
 
     days_left = (expiry - date.today()).days
     
@@ -506,4 +503,3 @@ def calculate_discount(
         "appliedLevel": "none",
         "appliedPolicyId": None,
     }
-

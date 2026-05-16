@@ -28,7 +28,11 @@ def initiate_payment(
     db: Session = Depends(get_db),
     request: Request = None,
 ):
-    if data.order_id != order_id:
+    # Kiểm tra mismatch: Nếu là list thì so khớp phần tử đầu tiên (lead order)
+    if isinstance(data.order_id, list):
+        if not data.order_id or data.order_id[0] != order_id:
+            raise HTTPException(status_code=400, detail="Order ID mismatch")
+    elif data.order_id != order_id:
         raise HTTPException(status_code=400, detail="Order ID mismatch")
     
     # Check order belongs to user

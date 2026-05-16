@@ -9,12 +9,21 @@
   overflow: hidden;
 }
 
-/* STATS GRID — 5 columns like Staff */
+/* STATS GRID — 6 columns now */
 .customer-dashboard-stats {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: 0.7rem;
   flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  background: #f8fffe;
+  /* Đồng bộ với màu nền trang */
+  z-index: 10;
+  padding-bottom: 0.5rem;
+  margin: -1rem -1rem 0 -1rem;
+  /* Bù đắp padding của container */
+  padding: 1rem;
 }
 
 .customer-dashboard-stat-card {
@@ -23,11 +32,18 @@
   border-radius: 10px;
   border: 1px solid var(--seims-border);
   box-shadow: 0 2px 8px rgba(15, 118, 110, 0.06);
+  position: relative;
+  transition: transform 0.2s;
 }
 
 .customer-dashboard-stat-card.stat-warning {
   border-color: rgba(245, 158, 11, 0.3);
   background: linear-gradient(135deg, rgba(245, 158, 11, 0.04) 0%, rgba(245, 158, 11, 0.08) 100%);
+}
+
+.customer-dashboard-stat-card.stat-success {
+  border-color: rgba(16, 185, 129, 0.3);
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.04) 0%, rgba(16, 185, 129, 0.08) 100%);
 }
 
 .customer-dashboard-stat-value {
@@ -36,10 +52,17 @@
   color: var(--seims-ink);
   margin-bottom: 0.25rem;
   line-height: 1.2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .stat-warning .customer-dashboard-stat-value {
   color: var(--seims-warning);
+}
+
+.stat-success .customer-dashboard-stat-value {
+  color: var(--seims-success);
 }
 
 .customer-dashboard-stat-label {
@@ -54,7 +77,195 @@
   color: var(--seims-muted);
 }
 
-/* CONTENT GRID — 2 columns like Staff */
+/* Top Up Button (Same style as Delivery) */
+.customer-dashboard-topup-trigger {
+  width: 24px;
+  height: 24px;
+  background: var(--seims-teal);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  padding: 0 0 2px 0;
+}
+
+.customer-dashboard-topup-trigger:hover {
+  background: var(--seims-teal-dark);
+  transform: scale(1.1);
+}
+
+.stat-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.customer-dashboard-eye-trigger {
+  width: 28px;
+  height: 28px;
+  background: rgba(15, 118, 110, 0.1);
+  color: var(--seims-teal);
+  border: none;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.customer-dashboard-eye-trigger:hover {
+  background: rgba(15, 118, 110, 0.2);
+  transform: scale(1.05);
+}
+
+.stat-main-value {
+  flex: 1;
+  min-width: 140px;
+  height: 1.8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+}
+
+/* TOP UP MODAL (Same as Delivery) */
+.customer-topup-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.customer-topup-modal {
+  background: white;
+  width: 90%;
+  max-width: 400px;
+  padding: 2rem;
+  border-radius: 16px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  animation: modalSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.customer-topup-header h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  color: #1f2937;
+}
+
+.customer-topup-header p {
+  margin: 0.5rem 0 1.5rem 0;
+  font-size: 0.9rem;
+  color: #6b7280;
+}
+
+.customer-topup-input-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #f3f4f6;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  border: 2px solid transparent;
+  transition: all 0.2s;
+}
+
+.customer-topup-input-group:focus-within {
+  border-color: var(--seims-teal);
+  background: white;
+  box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.1);
+}
+
+.customer-topup-input-group input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #111827;
+  outline: none;
+  width: 100%;
+}
+
+.currency-unit {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.customer-topup-actions {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+.customer-topup-actions button {
+  padding: 0.75rem;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.cancel-btn {
+  background: #f3f4f6;
+  border: none;
+  color: #4b5563;
+}
+
+.cancel-btn:hover {
+  background: #e5e7eb;
+}
+
+.confirm-btn {
+  background: var(--seims-teal);
+  border: none;
+  color: white;
+}
+
+.confirm-btn:hover {
+  background: var(--seims-teal-dark);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modalSlideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* CONTENT GRID — 2 columns */
 .customer-dashboard-content-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -278,17 +489,104 @@
   color: var(--seims-muted);
 }
 
-/* Responsive */
-@media (max-width: 1024px) {
-  .customer-dashboard-content-grid {
-    grid-template-columns: 1fr;
+/* Toast Notification */
+.customer-dashboard-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  padding: 1rem 1.5rem;
+  border-radius: 12px;
+  background: white;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  font-weight: 600;
+  font-size: 0.9rem;
+  z-index: 10000;
+  animation: slideUp 0.3s ease-out;
+  border-left: 4px solid var(--seims-teal);
+}
+
+.customer-dashboard-toast.success {
+  border-left-color: #10b981;
+}
+
+.customer-dashboard-toast.error {
+  border-left-color: #ef4444;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
   }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Wallet History Section */
+.customer-wallet-section {
+  grid-column: span 2;
+}
+
+.customer-wallet-history-list {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.customer-wallet-tx-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.8rem 0.5rem;
+  border-bottom: 1px solid var(--seims-border);
+}
+
+.customer-wallet-tx-info {
+  flex: 1;
+}
+
+.customer-wallet-tx-desc {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--seims-ink);
+  margin: 0;
+}
+
+.customer-wallet-tx-date {
+  font-size: 0.72rem;
+  color: var(--seims-muted);
+  margin: 0;
+}
+
+.customer-wallet-tx-amount {
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.tx-plus {
+  color: #10b981;
+}
+
+.tx-minus {
+  color: #ef4444;
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
   .customer-dashboard-stats {
     grid-template-columns: repeat(3, 1fr);
   }
 }
 
 @media (max-width: 768px) {
+  .customer-wallet-section {
+    grid-column: span 1;
+  }
+
   .customer-dashboard-page {
     gap: 0.8rem;
     overflow-y: auto;
@@ -309,6 +607,7 @@
   }
 
   .customer-dashboard-content-grid {
+    grid-template-columns: 1fr;
     overflow: visible;
     height: auto;
   }

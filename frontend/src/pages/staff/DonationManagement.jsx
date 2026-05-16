@@ -470,7 +470,6 @@ export default function DonationManagement() {
                 <>
                   {/* Request Info */}
                   <div className="request-detail-section">
-                    <h4>Thông Tin Tổ Chức</h4>
                     <div className="request-detail-grid">
                       <div className="request-detail-item">
                         <span className="label">Tên tổ chức:</span>

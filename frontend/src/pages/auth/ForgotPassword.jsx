@@ -207,8 +207,7 @@ export default function ForgotPassword() {
             )}
 
             {step === 'success' && (
-              <>
-                <div className="forgot-success-icon">✓</div>
+              <div className="forgot-success-container">
                 <h2 className="forgot-success-title">Email đã được gửi!</h2>
                 <p className="forgot-success-text">
                   Kiểm tra hộp thư <strong>{email}</strong> và click vào link để đặt lại mật khẩu.
@@ -219,7 +218,7 @@ export default function ForgotPassword() {
                 <Link to="/login" className="forgot-back-link">
                   Quay lại đăng nhập
                 </Link>
-              </>
+              </div>
             )}
 
             {step !== 'success' && (

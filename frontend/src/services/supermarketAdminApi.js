@@ -220,3 +220,11 @@ export async function changeSupermarketAdminPassword(payload) {
   const response = await API.post('/supermarket-admin/user/change-password', payload)
   return response.data
 }
+
+export async function fetchWalletHistory(limit = 50, storeId = null) {
+  requireSupermarketAdmin()
+  const params = { limit }
+  if (storeId) params.store_id = storeId
+  const response = await API.get('/supermarket-admin/wallet/history', { params })
+  return response.data || []
+}

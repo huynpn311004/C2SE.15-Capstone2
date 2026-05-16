@@ -149,7 +149,7 @@ def login_user(db: Session, payload: LoginRequest) -> tuple[User, str]:
 
 
 def forgot_password(db: Session, email: str, frontend_reset_url: str = None) -> dict:
-	from app.utils.email import send_reset_password_email
+	from app.utils.email_service import send_reset_password_email
 	
 	user = db.query(User).filter(User.email == email.lower()).first()
 	if user:

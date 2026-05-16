@@ -115,6 +115,39 @@ export default function CustomerSetting() {
           phone: formData.phone.trim(),
           address: formData.address.trim(),
         }
+
+        if (!payload.fullName) {
+          setToastError('Họ tên không được để trống.')
+          setIsSaving(false)
+          return
+        }
+
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+        const phoneRegex = /^\d{10}$/
+
+        if (!payload.email) {
+          setToastError('Email không được để trống.')
+          setIsSaving(false)
+          return
+        }
+
+        if (!emailRegex.test(payload.email)) {
+          setToastError('Email không đúng định dạng.')
+          setIsSaving(false)
+          return
+        }
+
+        if (!payload.phone) {
+          setToastError('Số điện thoại không được để trống.')
+          setIsSaving(false)
+          return
+        }
+
+        if (!phoneRegex.test(payload.phone)) {
+          setToastError('Số điện thoại phải có đúng 10 chữ số.')
+          setIsSaving(false)
+          return
+        }
         let geocodeWarning = ''
 
         // Chuyển đổi địa chỉ thành toạ độ và lưu lại vị trí
@@ -159,7 +192,8 @@ export default function CustomerSetting() {
       setToastSuccess('Đã lưu thay đổi thành công.' + geocodeWarning)
     } catch (err) {
       console.error('Lỗi khi lưu:', err)
-      setToastError(err.message || 'Không thể lưu thay đổi. Vui lòng thử lại.')
+      const errorMsg = err.response?.data?.detail || err.message || 'Không thể lưu thay đổi. Vui lòng thử lại.'
+      setToastError(errorMsg)
     } finally {
       setIsSaving(false)
     }
@@ -207,7 +241,8 @@ export default function CustomerSetting() {
       setToastSuccess('Đổi mật khẩu thành công.')
     } catch (err) {
       console.error('Lỗi đổi mật khẩu:', err)
-      setToastError(err.message || 'Không thể đổi mật khẩu. Vui lòng thử lại.')
+      const errorMsg = err.response?.data?.detail || err.message || 'Không thể đổi mật khẩu. Vui lòng thử lại.'
+      setToastError(errorMsg)
     } finally {
       setIsChangingPassword(false)
     }

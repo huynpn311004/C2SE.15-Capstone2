@@ -59,13 +59,18 @@
   transition: all 0.2s ease;
 }
 
-.sadonmon-filter-select:hover, .sadonmon-filter-select:focus {
+.sadonmon-filter-select:hover,
+.sadonmon-filter-select:focus {
   border-color: var(--sa-teal);
   box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.1);
   outline: none;
 }
 
-.sadonmon-toolbar-info { font-size: 0.76rem; color: var(--sa-muted); white-space: nowrap; }
+.sadonmon-toolbar-info {
+  font-size: 0.76rem;
+  color: var(--sa-muted);
+  white-space: nowrap;
+}
 
 /* STATS */
 .sadonmon-stats {
@@ -111,27 +116,96 @@
 }
 
 /* TABLE */
-.table-responsive { overflow-x: auto; overflow-y: auto; flex: 1; min-height: 0; }
-.sadonmon-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; table-layout: fixed; }
-.sadonmon-table thead { background: var(--sa-bg); border-bottom: 2px solid var(--sa-border); }
-.sadonmon-table th { padding: 0.52rem 0.56rem; text-align: left; font-weight: 600; color: var(--sa-ink); font-size: 0.72rem; letter-spacing: 0.05em; white-space: nowrap; }
-.sadonmon-table td { padding: 0.46rem 0.56rem; border-bottom: 1px solid var(--sa-border); color: var(--sa-ink); font-size: 0.81rem; }
-.sadonmon-table tbody tr:hover { background: rgba(15, 118, 110, 0.03); }
+.table-responsive {
+  overflow-x: auto;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.sadonmon-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+  table-layout: fixed;
+}
+
+.sadonmon-table thead {
+  background: var(--sa-bg);
+  border-bottom: 2px solid var(--sa-border);
+}
+
+.sadonmon-table th {
+  padding: 0.52rem 0.56rem;
+  text-align: left;
+  font-weight: 600;
+  color: var(--sa-ink);
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.sadonmon-table td {
+  padding: 0.46rem 0.56rem;
+  border-bottom: 1px solid var(--sa-border);
+  color: var(--sa-ink);
+  font-size: 0.81rem;
+}
+
+.sadonmon-table tbody tr:hover {
+  background: rgba(15, 118, 110, 0.03);
+}
+
 .sadonmon-table th,
-.sadonmon-table td { overflow: hidden; text-overflow: ellipsis; }
-.sadonmon-store { font-weight: 600; color: var(--sa-teal); }
+.sadonmon-table td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sadonmon-store {
+  font-weight: 600;
+  color: var(--sa-teal);
+}
 
 /* BADGES */
-.badge { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 999px; font-size: 0.72rem; font-weight: 600; white-space: nowrap; border: 1px solid; }
-.badge-success { color: var(--sa-success); background: rgba(16, 185, 129, 0.15); border-color: var(--sa-success); }
-.badge-warning { color: var(--sa-warning); background: rgba(245, 158, 11, 0.15); border-color: var(--sa-warning); }
-.badge-info { color: #0369a1; background: rgba(14, 165, 233, 0.15); border-color: #0369a1; }
-.badge-danger { color: var(--sa-error); background: rgba(185, 28, 28, 0.15); border-color: var(--sa-error); }
+.badge {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid;
+}
+
+.badge-success {
+  color: var(--sa-success);
+  background: rgba(16, 185, 129, 0.15);
+  border-color: var(--sa-success);
+}
+
+.badge-warning {
+  color: var(--sa-warning);
+  background: rgba(245, 158, 11, 0.15);
+  border-color: var(--sa-warning);
+}
+
+.badge-info {
+  color: #0369a1;
+  background: rgba(14, 165, 233, 0.15);
+  border-color: #0369a1;
+}
+
+.badge-danger {
+  color: var(--sa-error);
+  background: rgba(185, 28, 28, 0.15);
+  border-color: var(--sa-error);
+}
 
 /* ACTION BUTTONS */
-.sadonmon-actions { 
-  display: flex; 
-  gap: 0.8rem; 
+.sadonmon-actions {
+  display: flex;
+  gap: 0.8rem;
   align-items: center;
   flex-wrap: wrap;
 }
@@ -185,6 +259,7 @@
   color: white;
   border-color: #0369a1;
 }
+
 .sadonmon-modal-overlay {
   position: fixed;
   top: 0;
@@ -200,29 +275,40 @@
 
 .sadonmon-modal {
   background: #ffffff;
-  border-radius: 12px;
-  width: min(90vw, 580px);
-  max-width: 580px;
-  max-height: 92vh;
-  overflow-y: auto;
-  box-shadow: 0 20px 60px rgba(15, 118, 110, 0.2);
+  border-radius: 24px;
+  width: min(95vw, 850px);
+  max-width: 850px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 25px 50px -12px rgba(15, 118, 110, 0.25);
   position: relative;
+  animation: sadonmon-modal-slide 0.3s ease-out;
+  overflow: hidden; /* Cần thiết để bo tròn các phần tử con */
+}
+
+@keyframes sadonmon-modal-slide {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
 }
 
 .sadonmon-modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1rem 1.25rem;
+  padding: 1.25rem 1.5rem;
   background: #f0faf9;
   border-bottom: 1px solid #d1e7e4;
 }
 
 .sadonmon-modal-header h3 {
   margin: 0;
-  font-size: 1rem;
+  font-size: 1.15rem;
   color: #134e4a;
-  font-weight: 700;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
 }
 
 .sadonmon-modal-close {
@@ -241,8 +327,9 @@
 }
 
 .sadonmon-modal-body {
-  padding: 1.25rem;
+  padding: 1.5rem;
   overflow-y: auto;
+  flex: 1;
 }
 
 .sadonmon-modal-footer {
@@ -257,8 +344,13 @@
 /* Detail Grid */
 .sadonmon-detail-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 0.8rem;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.25rem;
+  margin-bottom: 2rem;
+  padding: 1.25rem;
+  background: #fdfdfd;
+  border: 1px solid #eef2f1;
+  border-radius: 12px;
 }
 
 .sadonmon-detail-field {
@@ -274,20 +366,20 @@
 }
 
 .sadonmon-detail-value {
-  padding: 0.5rem 0.7rem;
-  background: #f8fffe;
-  border: 1px solid #d1e7e4;
-  border-radius: 8px;
+  padding: 0.4rem 0;
   color: #134e4a;
-  font-size: 0.82rem;
+  font-size: 0.9rem;
+  font-weight: 600;
   line-height: 1.35;
 }
 
 .sadonmon-id-badge {
   color: #0f766e;
-  padding: 0.2rem 0.5rem;
-  font-size: 0.78rem;
-  font-weight: 600;
+  background: rgba(15, 118, 110, 0.1);
+  padding: 0.2rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-weight: 700;
 }
 
 .sadonmon-qty-value {
@@ -332,7 +424,9 @@
 }
 
 @keyframes sadonmon-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Items table */
@@ -352,9 +446,10 @@
 .sadonmon-items-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.81rem;
-  background: #f9fafb;
-  border-radius: 6px;
+  font-size: 0.85rem;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
   overflow: hidden;
 }
 
@@ -418,9 +513,28 @@
 }
 
 @media (max-width: 768px) {
-  .sadonmon-page { gap: 0.8rem; overflow-y: auto; height: auto; }
-  .sadonmon-toolbar { flex-direction: column; align-items: stretch; }
-  .sadonmon-stats { grid-template-columns: repeat(3, 1fr); gap: 0.6rem; }
-  .sadonmon-table { font-size: 0.8rem; }
-  .sadonmon-table th, .sadonmon-table td { padding: 0.6rem 0.5rem; }
+  .sadonmon-page {
+    gap: 0.8rem;
+    overflow-y: auto;
+    height: auto;
+  }
+
+  .sadonmon-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .sadonmon-stats {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.6rem;
+  }
+
+  .sadonmon-table {
+    font-size: 0.8rem;
+  }
+
+  .sadonmon-table th,
+  .sadonmon-table td {
+    padding: 0.6rem 0.5rem;
+  }
 }

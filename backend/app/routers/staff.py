@@ -30,6 +30,7 @@ from app.schemas.staff_schemas import (
     UploadImageResponse,
     CreateBulkDonationOffersRequest,
     UpdateDonationRequestStatusRequest,
+    DisposeInventoryLotRequest,
 )
 from app.services import staff_service
 
@@ -404,6 +405,18 @@ def delete_inventory_lot(
 ):
     scope = staff_service._get_staff_scope(db, current_user.id)
     return staff_service.delete_inventory_lot(db, lot_id, scope["store_id"])
+
+
+@router.post("/inventory-lots/{lot_id}/dispose")
+def dispose_inventory_lot(
+    lot_id: int,
+    data: DisposeInventoryLotRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return staff_service.dispose_inventory_lot(
+        db, current_user.id, lot_id, data.quantity, data.reason
+    )
 
 
 # ========== File Upload & Import ==========

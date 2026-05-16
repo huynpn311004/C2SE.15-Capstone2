@@ -32,6 +32,7 @@ const statusText = {
 const paymentMethodText = {
   cod: 'Tiền mặt (COD)',
   vnpay: 'VNPay',
+  donation: 'Quyên góp (COD Phí Ship)',
 }
 
 const paymentStatusText = {
@@ -221,7 +222,7 @@ export default function DeliveryOrders() {
   }
 
   const displayedOrders = activeTab === 'active' ? getActiveOrders() : getCompletedOrders()
-  const totalReward = displayedOrders.reduce((sum, o) => sum + (o.reward || 0), 0)
+  const totalReward = displayedOrders.reduce((sum, o) => sum + Number(o.reward || 0), 0)
 
   return (
     <DeliveryLayout>
@@ -260,7 +261,8 @@ export default function DeliveryOrders() {
             <table className="dp-table">
               <thead>
                 <tr>
-                  <th>Mã Đơn</th>
+                  <th>Mã Vận Chuyển</th>
+                  <th>Mã Đơn Hàng</th>
                   <th>Cửa Hàng</th>
                   <th>Khách Hàng</th>
                   <th>Trạng Thái</th>
@@ -293,6 +295,9 @@ export default function DeliveryOrders() {
                     <tr key={order.id}>
                       <td>
                         <span className="dp-order-id">{order.delivery_code}</span>
+                      </td>
+                      <td>
+                        <span className="dp-order-code-badge">{order.order_code || `DH-${order.order_id}`}</span>
                       </td>
                       <td>
                         <div className="dp-store-cell">
@@ -333,13 +338,7 @@ export default function DeliveryOrders() {
                           >
                             Chỉ đường
                           </button>
-                          <a
-                            href={`tel:${order.customer_phone}`}
-                            className="dp-action-btn dp-btn-call"
-                            title="Gọi điện"
-                          >
-                            Gọi
-                          </a>
+
                           {order.status !== 'completed' && order.status !== 'cancelled' && nextStatusMap[order.status] && (
                             <button
                               onClick={() => handleUpdateStatus(order.id, nextStatusMap[order.status])}
@@ -365,7 +364,10 @@ export default function DeliveryOrders() {
           <div className="dp-modal-overlay" onClick={closeDetail}>
             <div className="dp-modal dp-modal-large" onClick={(e) => e.stopPropagation()}>
               <div className="dp-modal-header">
-                <h3>Chi Tiết Đơn Hàng {selectedOrder.delivery_code}</h3>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <h3 style={{ margin: 0 }}>Vận chuyển: {selectedOrder.delivery_code}</h3>
+
+                </div>
                 <button className="dp-modal-close" onClick={closeDetail}>✕</button>
               </div>
               <div className="dp-modal-body">
@@ -407,6 +409,11 @@ export default function DeliveryOrders() {
                       <span className={`dp-badge-small ${selectedOrder.payment_status === 'paid' ? 'badge-success' : 'badge-warning'}`}>
                         {paymentStatusText[selectedOrder.payment_status] || selectedOrder.payment_status}
                       </span>
+                      {selectedOrder.delivery_type === 'donation' && (
+                        <div style={{ color: '#e74c3c', fontWeight: 'bold', fontSize: '0.8rem', marginTop: '5px' }}>
+                          * Thu phí ship từ: Tổ chức từ thiện
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -450,15 +457,13 @@ export default function DeliveryOrders() {
                   <div className="dp-location-card">
                     <div className="dp-location-main">
                       <strong>{selectedOrder.customer_name}</strong>
-                      <a href={`tel:${selectedOrder.customer_phone}`} className="dp-phone">
+                      <span className="dp-phone">
                         {selectedOrder.customer_phone}
-                      </a>
+                      </span>
                       <span className="dp-location-address">{selectedOrder.customer_address}</span>
                     </div>
                     <div className="dp-location-actions">
-                      <a href={`tel:${selectedOrder.customer_phone}`} className="dp-action-btn dp-btn-call">
-                        Gọi
-                      </a>
+
                       <button
                         className="dp-action-btn dp-btn-map"
                         onClick={() => openNavigation(selectedOrder.customer_address)}

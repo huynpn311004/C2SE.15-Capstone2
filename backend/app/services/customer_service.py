@@ -28,7 +28,9 @@ def _get_or_create_order_group(
 	shipping_address: str = None,
 	product_cache: dict = None,
 	store_cache: dict = None,
-	coupon_info: dict = None,
+	applied_coupon_id: int = None,
+	applied_discount_amount: Decimal = Decimal("0"),
+	applied_coupon_code: str = None,
 	shipping_phone: str = None
 ) -> dict:
 
@@ -194,17 +196,8 @@ def _get_or_create_order_group(
 			})
 
 	# Create Order
-	# Calculate final amount with coupon discount
-	final_amount = total_amount
-	applied_coupon_id = None
-	applied_discount_amount = Decimal("0")
-	applied_coupon_code = None
-	
-	if coupon_info and coupon_info.get("valid"):
-		applied_coupon_id = coupon_info.get("coupon_id")
-		applied_discount_amount = coupon_info.get("discount_amount", Decimal("0"))
-		applied_coupon_code = coupon_info.get("coupon_code")
-		final_amount = max(Decimal("0"), total_amount - applied_discount_amount)
+	# Sử dụng số tiền giảm giá đã được tính toán và truyền từ hàm cha
+	final_amount = max(Decimal("0"), total_amount - applied_discount_amount)
 	
 	# Calculate shipping fee
 	shipping_fee_value = Decimal("0")
@@ -246,9 +239,16 @@ def _get_or_create_order_group(
 	db.flush()
 	order_id = new_order.id
 	
+	# Logic thanh toán Ví (Wallet) đã được chuyển ra ngoài hàm create_multi_store_order 
+	# để xử lý tổng một lần. Nếu là đơn hàng lẻ (create_customer_order), nó vẫn tự xử lý.
+	
 	# Increment coupon usage count if applied
 	if applied_coupon_id:
-		_increment_coupon_usage(db, applied_coupon_id)
+		if not _increment_coupon_usage(db, applied_coupon_id):
+			raise HTTPException(
+				status_code=status.HTTP_400_BAD_REQUEST,
+				detail="Mã giảm giá đã hết lượt sử dụng"
+			)
 
 	# Insert order items
 	for item_data in order_item_data:
@@ -344,39 +344,64 @@ def create_multi_store_order(
 	product_cache = {}
 	store_cache = {}
 
-	# For coupon validation: calculate total amount first
-	total_order_amount = Decimal("0")
-	for item in items:
-		if isinstance(item, dict):
-			product_id = item.get("productId")
-			quantity = item.get("quantity", 1)
-		else:
-			product_id = item.productId
-			quantity = getattr(item, "quantity", 1)
-		product = db.query(Product.base_price).filter(Product.id == product_id).first()
-		if product:
-			total_order_amount += Decimal(str(product.base_price or 0)) * quantity
+	# Bước 1: Tính Subtotal cho từng Store để phục vụ việc chia tỷ lệ giảm giá
+	total_cart_subtotal = Decimal("0")
+	store_subtotals = {} # {store_id: subtotal}
 	
-	# Validate coupon if provided
+	for store_id, store_items in store_groups.items():
+		store_subtotal = Decimal("0")
+		for item in store_items:
+			if isinstance(item, dict):
+				product_id = item.get("productId")
+				quantity = item.get("quantity", 1)
+			else:
+				product_id = item.productId
+				quantity = getattr(item, "quantity", 1)
+			
+			product = db.query(Product.base_price).filter(Product.id == product_id).first()
+			if product:
+				store_subtotal += Decimal(str(product.base_price or 0)) * quantity
+		
+		store_subtotals[store_id] = store_subtotal
+		total_cart_subtotal += store_subtotal
+	
+	# Validate coupon dựa trên tổng giá trị toàn giỏ hàng
 	coupon_info = None
+	total_discount_to_distribute = Decimal("0")
 	if coupon_id:
-		coupon_info = _validate_and_calculate_coupon(db, coupon_id, None, total_order_amount)
+		coupon_info = _validate_and_calculate_coupon(db, coupon_id, None, total_cart_subtotal)
 		if not coupon_info.get("valid"):
 			raise HTTPException(
 				status_code=status.HTTP_400_BAD_REQUEST,
 				detail=coupon_info.get("error", "Coupon không hợp lệ")
 			)
+		total_discount_to_distribute = coupon_info.get("discount_amount", Decimal("0"))
 
 	success_orders = []
 	failed_orders = []
 	grand_total = Decimal("0")
-	coupon_applied = False
+	remaining_discount = total_discount_to_distribute
+	
+	# Danh sách các Store để duyệt và tính toán tỷ lệ
+	store_ids_list = list(store_groups.keys())
 
-	for store_id, store_items in store_groups.items():
+	for i, store_id in enumerate(store_ids_list):
+		store_items = store_groups[store_id]
 		try:
-			# Pass coupon only to first successful order
-			order_coupon_info = coupon_info if not coupon_applied else None
-			
+			# Bước 2: Tính toán số tiền giảm giá phân bổ cho Store này
+			current_store_discount = Decimal("0")
+			if total_discount_to_distribute > 0:
+				if i == len(store_ids_list) - 1:
+					# Store cuối cùng nhận phần còn lại để đảm bảo khớp tổng số tiền
+					current_store_discount = remaining_discount
+				else:
+					# Tính theo tỷ lệ: (Giá trị store / Tổng giá trị giỏ hàng) * Tổng giảm giá
+					ratio = store_subtotals[store_id] / total_cart_subtotal if total_cart_subtotal > 0 else 0
+					current_store_discount = (total_discount_to_distribute * Decimal(str(ratio))).quantize(Decimal("1"))
+					# Đảm bảo không giảm quá số tiền còn lại
+					current_store_discount = min(current_store_discount, remaining_discount)
+					remaining_discount -= current_store_discount
+
 			order_info = _get_or_create_order_group(
 				db,
 				user_id,
@@ -386,28 +411,49 @@ def create_multi_store_order(
 				shipping_address,
 				product_cache,
 				store_cache,
-				order_coupon_info,
-				shipping_phone
+				applied_coupon_id=coupon_info.get("coupon_id") if coupon_info else None,
+				applied_discount_amount=current_store_discount,
+				applied_coupon_code=coupon_info.get("coupon_code") if coupon_info else None,
+				shipping_phone=shipping_phone
 			)
 			success_orders.append(order_info)
 			grand_total += Decimal(str(order_info["totalAmount"]))
 			
-			if not coupon_applied and coupon_info and order_info.get("couponCode"):
-				coupon_applied = True
-			
-			db.commit()
 		except HTTPException as e:
 			db.rollback()
-			failed_orders.append({
-				"storeId": store_id,
-				"error": str(e.detail)
-			})
+			raise e # Ngắt toàn bộ nếu có lỗi nghiệp vụ ở bất kỳ store nào để đảm bảo tính nguyên tử
 		except Exception as e:
 			db.rollback()
-			failed_orders.append({
-				"storeId": store_id,
-				"error": str(e)
-			})
+			raise HTTPException(status_code=500, detail=f"Lỗi tạo đơn hàng tại store {store_id}: {str(e)}")
+
+	# Bước 3: Xử lý thanh toán bằng Ví (Wallet) một lần duy nhất cho tổng đơn hàng
+	if payment_method == 'wallet':
+		from app.services import wallet_service
+		user_wallet = db.query(User).filter(User.id == user_id).with_for_update().first()
+		if not user_wallet or user_wallet.wallet_balance < float(grand_total):
+			db.rollback()
+			raise HTTPException(
+				status_code=status.HTTP_400_BAD_REQUEST,
+				detail=f"Số dư ví không đủ để thanh toán tổng đơn hàng (Cần {float(grand_total):,.0f}đ, hiện có {getattr(user_wallet, 'wallet_balance', 0):,.0f}đ)"
+			)
+		
+		# Trừ tiền ví
+		wallet_service.add_transaction(
+			db, entity_type='user', entity_id=user_id, 
+			amount=float(grand_total), transaction_type='payment',
+			description=f"Thanh toán giỏ hàng đa cửa hàng ({len(success_orders)} đơn hàng)",
+			reference_id=None, reference_type='multi_order'
+		)
+		
+		# Cập nhật trạng thái 'paid' cho tất cả đơn hàng thành công
+		success_order_ids = [o["orderId"] for o in success_orders]
+		db.query(Order).filter(Order.id.in_(success_order_ids)).update(
+			{Order.payment_status: 'paid', Order.status: 'preparing'},
+			synchronize_session=False
+		)
+
+	# Commit cuối cùng sau khi tất cả đã thành công
+	db.commit()
 
 	if not success_orders:
 		raise HTTPException(
@@ -473,7 +519,7 @@ def _validate_and_calculate_coupon(db: Session, coupon_id: int, store_id: int, t
 		return {"valid": False, "error": "Mã coupon đã hết lượt sử dụng", "coupon_id": coupon_id}
 	
 	# Check minimum amount
-	if coupon.min_amount and float(total_amount) < float(coupon.min_amount):
+	if coupon.min_amount and total_amount < Decimal(str(coupon.min_amount)):
 		return {
 			"valid": False,
 			"error": f"Đơn hàng tối thiểu {int(coupon.min_amount):,}đ để áp dụng mã này",
@@ -481,15 +527,16 @@ def _validate_and_calculate_coupon(db: Session, coupon_id: int, store_id: int, t
 		}
 	
 	# Calculate discount
-	discount_amount = total_amount * Decimal(str(coupon.discount_percent / 100))
-	discount_amount = discount_amount.quantize(Decimal("0"))  # Round to whole number
+	discount_percent = Decimal(str(coupon.discount_percent or 0))
+	discount_amount = total_amount * (discount_percent / Decimal("100"))
+	discount_amount = discount_amount.quantize(Decimal("1"), rounding="ROUND_HALF_UP")  # Round to whole number
 	
 	return {
 		"valid": True,
 		"error": None,
 		"coupon_id": coupon_id,
 		"coupon_code": coupon.code,
-		"discount_percent": coupon.discount_percent,
+		"discount_percent": float(discount_percent),
 		"discount_amount": discount_amount
 	}
 
@@ -545,7 +592,7 @@ def _calculate_discount(base_price: float, expiry_date: date, supermarket_id: in
 def get_customer_profile(db: Session, user_id: int) -> dict:
 	user = db.query(
 		User.id, User.username, User.email, User.full_name, User.phone, User.role, User.created_at, User.address,
-		User.latitude, User.longitude
+		User.latitude, User.longitude, User.wallet_balance
 	).filter(User.id == user_id, User.role == 'customer').first()
 
 	if not user:
@@ -561,20 +608,21 @@ def get_customer_profile(db: Session, user_id: int) -> dict:
 		"address": user.address or "",
 		"latitude": user.latitude,
 		"longitude": user.longitude,
+		"walletBalance": float(user.wallet_balance or 0),
 		"createdAt": user.created_at.strftime("%d/%m/%Y") if user.created_at else "",
 	}
 
 
 def update_customer_profile(db: Session, user_id: int, full_name: str, email: str, phone: str, address: str = "") -> dict:
 	if not full_name:
-		raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ho ten khong duoc trong")
+		raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Họ tên không được để trống")
 
 	existing_email = db.query(User.id).filter(
 		User.email == email,
 		User.id != user_id
 	).first()
 	if existing_email:
-		raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email da duoc su dung")
+		raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email đã được sử dụng")
 
 	if phone:
 		existing_phone = db.query(User.id).filter(
@@ -582,7 +630,7 @@ def update_customer_profile(db: Session, user_id: int, full_name: str, email: st
 			User.id != user_id
 		).first()
 		if existing_phone:
-			raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="So dien thoai da duoc su dung")
+			raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Số điện thoại đã được sử dụng")
 
 	db.query(User).filter(User.id == user_id, User.role == 'customer').update(
 		{
@@ -599,32 +647,42 @@ def update_customer_profile(db: Session, user_id: int, full_name: str, email: st
 
 
 def change_customer_password(db: Session, user_id: int, current_password: str, new_password: str) -> dict:
+	user = db.query(User).filter(User.id == user_id, User.role == 'customer').first()
+	if not user:
+		raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy tài khoản")
+
+	from app.core.security import verify_password, get_password_hash
+	if not verify_password(current_password, user.password_hash):
+		raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Mật khẩu hiện tại không đúng")
+
 	if len(new_password) < 6:
-		raise HTTPException(
-			status_code=status.HTTP_400_BAD_REQUEST,
-			detail="Mật khẩu mới phải có ít nhất 6 ký tự.",
-		)
+		raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Mật khẩu mới phải có ít nhất 6 ký tự")
 
-	row = db.query(User.password_hash).filter(
-		User.id == user_id,
-		User.role == 'customer'
-	).first()
-	if not row:
-		raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Khong tim thay tai khoan")
+	user.password_hash = get_password_hash(new_password)
+	db.commit()
+	return {"success": True, "message": "Đổi mật khẩu thành công"}
 
-	if not verify_password(current_password, row.password_hash):
-		raise HTTPException(
-			status_code=status.HTTP_400_BAD_REQUEST,
-			detail="Mat khau hien tai khong dung.",
-		)
 
-	db.query(User).filter(User.id == user_id).update(
-		{User.password_hash: get_password_hash(new_password)},
-		synchronize_session=False
+def deposit_money(db: Session, user_id: int, amount: float) -> dict:
+	if amount <= 0:
+		raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Số tiền nạp phải lớn hơn 0")
+	
+	from app.services import wallet_service
+	wallet_service.add_transaction(
+		db, entity_type='user', entity_id=user_id,
+		amount=amount, transaction_type='deposit',
+		description=f"Nạp tiền vào ví (Dự án tốt nghiệp - Giả lập)",
+		reference_id=None, reference_type='manual'
 	)
 	db.commit()
-
-	return {"success": True, "message": "Doi mat khau thanh cong"}
+	
+	# Lấy lại số dư mới từ DB (sử dụng một truy vấn mới sau khi commit)
+	updated_user = db.query(User).filter(User.id == user_id).first()
+	return {
+		"success": True, 
+		"message": f"Đã nạp thành công {amount:,.0f}đ vào ví",
+		"newBalance": float(updated_user.wallet_balance or 0)
+	}
 
 
 # ========== Product Services ==========
@@ -1298,13 +1356,39 @@ def create_customer_order(
 		reserved_at=datetime.now(),
 		coupon_id=applied_coupon_id
 	)
+	
 	db.add(new_order)
 	db.flush()
 	order_id = new_order.id
 	
+	# Xử lý thanh toán bằng Ví (Wallet) sau khi đã có order_id
+	if payment_method == 'wallet':
+		from app.services import wallet_service
+		user_wallet = db.query(User).filter(User.id == user_id).with_for_update().first()
+		if not user_wallet or user_wallet.wallet_balance < float(final_amount):
+			db.rollback()
+			raise HTTPException(
+				status_code=status.HTTP_400_BAD_REQUEST,
+				detail=f"Số dư ví không đủ (Còn {getattr(user_wallet, 'wallet_balance', 0):,.0f}đ)"
+			)
+		
+		# Trừ tiền ví và cập nhật trạng thái đơn hàng
+		wallet_service.add_transaction(
+			db, entity_type='user', entity_id=user_id, 
+			amount=float(final_amount), transaction_type='payment',
+			description=f"Thanh toán đơn hàng DH-{order_id}",
+			reference_id=order_id, reference_type='order'
+		)
+		new_order.payment_status = 'paid'
+		new_order.status = 'preparing'
+	
 	# Increment coupon usage count if applied
 	if applied_coupon_id:
-		_increment_coupon_usage(db, applied_coupon_id)
+		if not _increment_coupon_usage(db, applied_coupon_id):
+			raise HTTPException(
+				status_code=status.HTTP_400_BAD_REQUEST,
+				detail="Mã giảm giá đã hết lượt sử dụng"
+			)
 
 	# Insert order items using ORM
 	for item_data in order_item_data:
@@ -1346,6 +1430,17 @@ def cancel_customer_order(db: Session, order_id: int, user_id: int) -> dict:
 			status_code=status.HTTP_400_BAD_REQUEST,
 			detail="Khong the huy don hang da duoc xu ly"
 		)
+
+	# Logic hoàn tiền nếu đơn đã thanh toán
+	if order.payment_status == 'paid':
+		from app.services import wallet_service
+		wallet_service.add_transaction(
+			db, entity_type='user', entity_id=user_id,
+			amount=float(order.total_amount), transaction_type='refund',
+			description=f"Hoàn tiền hủy đơn hàng DH-{order_id}",
+			reference_id=order_id, reference_type='order'
+		)
+		order.payment_status = 'pending' # Trả về pending hoặc một trạng thái refund
 
 	# Single order cancel (original logic)
 	item_rows = db.query(
@@ -1402,7 +1497,7 @@ def customer_dashboard_summary(db: Session, user_id: int) -> dict:
 
 # ========== Inventory Reserved Stock Management ==========
 
-def confirm_customer_order(db: Session, order_id: int, user_id: int) -> dict:
+def confirm_customer_order(db: Session, order_id: int, user_id: int, payment_method: str = None) -> dict:
 	order = db.query(Order).filter(
 		Order.id == order_id,
 		Order.customer_id == user_id
@@ -1421,33 +1516,51 @@ def confirm_customer_order(db: Session, order_id: int, user_id: int) -> dict:
 		OrderItem.quantity
 	).filter(OrderItem.order_id == order_id).all()
 
-	# Mặc định phương thức thanh toán là COD nếu chưa có
-	effective_payment_method = order.payment_method if order.payment_method else 'cod'
+	# Ưu tiên phương thức thanh toán mới được truyền vào, nếu không dùng phương thức cũ của đơn hàng
+	effective_payment_method = payment_method if payment_method else (order.payment_method if order.payment_method else 'cod')
+
+	# XỬ LÝ THANH TOÁN BẰNG VÍ
+	if effective_payment_method.lower() == 'wallet':
+		from app.services import wallet_service
+		user = db.query(User).filter(User.id == user_id).with_for_update().first()
+		
+		# order.total_amount ĐÃ LÀ số tiền cuối cùng phải trả (đã trừ coupon và cộng phí ship)
+		final_amount = Decimal(str(order.total_amount or 0))
+		if final_amount < 0: final_amount = Decimal("0")
+		
+		current_balance = user.wallet_balance or 0
+		if current_balance < final_amount:
+			raise HTTPException(
+				status_code=status.HTTP_400_BAD_REQUEST, 
+				detail=f"Số dư ví không đủ. Cần {final_amount:,.0f}đ nhưng hiện có {current_balance:,.0f}đ"
+			)
+		
+		# Thực hiện trừ tiền
+		wallet_service.add_transaction(
+			db, entity_type='user', entity_id=user_id,
+			amount=float(final_amount), transaction_type='payment',
+			description=f"Thanh toán đơn hàng DH-{order_id}",
+			reference_id=order_id, reference_type='order'
+		)
+		order.payment_status = 'paid'
 
 	# Update order payment status, payment method and order status
-	update_data = {
-		Order.status: 'preparing',
-		Order.payment_method: effective_payment_method
-	}
+	order.status = 'preparing'
+	order.payment_method = effective_payment_method
 	
-	# Chỉ chuyển sang 'paid' nếu không phải COD (giả sử là thanh toán online thành công qua VNPay)
-	if effective_payment_method != 'cod':
-		update_data[Order.payment_status] = 'paid'
+	if effective_payment_method == 'vnpay':
+		order.payment_status = 'paid'
 
-	db.query(Order).filter(Order.id == order_id).update(
-		update_data,
-		synchronize_session=False
-	)
 	db.commit()
-	return {"success": True, "message": "Xac nhan thanh toan thanh cong"}
+	return {"success": True, "message": "Xác nhận thanh toán thành công"}
 
 
 
-def restore_expired_reserved_stock(db: Session, timeout_minutes: int = 3) -> dict:
+def restore_expired_reserved_stock(db: Session, timeout_minutes: int = 15) -> dict:
 	cutoff_time = datetime.now() - timedelta(minutes=timeout_minutes)
 
 	# Find expired pending orders
-	expired_orders = db.query(Order.id).filter(
+	expired_orders = db.query(Order).filter(
 		Order.payment_status == 'pending',
 		Order.status == 'pending',
 		Order.reserved_at <= cutoff_time
@@ -1456,8 +1569,19 @@ def restore_expired_reserved_stock(db: Session, timeout_minutes: int = 3) -> dic
 	restored_count = 0
 	restored_items = []
 
-	for order_row in expired_orders:
-		order_id = order_row.id
+	for order in expired_orders:
+		order_id = order.id
+
+		# Logic hoàn tiền nếu đơn hàng đã thanh toán (VNPay) nhưng hệ thống chưa kịp cập nhật status 
+		# (Trường hợp khách trả tiền thành công nhưng quá 15p IPN mới tới)
+		if order.payment_status == 'paid':
+			from app.services import wallet_service
+			wallet_service.add_transaction(
+				db, entity_type='user', entity_id=order.customer_id,
+				amount=float(order.total_amount), transaction_type='refund',
+				description=f"Hoàn tiền đơn hàng quá hạn thanh toán DH-{order_id}",
+				reference_id=order_id, reference_type='order'
+			)
 
 		# Get all order items
 		item_rows = db.query(

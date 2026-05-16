@@ -100,6 +100,12 @@ export async function deleteInventoryLot(lotId) {
   return response.data
 }
 
+export async function disposeInventoryLot(lotId, payload) {
+  requireStaff()
+  const response = await API.post(`/staff/inventory-lots/${lotId}/dispose`, payload)
+  return response.data
+}
+
 export async function importInventoryLots(file) {
   requireStaff()
   const formData = new FormData()

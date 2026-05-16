@@ -4,16 +4,14 @@ from app.services.geocoding_service import calculate_distance, geocode_address
 
 # Bảng phí theo bậc khoảng cách (max_km, fee)
 SHIPPING_TIERS = [
-    (2, 0),        # 0-2km:  miễn phí
-    (5, 10000),    # 2-5km:  10.000đ
-    (8, 20000),    # 5-8km:  20.000đ
-    (10, 30000),   # 8-10km: 30.000đ
-    (15, 40000),   # 10-15km: 40.000đ (vùng cảnh báo)
+    (5, 15000),    # 0-5km:  15.000đ
+    (10, 25000),   # 5-10km: 25.000đ
+    (15, 40000),   # 10-15km: 40.000đ
 ]
 
 WARNING_DISTANCE_KM = 10.0     # Bắt đầu cảnh báo từ 10km
 MAX_DELIVERY_DISTANCE_KM = 15.0  # Chặn hoàn toàn > 15km
-FREE_SHIPPING_THRESHOLD = 500000  # Miễn phí ship cho đơn >= 500.000đ
+FREE_SHIPPING_THRESHOLD = 999999999  # Vô hiệu hóa miễn phí ship (đặt ngưỡng cực cao)
 
 
 def calculate_shipping_fee(distance_km: float, order_amount: float = 0) -> dict:
@@ -42,31 +40,21 @@ def calculate_shipping_fee(distance_km: float, order_amount: float = 0) -> dict:
     # --- Xác định zone ---
     if distance_km > WARNING_DISTANCE_KM:
         zone = "warning"
-    else:
-        zone = "normal"
-
-    # --- Miễn phí cho đơn lớn (áp dụng mọi vùng deliverable) ---
-    free_shipping = order_amount >= FREE_SHIPPING_THRESHOLD
-    final_fee = 0 if free_shipping else fee
-
-    # --- Message ---
-    if zone == "warning":
         message = (
             f"Khu vực cách cửa hàng {distance_km:.1f}km — nằm ngoài vùng giao hàng tiêu chuẩn. "
             f"Thời gian giao hàng có thể lâu hơn và chất lượng thực phẩm có thể bị ảnh hưởng."
         )
-    elif final_fee == 0:
-        message = "Miễn phí vận chuyển"
     else:
-        message = f"Phí vận chuyển: {final_fee:,.0f}đ"
+        zone = "normal"
+        message = f"Phí vận chuyển: {fee:,.0f}đ"
 
     return {
-        "fee": final_fee,
+        "fee": fee,
         "original_fee": fee,
         "distance_km": distance_km,
         "zone": zone,
         "deliverable": True,
-        "free_shipping": free_shipping,
+        "free_shipping": False,
         "free_shipping_threshold": FREE_SHIPPING_THRESHOLD,
         "message": message,
     }
@@ -152,12 +140,12 @@ def calculate_shipping_fee_sync(
     if not store or not store.latitude or not store.longitude:
         # Store chưa có tọa độ → miễn phí (fallback)
         return {
-            "fee": 0,
+            "fee": 15000,
             "distance_km": 0,
             "zone": "normal",
             "deliverable": True,
-            "free_shipping": True,
-            "message": "Không thể tính khoảng cách — miễn phí vận chuyển",
+            "free_shipping": False,
+            "message": "Không thể tính khoảng cách — phí vận chuyển cơ bản: 15.000đ",
         }
 
     # Geocode address synchronously
@@ -185,12 +173,12 @@ def calculate_shipping_fee_sync(
     if lat is None or lng is None:
         # Không geocode được → miễn phí (fallback)
         return {
-            "fee": 0,
+            "fee": 15000,
             "distance_km": 0,
             "zone": "normal",
             "deliverable": True,
-            "free_shipping": True,
-            "message": "Không thể xác định vị trí — miễn phí vận chuyển",
+            "free_shipping": False,
+            "message": "Không thể xác định vị trí — phí vận chuyển cơ bản: 15.000đ",
         }
 
     distance = calculate_distance(store.latitude, store.longitude, lat, lng)

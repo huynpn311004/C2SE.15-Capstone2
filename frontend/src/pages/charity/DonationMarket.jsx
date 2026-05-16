@@ -119,8 +119,8 @@ export default function DonationMarket() {
       const totalRequests = result?.total_requests || 1
       setSubmitSuccess(`Đã gửi yêu cầu nhận ${count} sản phẩm từ ${totalRequests} cửa hàng thành công!`)
       setSelectedItems({})
+      setShowModal(false) // Đóng modal ngay lập tức
       await loadOffers()
-      setTimeout(() => closeModal(), 2000)
     } catch (err) {
       const detail = err?.response?.data?.detail
       if (Array.isArray(detail)) {
@@ -234,6 +234,7 @@ export default function DonationMarket() {
                         <div className="chmarket-cart-item-info">
                           <strong>{offer.name}</strong>
                           <span>{offer.store} | Kho: {offer.qty}</span>
+                          <span className="chmarket-item-shipping">Phí vận chuyển dự kiến: {offer.shippingFee?.toLocaleString()}đ ({offer.distanceKm}km)</span>
                         </div>
                         <div className="chmarket-cart-item-right">
                           <div className="chmarket-qty-control">
@@ -265,12 +266,51 @@ export default function DonationMarket() {
                     )
                   })}
                 </div>
+                
                 <div className="chmarket-form-footer">
-                  <div className="chmarket-form-actions">
-                    <button type="button" className="btn-large btn-close" onClick={clearSelection} disabled={submitting}>Hủy Đơn</button>
-                    <button type="submit" className="btn-large chmarket-btn-submit" disabled={submitting || selectedCount === 0}>
-                      {submitting ? 'Đang gửi...' : `Xác Nhận (${selectedCount})`}
-                    </button>
+                  <div className="chmarket-form-actions-container">
+                    {/* CHI TIẾT PHÍ SHIP THEO CỬA HÀNG */}
+                    {(() => {
+                      const uniqueStores = {}
+                      Object.keys(selectedItems).forEach(id => {
+                        const o = offers.find(item => item.id === parseInt(id))
+                        if (o && !uniqueStores[o.storeId]) {
+                          uniqueStores[o.storeId] = {
+                            name: o.store,
+                            fee: o.shippingFee || 0,
+                            distance: o.distanceKm || 0
+                          }
+                        }
+                      })
+                      const storeList = Object.values(uniqueStores)
+                      const totalFee = storeList.reduce((sum, s) => sum + s.fee, 0)
+                      
+                      if (storeList.length === 0) return null
+
+                      return (
+                        <div className="chmarket-shipping-breakdown">
+                          <div className="chmarket-shipping-list">
+                            {storeList.map((s, idx) => (
+                              <div key={idx} className="chmarket-shipping-item">
+                                <span>{s.name} ({s.distance}km)</span>
+                                <span>{s.fee.toLocaleString()}đ</span>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="chmarket-shipping-total-row">
+                            <span>Tổng phí ship:</span>
+                            <strong>{totalFee.toLocaleString()}đ</strong>
+                          </div>
+                        </div>
+                      )
+                    })()}
+
+                    <div className="chmarket-form-actions">
+                      <button type="button" className="btn-large btn-close" onClick={clearSelection} disabled={submitting}>Hủy Đơn</button>
+                      <button type="submit" className="btn-large chmarket-btn-submit" disabled={submitting || selectedCount === 0}>
+                        {submitting ? 'Đang gửi...' : `Xác Nhận (${selectedCount})`}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </form>

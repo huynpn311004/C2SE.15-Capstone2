@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { getProductImageUrl } from '../../services/staffApi';
-import { fetchCustomerProductDetail, createMultiStoreOrder, fetchAvailableCoupons, confirmCustomerOrder, estimateShipping, initiatePayment } from '../../services/customerApi';
+import { fetchCustomerProductDetail, createMultiStoreOrder, fetchAvailableCoupons, confirmCustomerOrder, estimateShipping, initiatePayment, fetchCustomerSetting } from '../../services/customerApi';
 import { LocationModal } from '../../components/map';
 import { getCart, clearCart } from '../../services/cartUtils';
 import './CustomerCheckout.css';
@@ -183,6 +183,7 @@ const CustomerCheckout = () => {
   const [shippingData, setShippingData] = useState({});
   const [shippingLoading, setShippingLoading] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('cod');
+  const [walletBalance, setWalletBalance] = useState(0);
 
   const getProfile = () => {
     try {
@@ -281,6 +282,19 @@ const CustomerCheckout = () => {
     loadCoupons();
   }, []);
 
+  // Load wallet balance
+  useEffect(() => {
+    async function loadProfile() {
+      try {
+        const data = await fetchCustomerSetting();
+        setWalletBalance(data.walletBalance || 0);
+      } catch (err) {
+        console.warn('Failed to load wallet balance:', err);
+      }
+    }
+    loadProfile();
+  }, []);
+
   // Estimate shipping fee when address is available
   useEffect(() => {
     async function loadShippingEstimates() {
@@ -304,7 +318,7 @@ const CustomerCheckout = () => {
 
       // Tính subtotal theo từng store để backend xét ngưỡng miễn phí ship đúng
       const storeSubtotals = {};
-      
+
       if (isMultiStore && orderGroups.length > 0) {
         // Nếu đã có đơn hàng (bước xác nhận), lấy tiền từ đơn hàng
         orderGroups.forEach(group => {
@@ -442,15 +456,16 @@ const CustomerCheckout = () => {
           couponId: selectedCoupon?.id || null,
         });
 
-        if (paymentMethod === 'cod') {
-          // COD: Confirm all orders (deduct stock)
+        if (paymentMethod === 'cod' || paymentMethod === 'wallet') {
+          // COD or Wallet: Confirm all orders (deduct stock/balance)
           for (const group of result.orderGroups) {
-            await confirmCustomerOrder(group.orderId);
+            await confirmCustomerOrder(group.orderId, paymentMethod);
           }
           const orderCodes = result.orderGroups.map(g => g.orderCode).join(', ');
+          const methodLabel = paymentMethod === 'cod' ? 'COD' : 'Ví SEIMS';
           setToast({
             visible: true,
-            message: `Đặt hàng COD thành công!\n${result.totalOrders} đơn: ${orderCodes}`
+            message: `Đặt hàng bằng ${methodLabel} thành công!\n${result.totalOrders} đơn: ${orderCodes}`
           });
           setTimeout(() => {
             setToast(prev => ({ ...prev, visible: false }));
@@ -459,10 +474,10 @@ const CustomerCheckout = () => {
           clearCart();
           return;
         } else {
-          // VNPay: Pay first order (lead order)
-          const leadOrderId = result.orderGroups[0].orderId;
-          console.log('[VNPay] Initiating payment for order:', leadOrderId);
-          const paymentResult = await initiatePayment(leadOrderId, paymentMethod);
+          // VNPay: Pay ALL orders in the group
+          const allOrderIds = result.orderGroups.map(g => g.orderId);
+          console.log('[VNPay] Initiating payment for orders:', allOrderIds);
+          const paymentResult = await initiatePayment(allOrderIds, paymentMethod);
           console.log('[VNPay] Payment result:', paymentResult);
           const redirectUrl = paymentResult.redirect_url || paymentResult.payment_url;
           console.log('[VNPay] Redirecting to:', redirectUrl);
@@ -480,27 +495,28 @@ const CustomerCheckout = () => {
           localStorage.setItem('seims_auth_user', JSON.stringify(authUser));
         }
 
-        if (paymentMethod === 'cod') {
-          // COD: Confirm payment for all orders
+        if (paymentMethod === 'cod' || paymentMethod === 'wallet') {
+          // COD or Wallet: Confirm payment for all orders
           for (const group of orderGroups) {
-            await confirmCustomerOrder(group.orderId);
+            await confirmCustomerOrder(group.orderId, paymentMethod);
           }
 
           // Format order codes
           const orderCodes = orderGroups.map(g => g.orderCode).join(', ');
+          const methodLabel = paymentMethod === 'cod' ? 'COD' : 'Ví SEIMS';
           setToast({
             visible: true,
-            message: `Đặt hàng thành công!\n${totalOrders} đơn: ${orderCodes}`
+            message: `Đặt hàng bằng ${methodLabel} thành công!\n${totalOrders} đơn: ${orderCodes}`
           });
           setTimeout(() => {
             setToast(prev => ({ ...prev, visible: false }));
             navigate('/customer/orders');
           }, 3000);
         } else {
-          // VNPay: Pay first order (lead order)
-          const leadOrderId = orderGroups[0].orderId;
+          // VNPay: Pay ALL orders in the group
+          const allOrderIds = orderGroups.map(g => g.orderId);
           clearCart();
-          const paymentResult = await initiatePayment(leadOrderId, paymentMethod);
+          const paymentResult = await initiatePayment(allOrderIds, paymentMethod);
           window.location.href = paymentResult.redirect_url || paymentResult.payment_url;
         }
         return;
@@ -833,6 +849,36 @@ const CustomerCheckout = () => {
                   />
                   <span style={{ fontSize: '0.95rem', fontWeight: '500' }}>VNPay (Thanh toán online)</span>
                 </label>
+
+                {/* Wallet Payment Option */}
+                <label style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  cursor: 'pointer',
+                  padding: '0.75rem',
+                  border: '1px solid var(--seims-border)',
+                  borderRadius: '10px',
+                  background: paymentMethod === 'wallet' ? 'var(--seims-teal)' : 'var(--seims-bg)',
+                  color: paymentMethod === 'wallet' ? 'white' : 'inherit'
+                }}>
+                  <input
+                    type="radio"
+                    name="paymentMethod"
+                    value="wallet"
+                    checked={paymentMethod === 'wallet'}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    style={{ width: '18px', height: '18px', accentColor: 'white' }}
+                  />
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontSize: '0.95rem', fontWeight: '500' }}>Ví SEIMS (Số dư: {walletBalance.toLocaleString()}đ)</span>
+                    {paymentMethod === 'wallet' && walletBalance < finalTotal && (
+                      <span style={{ fontSize: '0.75rem', color: '#ff4d4f', fontWeight: '600', background: 'white', padding: '2px 6px', borderRadius: '4px', marginTop: '4px', width: 'fit-content' }}>
+                        Số dư không đủ
+                      </span>
+                    )}
+                  </div>
+                </label>
               </div>
 
             </div>
@@ -849,9 +895,9 @@ const CustomerCheckout = () => {
             <button
               type="submit"
               className="customer-checkout-submit"
-              disabled={(cart.length === 0 && orderGroups.length === 0 && itemsForOrder.length === 0) || submitting || hasBlockedStore || shippingLoading}
+              disabled={(cart.length === 0 && orderGroups.length === 0 && itemsForOrder.length === 0) || submitting || hasBlockedStore || shippingLoading || (paymentMethod === 'wallet' && walletBalance < finalTotal)}
             >
-              {submitting ? 'Đang xử lý...' : shippingLoading ? 'Đang tính phí ship...' : hasBlockedStore ? 'Ngoài phạm vi giao hàng' : (paymentMethod === 'vnpay' ? 'Thanh toán ngay' : 'Đặt hàng ngay')}
+              {submitting ? 'Đang xử lý...' : shippingLoading ? 'Đang tính phí ship...' : hasBlockedStore ? 'Ngoài phạm vi giao hàng' : (paymentMethod === 'wallet' && walletBalance < finalTotal) ? 'Số dư ví không đủ' : (paymentMethod === 'vnpay' ? 'Thanh toán ngay' : 'Đặt hàng ngay')}
             </button>
           </form>
         </div>

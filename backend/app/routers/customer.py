@@ -28,6 +28,9 @@ from app.schemas.customer_schemas import (
 	CouponListResponse,
 	EstimateShippingRequest,
 	EstimateShippingResponse,
+	WalletDepositRequest,
+	WalletDepositResponse,
+	ConfirmPaymentRequest,
 )
 from app.services.customer_service import (
 	get_customer_profile,
@@ -43,6 +46,7 @@ from app.services.customer_service import (
 	get_customer_order_detail,
 	customer_dashboard_summary,
 	confirm_customer_order,
+	deposit_money,
 )
 
 from app.services.order_service import create_customer_order, create_multi_store_order, cancel_customer_order
@@ -75,7 +79,6 @@ def update_profile(
 		data.address or ""
 	)
 
-
 @router.post("/change-password", response_model=SuccessResponse)
 def change_password(
 	data: ChangePasswordRequest,
@@ -88,6 +91,27 @@ def change_password(
 		data.currentPassword,
 		data.newPassword
 	)
+
+
+@router.post("/wallet/deposit", response_model=WalletDepositResponse)
+def deposit_to_wallet(
+	data: WalletDepositRequest,
+	current_user: User = Depends(get_current_user),
+	db: Session = Depends(get_db),
+):
+	"""Endpoint nạp tiền giả lập vào ví (Dành cho dự án tốt nghiệp)"""
+	return deposit_money(db, current_user.id, data.amount)
+
+
+@router.get("/wallet/history")
+def get_wallet_history_endpoint(
+	current_user: User = Depends(get_current_user),
+	db: Session = Depends(get_db),
+	limit: int = 50
+):
+	"""Lấy lịch sử giao dịch ví của khách hàng."""
+	from app.services import wallet_service
+	return wallet_service.get_wallet_history(db, "user", current_user.id, limit)
 
 
 # ========== Product Endpoints ==========
@@ -184,8 +208,8 @@ def create_order(
 		data.storeId,
 		data.paymentMethod or 'cod',
 		data.shippingAddress or '',
-		data.couponId,
-		data.shippingPhone or ''
+		data.shippingPhone or '',
+		data.couponId
 	)
 
 
@@ -205,8 +229,8 @@ def create_multi_store(
 		data.items,
 		data.paymentMethod,
 		data.shippingAddress or '',
-		data.couponId,
-		data.shippingPhone or ''
+		data.shippingPhone or '',
+		data.couponId
 	)
 
 
@@ -222,11 +246,12 @@ def cancel_order(
 @router.put("/orders/{order_id}/confirm-payment", response_model=SuccessResponse)
 def confirm_payment(
 	order_id: int,
+	data: ConfirmPaymentRequest = ConfirmPaymentRequest(),
 	current_user: User = Depends(get_current_user),
 	db: Session = Depends(get_db),
 ):
 	"""Confirm order payment - convert reserved stock to confirmed deduction"""
-	return confirm_customer_order(db, order_id, current_user.id)
+	return confirm_customer_order(db, order_id, current_user.id, data.paymentMethod)
 
 
 

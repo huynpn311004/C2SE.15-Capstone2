@@ -11,6 +11,9 @@ from app.models.inventory_lot import InventoryLot
 from app.models.user import User
 from app.models.product import Product
 from app.models.store import Store
+from app.models.supermarket import Supermarket
+from app.models.delivery_partner import DeliveryPartner
+from app.models.wallet_transaction import WalletTransaction
 from app.services.discount_policy_service import calculate_discount
 from app.services.customer_service import _validate_and_calculate_coupon, _increment_coupon_usage, restore_expired_reserved_stock
 
@@ -84,10 +87,10 @@ def create_customer_order(
                 raise ValueError(f"Not enough stock for product {pid}")
 
             # TÍNH GIÁ ĐÃ GIẢM THEO CHÍNH SÁCH CẬN HẠN
-            base_price = float(product.base_price or 0)
+            base_price = Decimal(str(product.base_price or 0))
             discount_result = calculate_discount(
                 db,
-                base_price=base_price,
+                base_price=float(base_price),
                 expiry_date=lot.expiry_date.strftime("%Y-%m-%d"),
                 supermarket_id=product.supermarket_id,
                 product_id=pid
@@ -176,6 +179,26 @@ def create_customer_order(
             # (Đơn đa cửa hàng sẽ increment một lần duy nhất ở hàm cha)
             if coupon_id and allocated_discount == 0:
                 _increment_coupon_usage(db, coupon_id)
+            
+            # XỬ LÝ THANH TOÁN VÍ (WALLET) CHO ĐƠN LẺ
+            pay_method = (payment_method or "cod").lower()
+            if pay_method == "wallet":
+                from app.services.wallet_service import add_transaction
+                user = db.query(User).filter(User.id == customer_id).with_for_update().first()
+                if not user or (user.wallet_balance or 0) < final_total:
+                    db.rollback()
+                    from fastapi import HTTPException
+                    raise HTTPException(status_code=400, detail=f"Số dư ví không đủ (Cần {final_total:,.0f}đ)")
+                
+                add_transaction(
+                    db, entity_type='user', entity_id=customer_id,
+                    amount=final_total, transaction_type='payment',
+                    description=f"Thanh toán đơn hàng DH-{order.id}",
+                    reference_id=order.id, reference_type='order'
+                )
+                order.payment_status = "paid"
+                order.status = "preparing"
+
             db.commit()
         else:
             db.flush()
@@ -183,7 +206,7 @@ def create_customer_order(
 
         return {
             "orderId": order.id,
-            "orderCode": f"SEIMS-{order.id:06d}",
+            "orderCode": f"DH-{order.id}",
             "totalAmount": float(final_total),
             "discountAmount": float(applied_discount_amount),
             "shippingFee": float(shipping_fee_value),
@@ -318,7 +341,46 @@ def create_multi_store_order(
     # ===== FINALIZE =====
     if coupon_id and used_discount_amount > 0:
         _increment_coupon_usage(db, coupon_id)
-    
+
+    # ===== XỬ LÝ THANH TOÁN VÍ (WALLET) TẬP TRUNG =====
+    pay_method = (payment_method or "cod").lower()
+    if pay_method == "wallet":
+        from app.services.wallet_service import add_transaction
+        
+        # Khóa dòng user để tránh tranh chấp số dư
+        user = db.query(User).filter(User.id == customer_id).with_for_update().first()
+        total_grand_amount = sum(o["totalAmount"] for o in results)
+        
+        if not user or (user.wallet_balance or 0) < total_grand_amount:
+            db.rollback()
+            from fastapi import HTTPException
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Số dư ví không đủ (Cần {total_grand_amount:,.0f}đ, hiện có {getattr(user, 'wallet_balance', 0):,.0f}đ)"
+            )
+        
+        # Trừ tiền ví một lần cho tổng giỏ hàng
+        add_transaction(
+            db, entity_type='user', entity_id=customer_id,
+            amount=total_grand_amount, transaction_type='payment',
+            description=f"Thanh toán giỏ hàng đa cửa hàng ({len(results)} đơn hàng)",
+            reference_id=None, reference_type='multi_order'
+        )
+        
+        # Cập nhật trạng thái 'paid' và 'preparing' cho tất cả đơn vừa tạo
+        order_ids = [o["orderId"] for o in results]
+        db.query(Order).filter(Order.id.in_(order_ids)).update({
+            Order.payment_status: "paid",
+            Order.status: "preparing",
+            Order.payment_method: pay_method
+        }, synchronize_session=False)
+    else:
+        # Nếu không phải wallet (ví dụ COD), vẫn cần cập nhật đúng phương thức thanh toán
+        order_ids = [o["orderId"] for o in results]
+        db.query(Order).filter(Order.id.in_(order_ids)).update({
+            Order.payment_method: pay_method
+        }, synchronize_session=False)
+
     db.commit()
 
 
@@ -333,13 +395,6 @@ def create_multi_store_order(
         "totalDiscount": float(total_coupon_discount),
         "totalShippingFee": total_shipping
     }
-
-
-    try:
-        db.commit()
-    except Exception as e:
-        db.rollback()
-        raise e
 
     return response_data
 
@@ -358,7 +413,7 @@ def cancel_customer_order(db: Session, order_id: int, customer_id: int):
         if not order:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy đơn hàng")
 
-        if order.status not in ["pending", "preparing", "ready"]:
+        if order.status not in ["pending", "preparing", "ready", "shipped", "delivering"]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, 
                 detail=f"Không thể hủy đơn hàng ở trạng thái: {order.status}"
@@ -366,18 +421,79 @@ def cancel_customer_order(db: Session, order_id: int, customer_id: int):
 
         old_status = order.status
         order.status = "cancelled"
-        order.payment_status = "pending"
         order.cancelled_at = datetime.now()
 
-        for item in items:
-            lot = db.query(InventoryLot).filter(InventoryLot.id == item.lot_id).first()
-            if lot:
-                if old_status == "ready":
-                    # Nếu đơn đã ở trạng thái ready (đã trừ on_hand), khi hủy phải cộng lại
-                    lot.qty_on_hand = (lot.qty_on_hand or 0) + item.quantity
-                else:
-                    # Nếu đơn đang pending/preparing, chỉ cần giảm qty_reserved
-                    lot.qty_reserved = max(0, (lot.qty_reserved or 0) - item.quantity)
+        # ===== HOÀN KHO (INVENTORY RESTORATION) =====
+        for item in order.items:
+            if item.lot_id:
+                lot = db.query(InventoryLot).filter(InventoryLot.id == item.lot_id).with_for_update().first()
+                if lot:
+                    if old_status in ["ready", "shipped", "delivering"]:
+                        # Đơn đã xuất kho -> Hoàn lại qty_on_hand
+                        lot.qty_on_hand = (lot.qty_on_hand or 0) + item.quantity
+                    else:
+                        # Đơn chưa xuất kho -> Giảm qty_reserved
+                        lot.qty_reserved = max(0, (lot.qty_reserved or 0) - item.quantity)
+
+        # ===== HOÀN TIỀN VÍ (WALLET REFUND) =====
+        # 1. Nếu đơn COD đã bị trừ tiền ví (ở trạng thái shipped/delivering)
+        if order.payment_method == "cod" and old_status in ["shipped", "delivering"]:
+            # ... (giữ nguyên logic COD hiện có)
+            from app.models.delivery import Delivery
+            delivery = db.query(Delivery).filter(Delivery.order_id == order.id).first()
+            if delivery:
+                delivery.status = "cancelled"
+                dp = db.query(DeliveryPartner).filter(DeliveryPartner.id == delivery.delivery_partner_id).first()
+                store = db.query(Store).filter(Store.id == order.store_id).first()
+                supermarket = db.query(Supermarket).filter(Supermarket.id == store.supermarket_id).first() if store else None
+
+                if dp and supermarket:
+                    ship_fee = Decimal(str(order.shipping_fee or 0))
+                    order_amount = Decimal(str(order.total_amount or 0))
+                    platform_profit = ship_fee * Decimal('0.2')
+                    # Shipper được hoàn lại đúng số tiền đã bị trừ (Hàng + 20% Ship)
+                    # Hoặc = Total - 80% Ship
+                    refund_amount = order_amount - (ship_fee * Decimal('0.8'))
+                    product_amount = order_amount - ship_fee
+
+                    # Hoàn tiền cho Shipper
+                    if dp.wallet_balance is None: dp.wallet_balance = Decimal('0')
+                    dp_balance = Decimal(str(dp.wallet_balance))
+                    dp.wallet_balance = dp_balance + refund_amount
+
+                    # Trừ lại tiền của Siêu thị (Chỉ trừ tiền hàng, vì họ chỉ nhận tiền hàng)
+                    if supermarket.wallet_balance is None: supermarket.wallet_balance = Decimal('0')
+                    sm_balance = Decimal(str(supermarket.wallet_balance))
+                    supermarket.wallet_balance = sm_balance - product_amount
+
+                    # Ghi log hoàn tiền
+                    db.add(WalletTransaction(
+                        entity_type='shipper', entity_id=dp.id, amount=refund_amount,
+                        transaction_type='refund', reference_id=order.id, reference_type='order',
+                        description=f"Hoàn tiền đơn COD #{order.id} do đơn bị hủy"
+                    ))
+                    db.add(WalletTransaction(
+                        entity_type='supermarket', entity_id=supermarket.id, amount=-product_amount,
+                        transaction_type='refund', reference_id=order.id, reference_type='order',
+                        description=f"Khấu trừ tiền hàng đơn COD #{order.id} do đơn bị hủy"
+                    ))
+
+        # 2. MỚI: Nếu đơn VNPay hoặc Ví đã thanh toán (payment_status == 'paid') -> Hoàn tiền vào ví Customer
+        elif (order.payment_method or "").lower() in ["vnpay", "wallet"] and order.payment_status == "paid":
+            from app.services.wallet_service import add_transaction
+            refund_amount = Decimal(str(order.total_amount or 0))
+            
+            if refund_amount > 0:
+                add_transaction(
+                    db, 
+                    entity_type='user', 
+                    entity_id=customer_id, 
+                    amount=refund_amount,
+                    transaction_type='refund',
+                    reference_id=order.id,
+                    reference_type='order',
+                    description=f"Hoàn tiền đơn hàng #{order.id} vào ví do đơn bị hủy (PTTT: {order.payment_method.upper()})"
+                )
 
         # ===== RESTORE COUPON USAGE =====
         if order.coupon_id:
@@ -404,25 +520,32 @@ def initiate_vnpay_payment(db: Session, data, ip_address: str = "127.0.0.1") -> 
     from app.services.vnpay_service import create_vnpay_payment
     from app.schemas.payment_schemas import PaymentResponse
 
-    order = db.query(Order).filter(Order.id == data.order_id).first()
-    if not order:
+    # Hỗ trợ cả single order (int) và multi-store order (list)
+    order_ids = data.order_id if isinstance(data.order_id, list) else [data.order_id]
+    
+    orders = db.query(Order).filter(Order.id.in_(order_ids)).all()
+    if not orders:
         raise ValueError("Order not found")
 
-    # Cập nhật payment_method nếu order được tạo từ cart với default cod
-    if order.payment_method != "vnpay":
-        order.payment_method = "vnpay"
-        db.commit()
+    total_payment_amount = Decimal("0")
+    for order in orders:
+        # Cập nhật payment_method nếu chưa đúng
+        if order.payment_method != "vnpay":
+            order.payment_method = "vnpay"
+        total_payment_amount += Decimal(str(order.total_amount or 0))
+    
+    db.commit()
 
     result = create_vnpay_payment(
         order_id=data.order_id,
-        amount=float(order.total_amount),
-        order_info=f"Thanh toan don hang {data.order_id}",
+        amount=float(total_payment_amount),
+        order_info=f"Thanh toan don hang {'_'.join(map(str, order_ids)) if isinstance(data.order_id, list) else data.order_id}",
         ip_address=ip_address,
     )
 
     return PaymentResponse(
         payment_url=result["payment_url"],
-        order_id=data.order_id,
+        order_id=order_ids[0], # Return lead order ID
     )
 
 

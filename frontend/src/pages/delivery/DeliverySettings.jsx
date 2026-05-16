@@ -1,16 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import DeliveryLayout from '../../components/layout/DeliveryLayout'
 import { useAuth } from '../../services/AuthContext'
-import { changeDeliveryPassword } from '../../services/deliveryApi'
+import { updateDeliveryProfile, changeDeliveryPassword } from '../../services/deliveryApi'
 import './DeliverySettings.css'
 
 const DELIVERY_PROFILE_STORAGE_KEY = 'seims_delivery_profile'
 const AUTH_STORAGE_KEY = 'seims_auth_user'
 
-function Toast({ message, visible, onClose }) {
+function Toast({ type, message, visible, onClose }) {
   if (!visible) return null;
   
-  const isError = message.includes('Lỗi') || message.includes('thất bại') || message.includes('không khớp') || message.includes('Không tìm thấy');
+  const isError = type === 'error';
 
   return (
     <div className={`settings-toast ${isError ? 'error' : 'success'}`}>
@@ -44,7 +44,7 @@ const DEFAULT_DELIVERY_PROFILE = {
 export default function DeliverySettings() {
   const { user } = useAuth()
   const [formData, setFormData] = useState(DEFAULT_DELIVERY_PROFILE)
-  const [toast, setToast] = useState({ visible: false, message: '' })
+  const [toast, setToast] = useState({ visible: false, message: '', type: 'success' })
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
     newPassword: '',
@@ -52,8 +52,8 @@ export default function DeliverySettings() {
   })
   const [isChangingPassword, setIsChangingPassword] = useState(false)
 
-  const showToast = (msg) => {
-    setToast({ visible: true, message: msg })
+  const showToast = (msg, type = 'success') => {
+    setToast({ visible: true, message: msg, type })
     setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 2500)
   }
 
@@ -124,13 +124,16 @@ export default function DeliverySettings() {
 
     try {
       const nextFormData = {
-        ...formData,
         fullName: formData.fullName.trim(),
         email: formData.email.trim().toLowerCase(),
         phone: formData.phone.trim(),
       }
-      setFormData(nextFormData)
-      localStorage.setItem(DELIVERY_PROFILE_STORAGE_KEY, JSON.stringify(nextFormData))
+
+      // Gọi API cập nhật backend
+      await updateDeliveryProfile(nextFormData)
+
+      setFormData(prev => ({ ...prev, ...nextFormData }))
+      localStorage.setItem(DELIVERY_PROFILE_STORAGE_KEY, JSON.stringify({ ...formData, ...nextFormData }))
       localStorage.setItem(
         AUTH_STORAGE_KEY,
         JSON.stringify({
@@ -141,9 +144,9 @@ export default function DeliverySettings() {
         }),
       )
       window.dispatchEvent(new Event('seims-delivery-profile-updated'))
-      showToast('Đã lưu thay đổi thành công.')
+      showToast('Đã lưu thay đổi thành công.', 'success')
     } catch (err) {
-      showToast(err?.response?.data?.detail || 'Lưu thay đổi thất bại.')
+      showToast(err?.response?.data?.detail || 'Lưu thay đổi thất bại.', 'error')
     }
   }
 
@@ -189,9 +192,9 @@ export default function DeliverySettings() {
         newPassword: '',
         confirmPassword: '',
       })
-      showToast('Đổi mật khẩu thành công.')
+      showToast('Đổi mật khẩu thành công.', 'success')
     } catch (err) {
-      showToast(err?.response?.data?.detail || err.message || 'Đổi mật khẩu thất bại.')
+      showToast(err?.response?.data?.detail || err.message || 'Đổi mật khẩu thất bại.', 'error')
     } finally {
       setIsChangingPassword(false)
     }
@@ -318,7 +321,7 @@ export default function DeliverySettings() {
             </button>
           </div>
         </form>
-        <Toast visible={toast.visible} message={toast.message} onClose={() => setToast(prev => ({ ...prev, visible: false }))} />
+        <Toast type={toast.type} visible={toast.visible} message={toast.message} onClose={() => setToast(prev => ({ ...prev, visible: false }))} />
       </div>
     </DeliveryLayout>
   )

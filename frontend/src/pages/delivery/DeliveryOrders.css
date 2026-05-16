@@ -51,6 +51,7 @@
     transform: translateX(120%);
     opacity: 0;
   }
+
   to {
     transform: translateX(0);
     opacity: 1;
@@ -258,6 +259,12 @@
   font-size: 0.85rem;
 }
 
+.dp-order-code-badge {
+  font-weight: 700;
+  color: #64748b;
+  font-size: 0.8rem;
+}
+
 /* Store Cell */
 .dp-store-cell {
   display: flex;
@@ -398,17 +405,6 @@
   border-color: var(--dp-orange);
 }
 
-.dp-btn-call {
-  color: var(--dp-info);
-  border-color: rgba(14, 165, 233, 0.3);
-  background: var(--dp-info-bg);
-}
-
-.dp-btn-call:hover {
-  background: var(--dp-info);
-  color: white;
-  border-color: var(--dp-info);
-}
 
 .dp-btn-confirm {
   color: var(--dp-success);
@@ -469,6 +465,7 @@
   from {
     opacity: 0;
   }
+
   to {
     opacity: 1;
   }
@@ -497,6 +494,7 @@
     opacity: 0;
     transform: translateY(20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -822,7 +820,7 @@
   align-items: center;
   padding-top: 0.75rem;
   margin-top: 0.5rem;
-  border-top: 2px solid var(--dp-border);
+
   font-size: 0.9rem;
 }
 
@@ -930,16 +928,58 @@
 
 /* Responsive */
 @media (max-width: 768px) {
-  .dp-orders-page { gap: 0.75rem; overflow-y: auto; height: auto; }
-  .dp-tabs { flex-direction: column; }
-  .dp-toolbar { flex-direction: column; gap: 0.5rem; align-items: stretch; }
-  .dp-toolbar-reward { justify-content: center; }
-  .dp-table { font-size: 0.8rem; }
-  .dp-table th, .dp-table td { padding: 0.6rem 0.5rem; }
-  .dp-modal { width: calc(100vw - 1rem); max-height: 95vh; }
-  .dp-modal-large { width: calc(100vw - 1rem); }
-  .dp-info-cards { grid-template-columns: 1fr; }
-  .dp-time-section { flex-direction: column; gap: 0.75rem; }
-  .dp-modal-footer { flex-direction: column; }
-  .dp-modal-footer .dp-btn { width: 100%; }
+  .dp-orders-page {
+    gap: 0.75rem;
+    overflow-y: auto;
+    height: auto;
+  }
+
+  .dp-tabs {
+    flex-direction: column;
+  }
+
+  .dp-toolbar {
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: stretch;
+  }
+
+  .dp-toolbar-reward {
+    justify-content: center;
+  }
+
+  .dp-table {
+    font-size: 0.8rem;
+  }
+
+  .dp-table th,
+  .dp-table td {
+    padding: 0.6rem 0.5rem;
+  }
+
+  .dp-modal {
+    width: calc(100vw - 1rem);
+    max-height: 95vh;
+  }
+
+  .dp-modal-large {
+    width: calc(100vw - 1rem);
+  }
+
+  .dp-info-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .dp-time-section {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .dp-modal-footer {
+    flex-direction: column;
+  }
+
+  .dp-modal-footer .dp-btn {
+    width: 100%;
+  }
 }

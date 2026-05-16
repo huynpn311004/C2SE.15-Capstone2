@@ -20,7 +20,7 @@ export default function Home() {
       <section
         className="hero-section"
         style={{
-          backgroundImage: `linear-gradient(rgba(13, 92, 86, 0.72), rgba(15, 118, 110, 0.62)), url(${heroImage})`,
+          backgroundImage: `linear-gradient(rgba(13, 92, 86, 0.4), rgba(15, 118, 110, 0.3)), url(${heroImage})`,
         }}
       >
         <div className="hero-content">

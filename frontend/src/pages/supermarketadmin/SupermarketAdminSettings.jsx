@@ -129,6 +129,34 @@ export default function SupermarketAdminSettings() {
       phone: formData.phone.trim(),
     }
 
+    if (!nextProfile.fullName) {
+      showToast('Họ tên không được để trống.', 'error')
+      return
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    const phoneRegex = /^\d{10}$/
+
+    if (!nextProfile.email) {
+      showToast('Email không được để trống.', 'error')
+      return
+    }
+
+    if (!emailRegex.test(nextProfile.email)) {
+      showToast('Email không đúng định dạng.', 'error')
+      return
+    }
+
+    if (!nextProfile.phone) {
+      showToast('Số điện thoại không được để trống.', 'error')
+      return
+    }
+
+    if (!phoneRegex.test(nextProfile.phone)) {
+      showToast('Số điện thoại phải có đúng 10 chữ số.', 'error')
+      return
+    }
+
     try {
       await Promise.all([
         updateSupermarketAdminUser(user.id, {

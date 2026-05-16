@@ -50,7 +50,11 @@ function OrderCard({ order, onCancel, onCancelLoading, onRepay, repayLoading }) 
 
       {/* Payment Info */}
       <p className="order-card-payment">
-        Thanh toán: {order.paymentMethod?.toLowerCase().trim() === 'cod' ? 'Tiền mặt (COD)' : (order.paymentMethod?.toLowerCase().trim() === 'vnpay' ? 'VNPay (Online)' : order.paymentMethod)}
+        Thanh toán: {
+          order.paymentMethod?.toLowerCase().trim() === 'cod' ? 'Tiền mặt (COD)' : 
+          (order.paymentMethod?.toLowerCase().trim() === 'vnpay' ? 'VNPay (Online)' : 
+          (order.paymentMethod?.toLowerCase().trim() === 'wallet' ? 'Ví SEIMS' : order.paymentMethod))
+        }
       </p>
 
       {/* Footer */}

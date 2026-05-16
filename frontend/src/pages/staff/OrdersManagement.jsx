@@ -9,6 +9,7 @@ const statusBadgeClass = {
   ready: 'badge-success',
   completed: 'badge-muted',
   cancelled: 'badge-danger',
+  shipping: 'badge-teal',
 }
 
 const statusText = {
@@ -17,6 +18,7 @@ const statusText = {
   ready: 'Sẵn Sàng',
   completed: 'Hoàn Thành',
   cancelled: 'Đã Hủy',
+  shipping: 'Đang Giao',
 }
 
 const nextStatusMap = {
@@ -160,8 +162,8 @@ export default function OrdersManagement() {
                       </td>
                       <td>{order.customer}</td>
                       <td>
-                        <span className={`badge ${statusBadgeClass[order.status] || 'badge-muted'}`}>
-                          {statusText[order.status] || order.status}
+                        <span className={`badge ${statusBadgeClass[order.status?.toLowerCase()] || 'badge-muted'}`}>
+                          {statusText[order.status?.toLowerCase()] || order.status}
                         </span>
                       </td>
                       <td>{order.amount}</td>
@@ -179,24 +181,27 @@ export default function OrdersManagement() {
                           onClick={() => openDetail(order)}
                         >
                           <svg className="orders-icon" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+                            <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" />
                           </svg>
                           Xem
                         </button>
-                        {order.status !== 'completed' && order.status !== 'cancelled' && order.status !== 'ready' && (
+                        {!['completed', 'cancelled', 'ready', 'approved', 'shipping', 'shipped'].includes(order.status?.toLowerCase()) && (
                           <button
                             className="orders-btn-update"
                             onClick={() => handleUpdateStatus(order.orderId, nextStatusMap[order.status])}
                             disabled={updating}
                           >
                             <svg className="orders-icon" viewBox="0 0 24 24" fill="currentColor">
-                              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
                             </svg>
                             {updating ? 'Đang xử lý...' : 'Xác Nhận Đóng Hàng'}
                           </button>
                         )}
-                        {order.status === 'ready' && (
+                        {(['ready', 'approved'].includes(order.status?.toLowerCase())) && (
                           <span className="orders-ready-badge">Chờ Delivery</span>
+                        )}
+                        {(order.status === 'SHIPPING' || order.status === 'shipping') && (
+                          <span className="badge badge-teal">Đang Giao</span>
                         )}
                       </td>
                     </tr>
@@ -224,93 +229,98 @@ export default function OrdersManagement() {
                 </div>
               ) : (
                 <>
-              <div className="orders-detail-grid">
-                <div className="orders-detail-field">
-                  <label>Mã Đơn</label>
-                  <div className="orders-detail-value">
-                    <span className="orders-id-badge">{selectedOrder.id}</span>
+                  <div className="orders-detail-grid">
+                    <div className="orders-detail-field">
+                      <label>Mã Đơn</label>
+                      <div className="orders-detail-value">
+                        <span className="orders-id-badge">{selectedOrder.id}</span>
+                      </div>
+                    </div>
+                    <div className="orders-detail-field">
+                      <label>Khách Hàng</label>
+                      <div className="orders-detail-value">{selectedOrder.customer}</div>
+                    </div>
+                    <div className="orders-detail-field">
+                      <label>Số Điện Thoại</label>
+                      <div className="orders-detail-value">{selectedOrder.phone}</div>
+                    </div>
+                    <div className="orders-detail-field">
+                      <label>Trạng Thái</label>
+                      <div className="orders-detail-value">
+                        {statusText[selectedOrder.status?.toLowerCase()] || selectedOrder.status}
+                      </div>
+                    </div>
+                    <div className="orders-detail-field">
+                      <label>Tổng Tiền</label>
+                      <div className="orders-detail-value orders-amount-value">{selectedOrder.amount}</div>
+                    </div>
+                    <div className="orders-detail-field">
+                      <label>Thanh Toán</label>
+                      <div className="orders-detail-value">
+                        {selectedOrder.paymentMethodText || selectedOrder.paymentMethod || '—'}
+                      </div>
+                    </div>
+                    <div className="orders-detail-field">
+                      <label>Trạng Thái Thanh Toán</label>
+                      <div className="orders-detail-value">
+                        {selectedOrder.paymentStatus === 'paid' ? 'Đã Thanh Toán' : 'Chưa Thanh Toán'}
+                        {selectedOrder.paymentMethod === 'cod' && (
+                          <div style={{ color: '#27ae60', fontSize: '0.85rem', fontWeight: 'bold', marginTop: '4px' }}>
+                            * Thanh toán qua ví hệ thống (Không thu tiền mặt Shipper)
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="orders-detail-field">
+                      <label>Ngày Tạo</label>
+                      <div className="orders-detail-value">{selectedOrder.createdAt}</div>
+                    </div>
+                    <div className="orders-detail-field">
+                      <label>Ngày Giao Thành Công</label>
+                      <div className="orders-detail-value">
+                        {selectedOrder.deliveredAt
+                          ? <span className="orders-delivered">{selectedOrder.deliveredAt}</span>
+                          : <span className="orders-pending-date">—</span>
+                        }
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div className="orders-detail-field">
-                  <label>Khách Hàng</label>
-                  <div className="orders-detail-value">{selectedOrder.customer}</div>
-                </div>
-                <div className="orders-detail-field">
-                  <label>Số Điện Thoại</label>
-                  <div className="orders-detail-value">{selectedOrder.phone}</div>
-                </div>
-                <div className="orders-detail-field">
-                  <label>Trạng Thái</label>
-                  <div className="orders-detail-value">
-                    {statusText[selectedOrder.status] || selectedOrder.status}
-                  </div>
-                </div>
-                <div className="orders-detail-field">
-                  <label>Tổng Tiền</label>
-                  <div className="orders-detail-value orders-amount-value">{selectedOrder.amount}</div>
-                </div>
-                <div className="orders-detail-field">
-                  <label>Thanh Toán</label>
-                  <div className="orders-detail-value">
-                    {selectedOrder.paymentMethodText || selectedOrder.paymentMethod || '—'}
-                  </div>
-                </div>
-                <div className="orders-detail-field">
-                  <label>Trạng Thái Thanh Toán</label>
-                  <div className="orders-detail-value">
-                    {selectedOrder.paymentStatus === 'paid' ? 'Đã Thanh Toán' : 'Chưa Thanh Toán'}
-                  </div>
-                </div>
-                <div className="orders-detail-field">
-                  <label>Ngày Tạo</label>
-                  <div className="orders-detail-value">{selectedOrder.createdAt}</div>
-                </div>
-                <div className="orders-detail-field">
-                  <label>Ngày Giao Thành Công</label>
-                  <div className="orders-detail-value">
-                    {selectedOrder.deliveredAt
-                      ? <span className="orders-delivered">{selectedOrder.deliveredAt}</span>
-                      : <span className="orders-pending-date">—</span>
-                    }
-                  </div>
-                </div>
-              </div>
 
-              {/* Danh sách sản phẩm */}
-              {selectedOrder.items && selectedOrder.items.length > 0 && (
-                <div className="orders-items-section">
-                  <h4 className="orders-items-title">Danh Sách Sản Phẩm</h4>
-                  <table className="orders-items-table">
-                    <thead>
-                      <tr>
-                        <th>STT</th>
-                        <th>Sản Phẩm</th>
-                        <th>Số Lượng</th>
-                        <th>Đơn Giá</th>
-                        <th>Thành Tiền</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {selectedOrder.items.map((item, idx) => (
-                        <tr key={idx}>
-                          <td>{idx + 1}</td>
-                          <td>{item.productName}</td>
-                          <td>{item.quantity}</td>
-                          <td>{item.unitPrice}</td>
-                          <td className="orders-item-price">{item.subtotal}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                  {/* Danh sách sản phẩm */}
+                  {selectedOrder.items && selectedOrder.items.length > 0 && (
+                    <div className="orders-items-section">
+                      <h4 className="orders-items-title">Danh Sách Sản Phẩm</h4>
+                      <table className="orders-items-table">
+                        <thead>
+                          <tr>
+                            <th>STT</th>
+                            <th>Sản Phẩm</th>
+                            <th>Số Lượng</th>
+                            <th>Đơn Giá</th>
+                            <th>Thành Tiền</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {selectedOrder.items.map((item, idx) => (
+                            <tr key={idx}>
+                              <td>{idx + 1}</td>
+                              <td>{item.productName}</td>
+                              <td>{item.quantity}</td>
+                              <td>{item.unitPrice}</td>
+                              <td className="orders-item-price">{item.subtotal}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
 
 
                 </>
               )}
             </div>
             <div className="orders-modal-footer">
-              {selectedOrder.status !== 'completed' && selectedOrder.status !== 'cancelled' && selectedOrder.status !== 'ready' && (
+              {!['completed', 'cancelled', 'ready', 'approved', 'shipping', 'shipped'].includes(selectedOrder.status?.toLowerCase()) && (
                 <button
                   className="orders-btn-confirm"
                   onClick={() => handleUpdateStatus(selectedOrder.orderId, nextStatusMap[selectedOrder.status])}
@@ -319,7 +329,7 @@ export default function OrdersManagement() {
                   {updating ? 'Đang xử lý...' : 'Xác Nhận Đóng Hàng'}
                 </button>
               )}
-              {selectedOrder.status === 'ready' && (
+              {['ready', 'approved'].includes(selectedOrder.status?.toLowerCase()) && (
                 <div className="orders-ready-info">
                   Đơn hàng đã sẵn sàng. Đang chờ Delivery Partner lấy hàng.
                 </div>
