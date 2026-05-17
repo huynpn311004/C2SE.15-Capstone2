@@ -49,10 +49,11 @@ export async function fetchActiveDeliveries() {
 }
 
 // Lấy lịch sử giao hàng đã hoàn thành
-export async function fetchDeliveryHistory(filter = 'all') {
+export async function fetchDeliveryHistory(filter = 'all', search = '') {
   requireDelivery()
   const params = {}
   if (filter !== 'all') params.filter = filter
+  if (search) params.search = search
   const response = await API.get('/delivery/history', { params })
   return response.data
 }

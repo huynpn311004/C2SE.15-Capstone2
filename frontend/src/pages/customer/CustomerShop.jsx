@@ -40,6 +40,7 @@ const CustomerShop = () => {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedStore, setSelectedStore] = useState('');
   const [search, setSearch] = useState('');
+  const [selectedSort, setSelectedSort] = useState('');
   const [toast, setToast] = useState({ visible: false, message: '' });
   const customerCoords = useRef({ lat: null, lng: null });
   const [locationReady, setLocationReady] = useState(false);
@@ -74,7 +75,7 @@ const CustomerShop = () => {
   useEffect(() => {
     if (!locationReady) return;
     loadData();
-  }, [selectedCategory, selectedStore, search, locationReady]);
+  }, [selectedCategory, selectedStore, search, selectedSort, locationReady]);
 
   async function loadData() {
     try {
@@ -87,6 +88,7 @@ const CustomerShop = () => {
           search: search || undefined,
           latitude: lat ?? undefined,
           longitude: lng ?? undefined,
+          sortPrice: selectedSort || undefined,
         }),
         fetchCustomerCategories(),
         fetchCustomerStores({ latitude: lat ?? undefined, longitude: lng ?? undefined }),
@@ -173,6 +175,16 @@ const CustomerShop = () => {
           {categories.map((cat) => (
             <option key={cat.id} value={cat.id}>{cat.name}</option>
           ))}
+        </select>
+
+        <select
+          value={selectedSort}
+          onChange={(e) => setSelectedSort(e.target.value)}
+          className="customer-shop-select"
+        >
+          <option value="">Sắp xếp giá</option>
+          <option value="asc">Giá: Thấp đến Cao</option>
+          <option value="desc">Giá: Cao đến Thấp</option>
         </select>
       </div>
 

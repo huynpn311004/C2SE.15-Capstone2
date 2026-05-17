@@ -38,6 +38,16 @@ const CustomerProductDetail = () => {
     loadProduct();
   }, [id]);
 
+  const formatDate = (dateStr) => {
+    if (!dateStr) return 'Đang cập nhật';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('vi-VN', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric' 
+    });
+  };
+
   const showToast = (msg) => {
     setToast({ visible: true, message: msg });
     setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 2500);
@@ -151,9 +161,20 @@ const CustomerProductDetail = () => {
             </span>
           </div>
 
+          <div className="customer-product-detail-dates">
+            <div className="customer-date-row">
+              <span className="date-label">Ngày sản xuất (NSX):</span>
+              <span className="date-value">{formatDate(product.stores?.[0]?.manufacturingDate)}</span>
+            </div>
+            <div className="customer-date-row">
+              <span className="date-label">Ngày hết hạn (HSD):</span>
+              <span className="date-value">{formatDate(product.stores?.[0]?.expiryDate)}</span>
+            </div>
+          </div>
+
           <div className="customer-product-detail-expiry">
             <span style={{ fontSize: '1.25rem' }}>&#9200;</span>
-            <span>Còn {product.daysLeft || product.stores?.[0]?.daysLeft || 0} ngày hết hạn</span>
+            <span>Còn <strong>{product.daysLeft || product.stores?.[0]?.daysLeft || 0} ngày</strong> để sử dụng</span>
           </div>
 
           <button

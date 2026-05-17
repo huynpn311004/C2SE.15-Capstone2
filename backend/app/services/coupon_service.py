@@ -1,4 +1,5 @@
 from datetime import datetime
+from fastapi import HTTPException
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
@@ -59,23 +60,23 @@ def create_coupon(
 ) -> dict:
     # Validate discount
     if discount_percent is None or discount_percent < 0 or discount_percent > 100:
-        return {"error": "Phần trăm giảm giá phải từ 0 đến 100"}
+        raise HTTPException(status_code=400, detail="Phần trăm giảm giá phải từ 0 đến 100")
 
     # Check if code already exists
     existing = db.query(Coupon).filter(Coupon.code == code).first()
     if existing:
-        return {"error": f"Mã coupon '{code}' đã tồn tại"}
+        raise HTTPException(status_code=400, detail=f"Mã coupon '{code}' đã tồn tại")
 
     # Parse dates
     try:
         valid_from_dt = datetime.fromisoformat(valid_from.replace('Z', '+00:00'))
         valid_to_dt = datetime.fromisoformat(valid_to.replace('Z', '+00:00'))
     except ValueError:
-        return {"error": "Định dạng ngày không hợp lệ. Sử dụng ISO format: 2026-04-01T00:00:00"}
+        raise HTTPException(status_code=400, detail="Định dạng ngày không hợp lệ. Sử dụng ISO format: 2026-04-01T00:00:00")
 
     # Validate dates
     if valid_from_dt >= valid_to_dt:
-        return {"error": "Ngày bắt đầu phải nhỏ hơn ngày kết thúc"}
+        raise HTTPException(status_code=400, detail="Ngày bắt đầu phải nhỏ hơn ngày kết thúc")
 
     new_coupon = Coupon(
         supermarket_id=supermarket_id,
@@ -121,17 +122,17 @@ def update_coupon(
     ).first()
 
     if not coupon:
-        return {"error": "Coupon không tồn tại"}
+        raise HTTPException(status_code=404, detail="Coupon không tồn tại")
 
     # Validate discount if updating
     if discount_percent is not None and (discount_percent < 0 or discount_percent > 100):
-        return {"error": "Phần trăm giảm giá phải từ 0 đến 100"}
+        raise HTTPException(status_code=400, detail="Phần trăm giảm giá phải từ 0 đến 100")
 
     # Check code uniqueness if updating
     if code and code.upper() != coupon.code:
         existing = db.query(Coupon).filter(Coupon.code == code.upper()).first()
         if existing:
-            return {"error": f"Mã coupon '{code}' đã tồn tại"}
+            raise HTTPException(status_code=400, detail=f"Mã coupon '{code}' đã tồn tại")
         coupon.code = code.upper()
 
     if description is not None:
@@ -154,9 +155,9 @@ def update_coupon(
 
             # Validate dates
             if coupon.valid_from >= coupon.valid_to:
-                return {"error": "Ngày bắt đầu phải nhỏ hơn ngày kết thúc"}
+                raise HTTPException(status_code=400, detail="Ngày bắt đầu phải nhỏ hơn ngày kết thúc")
         except ValueError:
-            return {"error": "Định dạng ngày không hợp lệ"}
+            raise HTTPException(status_code=400, detail="Định dạng ngày không hợp lệ")
 
     coupon.updated_at = datetime.utcnow()
     db.commit()
@@ -173,7 +174,7 @@ def delete_coupon(db: Session, coupon_id: int, supermarket_id: int) -> dict:
     ).delete()
 
     if result == 0:
-        return {"error": "Coupon không tồn tại"}
+        raise HTTPException(status_code=404, detail="Coupon không tồn tại")
 
     db.commit()
     return {"success": True, "message": "Xóa coupon thành công"}
@@ -188,7 +189,7 @@ def toggle_coupon(db: Session, coupon_id: int, supermarket_id: int) -> dict:
     ).first()
 
     if not coupon:
-        return {"error": "Coupon không tồn tại"}
+        raise HTTPException(status_code=404, detail="Coupon không tồn tại")
 
     coupon.is_active = not coupon.is_active
     coupon.updated_at = datetime.utcnow()

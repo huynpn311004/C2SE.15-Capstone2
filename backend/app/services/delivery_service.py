@@ -283,7 +283,7 @@ def get_active_deliveries(db: Session, user_id: int) -> dict:
     return {"items": orders, "total": len(orders)}
 
 
-def get_delivery_history(db: Session, user_id: int, filter: str = "all") -> dict:
+def get_delivery_history(db: Session, user_id: int, filter: str = "all", search: str = None) -> dict:
     dp = get_delivery_partner_user(db, user_id)
 
     query = (
@@ -305,6 +305,21 @@ def get_delivery_history(db: Session, user_id: int, filter: str = "all") -> dict
     elif filter == "month":
         month_ago = datetime.now() - timedelta(days=30)
         query = query.filter(Delivery.delivered_at >= month_ago)
+
+    if search:
+        search_term = f"%{search}%"
+        query = query.join(Store, Delivery.store_id == Store.id, isouter=True)
+        query = query.join(Order, Delivery.order_id == Order.id, isouter=True)
+        query = query.join(User, Order.customer_id == User.id, isouter=True)
+        
+        from sqlalchemy import or_
+        query = query.filter(
+            or_(
+                Delivery.delivery_code.ilike(search_term),
+                Store.name.ilike(search_term),
+                User.full_name.ilike(search_term)
+            )
+        )
 
     deliveries = query.order_by(Delivery.delivered_at.desc()).all()
 
@@ -433,13 +448,12 @@ def update_delivery_status(db: Session, delivery_id: int, new_status: str, user_
                 donation.status = "SHIPPING"  # Cập nhật trạng thái đang giao
                 ship_fee = Decimal(str(donation.shipping_fee or 0))
                 platform_profit = ship_fee * Decimal('0.2')
-                dp.wallet_balance -= platform_profit
-                
-                db.add(WalletTransaction(
-                    entity_type='shipper', entity_id=dp.id, amount=-platform_profit,
+                from app.services import wallet_service
+                wallet_service.add_transaction(
+                    db, entity_type='shipper', entity_id=dp.id, amount=platform_profit,
                     transaction_type='commission', reference_id=donation.id, reference_type='donation',
                     description=f"Khấu trừ hoa hồng đơn Charity #{donation.id} khi lấy hàng (20% ship)"
-                ))
+                )
 
     elif new_status == "completed":
         delivery.delivered_at = datetime.now()
@@ -500,15 +514,12 @@ def update_delivery_status(db: Session, delivery_id: int, new_status: str, user_
                 if delivery.status in ["delivering", "shipped"]:
                     ship_fee = Decimal(str(donation.shipping_fee or 0))
                     platform_profit = ship_fee * Decimal('0.2')
-                    
-                    if dp.wallet_balance is None: dp.wallet_balance = Decimal('0')
-                    dp.wallet_balance += platform_profit
-                    
-                    db.add(WalletTransaction(
-                        entity_type='shipper', entity_id=dp.id, amount=platform_profit,
+                    from app.services import wallet_service
+                    wallet_service.add_transaction(
+                        db, entity_type='shipper', entity_id=dp.id, amount=platform_profit,
                         transaction_type='refund', reference_id=donation.id, reference_type='donation',
                         description=f"Hoàn phí 20% đơn Charity #{donation.id} do đơn bị hủy"
-                    ))
+                    )
                 
                 # Trả lại trạng thái APPROVED để người khác có thể nhận
                 donation.status = "APPROVED"
@@ -857,7 +868,7 @@ def top_up_wallet(db: Session, user_id: int, amount: float) -> dict:
         entity_id=dp.id,
         amount=amount_decimal,
         transaction_type='deposit',
-        description="Tự nạp tiền vào ví (Demo)"
+        description="Tự nạp tiền vào ví"
     ))
     db.commit()
 

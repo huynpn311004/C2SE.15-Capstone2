@@ -67,7 +67,7 @@ export async function fetchWalletHistory() {
 
 // Products APIs
 // KHONG can dang nhap - moi nguoi deu xem duoc san pham
-export async function fetchCustomerProducts({ supermarketId, storeId, categoryId, search, latitude, longitude } = {}) {
+export async function fetchCustomerProducts({ supermarketId, storeId, categoryId, search, latitude, longitude, sortPrice } = {}) {
   const params = {}
   if (supermarketId) params.supermarket_id = supermarketId
   if (storeId) params.store_id = storeId
@@ -75,6 +75,7 @@ export async function fetchCustomerProducts({ supermarketId, storeId, categoryId
   if (search) params.search = search
   if (latitude != null) params.latitude = latitude
   if (longitude != null) params.longitude = longitude
+  if (sortPrice) params.sort_price = sortPrice
 
   const response = await API.get('/customer/products', { params })
   return response.data.items || []

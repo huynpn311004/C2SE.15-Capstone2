@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import StaffLayout from '../../components/layout/StaffLayout'
 import { fetchCategories, createCategory, updateCategory, deleteCategory } from '../../services/staffApi'
 import './CategoryManagement.css'
@@ -13,10 +13,25 @@ export default function CategoryManagement() {
   const [success, setSuccess] = useState('')
   const [saving, setSaving] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(null)
+  
+  const [searchTerm, setSearchTerm] = useState('')
+  const debounceTimer = useRef(null)
 
   useEffect(() => {
-    loadCategories()
-  }, [])
+    // Initial load immediately
+    if (searchTerm === '') {
+      loadCategories('', true)
+    } else {
+      // Search with debounce
+      if (debounceTimer.current) clearTimeout(debounceTimer.current)
+      debounceTimer.current = setTimeout(() => {
+        loadCategories(searchTerm, false)
+      }, 400)
+    }
+    return () => {
+      if (debounceTimer.current) clearTimeout(debounceTimer.current)
+    }
+  }, [searchTerm])
 
   useEffect(() => {
     if (success || error) {
@@ -28,10 +43,10 @@ export default function CategoryManagement() {
     }
   }, [success, error])
 
-  async function loadCategories() {
+  async function loadCategories(search = '', isInitial = false) {
     try {
-      setLoading(true)
-      const data = await fetchCategories()
+      if (isInitial) setLoading(true)
+      const data = await fetchCategories(search)
       setCategories(data)
     } catch (err) {
       setError('Không thể tải danh sách danh mục')
@@ -84,7 +99,7 @@ export default function CategoryManagement() {
         await createCategory(formData)
         setSuccess('Tạo danh mục thành công')
       }
-      await loadCategories()
+      await loadCategories(searchTerm)
       setTimeout(() => closeModal(), 1500)
     } catch (err) {
       setError(err.response?.data?.detail || err.message || 'Có lỗi xảy ra')
@@ -97,7 +112,7 @@ export default function CategoryManagement() {
     try {
       await deleteCategory(category.id)
       setSuccess('Xóa danh mục thành công')
-      await loadCategories()
+      await loadCategories(searchTerm)
     } catch (err) {
       setError(err.response?.data?.detail || err.message || 'Xóa thất bại')
     }
@@ -109,17 +124,26 @@ export default function CategoryManagement() {
       <div className="category-page">
         {/* TOOLBAR */}
         <div className="category-toolbar">
-          <div className="category-toolbar-info">
-            Hiển thị {categories.length} danh mục
+          <div className="category-search-box">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+              <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
+            </svg>
+            <input
+              type="text"
+              placeholder="Tìm tên danh mục..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
           <div className="category-toolbar-actions">
             <button className="category-btn-add category-toolbar-btn" onClick={openAddModal}>
               Thêm Danh Mục
             </button>
+            <div className="category-toolbar-info">
+              Hiển thị {categories.length} danh mục
+            </div>
           </div>
         </div>
-
-
 
         {/* CARD + TABLE */}
         <div className="category-card">
@@ -143,7 +167,7 @@ export default function CategoryManagement() {
                 ) : categories.length === 0 ? (
                   <tr>
                     <td colSpan="4" className="category-empty-cell">
-                      Chưa có danh mục nào. Hãy thêm danh mục đầu tiên!
+                      {searchTerm ? 'Không tìm thấy danh mục nào phù hợp.' : 'Chưa có danh mục nào. Hãy thêm danh mục đầu tiên!'}
                     </td>
                   </tr>
                 ) : (

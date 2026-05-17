@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { fetchDonationMonitoring, fetchDonationDetail } from '../../services/supermarketAdminApi'
+import { fetchDonationMonitoring, fetchDonationDetail, fetchSupermarketStores } from '../../services/supermarketAdminApi'
 import './DonationMonitoring.css'
 
 const statusBadge = { pending: 'badge-warning', approved: 'badge-info', completed: 'badge-success', rejected: 'badge-danger', received: 'badge-success' }
@@ -7,7 +7,9 @@ const statusLabel = { pending: 'Đang Chờ', approved: 'Đã Duyệt', complete
 
 export default function DonationMonitoring() {
   const [donations, setDonations] = useState([])
+  const [stores, setStores] = useState([])
   const [filter, setFilter] = useState('all')
+  const [storeFilter, setStoreFilter] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [selectedDonation, setSelectedDonation] = useState(null)
@@ -17,11 +19,15 @@ export default function DonationMonitoring() {
   useEffect(() => {
     let active = true
 
-    async function loadDonations() {
+    async function loadData() {
       try {
-        const data = await fetchDonationMonitoring(filter)
+        const [donationsData, storesData] = await Promise.all([
+          fetchDonationMonitoring(filter, storeFilter || null),
+          fetchSupermarketStores()
+        ])
         if (!active) return
-        setDonations(data)
+        setDonations(donationsData)
+        setStores(storesData)
         setError('')
       } catch (err) {
         if (!active) return
@@ -33,11 +39,11 @@ export default function DonationMonitoring() {
       }
     }
 
-    loadDonations()
+    loadData()
     return () => {
       active = false
     }
-  }, [filter])
+  }, [filter, storeFilter])
 
   const filtered = useMemo(
     () => (filter === 'all' ? donations : donations.filter(d => d.status === filter)),
@@ -76,15 +82,26 @@ export default function DonationMonitoring() {
       )}
 
       <div className="sadonmon-toolbar">
-        <div className="sadonmon-filter-group">
-          <label>Lọc:</label>
-          <select className="sadonmon-filter-select" value={filter} onChange={e => setFilter(e.target.value)}>
-            <option value="all">Tất Cả</option>
-            <option value="pending">Đang Chờ</option>
-            <option value="approved">Đã Duyệt</option>
-            <option value="received">Đã Nhận</option>
-            <option value="rejected">Từ Chối</option>
-          </select>
+        <div className="sadonmon-filters-left">
+          <div className="sadonmon-filter-group">
+            <label>Trạng thái:</label>
+            <select className="sadonmon-filter-select" value={filter} onChange={e => setFilter(e.target.value)}>
+              <option value="all">Tất Cả</option>
+              <option value="pending">Đang Chờ</option>
+              <option value="approved">Đã Duyệt</option>
+              <option value="received">Đã Nhận</option>
+              <option value="rejected">Từ Chối</option>
+            </select>
+          </div>
+          <div className="sadonmon-filter-group">
+            <label>Cửa hàng:</label>
+            <select className="sadonmon-filter-select" value={storeFilter} onChange={e => setStoreFilter(e.target.value)}>
+              <option value="">Tất cả cửa hàng</option>
+              {stores.map(s => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          </div>
         </div>
         <div className="sadonmon-toolbar-info">{loading ? 'Đang tải...' : `Hiển thị ${filtered.length} đơn`}</div>
       </div>

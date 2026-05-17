@@ -11,10 +11,15 @@ import {
 } from '../../services/adminApi'
 import './SupermarketManagement.css'
 
-/**
- * Trang Quản lý siêu thị
- * System Admin duyệt/từ chối đăng ký siêu thị
- */
+const removeAccents = (str) => {
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+}
+
+
 export default function SupermarketManagement() {
   const getTodayDate = () => {
     const today = new Date()
@@ -58,6 +63,7 @@ export default function SupermarketManagement() {
 
   const [showLocationModal, setShowLocationModal] = useState(false)
   const [locationModalTarget, setLocationModalTarget] = useState('create')
+  const [searchTerm, setSearchTerm] = useState('')
 
   async function loadSupermarkets() {
     try {
@@ -85,7 +91,15 @@ export default function SupermarketManagement() {
     }
   }, [success, error])
 
-  const filteredSupermarkets = supermarkets
+  const filteredSupermarkets = supermarkets.filter((sm) => {
+    const search = removeAccents(searchTerm.toLowerCase())
+    return (
+      removeAccents(sm.name.toLowerCase()).includes(search) ||
+      removeAccents(sm.director.toLowerCase()).includes(search) ||
+      removeAccents(sm.email.toLowerCase()).includes(search) ||
+      removeAccents(sm.phone.toLowerCase()).includes(search)
+    )
+  })
 
   async function handleToggleLockSupermarket(id) {
     try {
@@ -380,6 +394,19 @@ export default function SupermarketManagement() {
           >
             Tạo Tài Khoản
           </button>
+          <div className="supermarkets-search-wrapper">
+            <svg className="supermarkets-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.35-4.35" />
+            </svg>
+            <input
+              type="text"
+              className="supermarkets-search-input"
+              placeholder="Tìm kiếm siêu thị..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
           <div className="supermarkets-toolbar-info">Hiển thị {filteredSupermarkets.length} siêu thị</div>
         </div>
 
@@ -420,7 +447,7 @@ export default function SupermarketManagement() {
                             title="Chỉnh sửa"
                           >
                             <svg className="supermarkets-btn-icon" viewBox="0 0 24 24" fill="currentColor">
-                              <path d="m3 17.25 8.06-8.06 2.75 2.75L5.75 20H3v-2.75Zm13.71-9.04 1.04-1.04a1 1 0 0 0 0-1.41l-1.55-1.55a1 1 0 0 0-1.41 0l-1.04 1.04 2.96 2.96Z"/>
+                              <path d="m3 17.25 8.06-8.06 2.75 2.75L5.75 20H3v-2.75Zm13.71-9.04 1.04-1.04a1 1 0 0 0 0-1.41l-1.55-1.55a1 1 0 0 0-1.41 0l-1.04 1.04 2.96 2.96Z" />
                             </svg>
                             Sửa
                           </button>
@@ -432,14 +459,14 @@ export default function SupermarketManagement() {
                             {sm.isLocked ? (
                               <>
                                 <svg className="supermarkets-btn-icon" viewBox="0 0 24 24" fill="currentColor">
-                                  <path d="M17 9h-7V7a3 3 0 0 1 5.8-1.2l1.9-.6A5 5 0 0 0 8 7v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm0 10H7v-8h10v8Z"/>
+                                  <path d="M17 9h-7V7a3 3 0 0 1 5.8-1.2l1.9-.6A5 5 0 0 0 8 7v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm0 10H7v-8h10v8Z" />
                                 </svg>
                                 Mở khóa
                               </>
                             ) : (
                               <>
                                 <svg className="supermarkets-btn-icon" viewBox="0 0 24 24" fill="currentColor">
-                                  <path d="M17 9h-1V7a4 4 0 1 0-8 0v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm-7-2a2 2 0 1 1 4 0v2h-4V7Zm7 12H7v-8h10v8Z"/>
+                                  <path d="M17 9h-1V7a4 4 0 1 0-8 0v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm-7-2a2 2 0 1 1 4 0v2h-4V7Zm7 12H7v-8h10v8Z" />
                                 </svg>
                                 Khóa
                               </>
@@ -451,7 +478,7 @@ export default function SupermarketManagement() {
                             title="Xóa siêu thị"
                           >
                             <svg className="supermarkets-btn-icon" viewBox="0 0 24 24" fill="currentColor">
-                              <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                              <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
                             </svg>
                             Xóa
                           </button>

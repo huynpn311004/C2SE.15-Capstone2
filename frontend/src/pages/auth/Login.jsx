@@ -70,7 +70,7 @@ export default function Login() {
 
       if (detail) {
         if (status === 423 || detail.toLowerCase().includes('lien he admin') || detail.toLowerCase().includes('locked')) {
-          setError(`Tài khoản đã bị khóa. Vui lòng liên hệ Admin (Email: ${ADMIN_CONTACT.email}, Hotline: ${ADMIN_CONTACT.hotline})`)
+          setError(`Tài khoản đã bị khóa. Vui lòng liên hệ Admin (Email: ${ADMIN_CONTACT.email})`)
         } else {
           setError(detail)
         }

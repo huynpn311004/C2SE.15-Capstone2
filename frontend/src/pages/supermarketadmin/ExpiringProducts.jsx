@@ -67,16 +67,16 @@ export default function ExpiringProducts() {
       {/* TOOLBAR */}
       <div className="expprod-toolbar">
         <div className="expprod-filter-group">
-          <label>Số ngày:</label>
+          <label>Lọc sản phẩm hết hạn trong:</label>
           <select
             className="expprod-filter-select"
             value={days}
             onChange={e => setDays(Number(e.target.value))}
           >
-            <option value={3}>3 ngày</option>
-            <option value={7}>7 ngày</option>
-            <option value={14}>14 ngày</option>
-            <option value={30}>30 ngày</option>
+            <option value={3}>3 ngày tới</option>
+            <option value={7}>7 ngày tới</option>
+            <option value={14}>14 ngày tới</option>
+            <option value={30}>30 ngày tới</option>
           </select>
         </div>
         <div className="expprod-filter-group">

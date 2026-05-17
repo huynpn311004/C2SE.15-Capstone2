@@ -76,6 +76,7 @@ class StoreLocationDetail(BaseModel):
 	salePrice: float
 	discount: float
 	daysLeft: int
+	manufacturingDate: Optional[str] = None
 
 
 class ProductDetailResponse(BaseModel):

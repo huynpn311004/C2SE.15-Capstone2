@@ -149,11 +149,12 @@ def list_all_categories(
 @router.get("/donations")
 def list_donation_monitoring(
 	status_filter: str = Query(default="all"),
+    store_id: int | None = Query(default=None),
 	_=Depends(require_supermarket_admin),
 	current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return supermarket_admin_service.list_donation_monitoring(db, current_user.id, status_filter)
+    return supermarket_admin_service.list_donation_monitoring(db, current_user.id, status_filter, store_id)
 
 
 @router.get("/donations/{request_id}")

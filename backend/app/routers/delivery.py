@@ -59,10 +59,11 @@ def get_active_deliveries(
 @router.get("/history", response_model=DeliveryListResponse)
 def get_delivery_history(
 	filter: str = Query(default="all"),
+	search: str = Query(default=None),
 	current_user: User = Depends(get_current_user),
 	db: Session = Depends(get_db),
 ):
-    return delivery_service.get_delivery_history(db, current_user.id, filter)
+    return delivery_service.get_delivery_history(db, current_user.id, filter, search)
 
 
 from fastapi import APIRouter, Depends, Query, Body, HTTPException, status as http_status, Request

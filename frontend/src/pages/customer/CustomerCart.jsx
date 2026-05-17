@@ -54,34 +54,47 @@ const CustomerCart = () => {
   const shippingAddress = profile.address || '';
 
   // Initialize selected items when cart is loaded (start with none selected)
+  // Use a composite key of id-storeId-lotCode to handle duplicate products across stores
+  const getCartItemKey = (item) => `${item.id}-${item.storeId || item.store_id || 0}-${item.lotCode || item.lot_code || ''}`;
+
   useEffect(() => {
-    if (cart.length > 0 && Object.keys(selectedItems).length === 0) {
-      const initial = {};
-      cart.forEach(item => { initial[item.id] = false; }); // false = not selected
-      setSelectedItems(initial);
+    if (cart.length > 0) {
+      setSelectedItems(prev => {
+        const updated = { ...prev };
+        let changed = false;
+        cart.forEach(item => {
+          const key = getCartItemKey(item);
+          if (updated[key] === undefined) {
+            updated[key] = false;
+            changed = true;
+          }
+        });
+        return changed ? updated : prev;
+      });
     }
   }, [cart.length]);
 
   // Toggle select single item
-  const toggleSelectItem = (productId) => {
-    setSelectedItems(prev => ({ ...prev, [productId]: !prev[productId] }));
+  const toggleSelectItem = (item) => {
+    const key = getCartItemKey(item);
+    setSelectedItems(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
   // Select all items in a store
   const toggleSelectStore = (storeId, items) => {
-    const allSelected = items.every(item => selectedItems[item.id]);
+    const allSelected = items.every(item => selectedItems[getCartItemKey(item)]);
     setSelectedItems(prev => {
       const updated = { ...prev };
-      items.forEach(item => { updated[item.id] = !allSelected; });
+      items.forEach(item => { updated[getCartItemKey(item)] = !allSelected; });
       return updated;
     });
   };
 
   // Select/deselect all items
   const toggleSelectAll = () => {
-    const allSelected = cart.length > 0 && cart.every(item => selectedItems[item.id]);
+    const allSelected = cart.length > 0 && cart.every(item => selectedItems[getCartItemKey(item)]);
     const updated = {};
-    cart.forEach(item => { updated[item.id] = !allSelected; });
+    cart.forEach(item => { updated[getCartItemKey(item)] = !allSelected; });
     setSelectedItems(updated);
   };
 
@@ -136,11 +149,14 @@ const CustomerCart = () => {
 
         // Initialize with stored cart immediately
         if (stored.length > 0) {
-          setCart(stored);
-          // Initialize selected items - NOT selected by default
-          const initial = {};
-          stored.forEach(item => { initial[item.id] = false; }); // false = customer must select
-          setSelectedItems(initial);
+          // Normalize items immediately to handle both salePrice/bestPrice and discount/bestDiscount
+          const normalized = stored.map(item => ({
+            ...item,
+            salePrice: item.salePrice || item.bestPrice || 0,
+            discount: item.discount !== undefined ? item.discount : (item.bestDiscount || 0),
+            originalPrice: item.originalPrice || item.base_price || 0
+          }));
+          setCart(normalized);
         }
         setCartInitialized(true);
 
@@ -177,6 +193,7 @@ const CustomerCart = () => {
                 originalPrice: productDetail.originalPrice,
                 discount: productDetail.bestDiscount || productDetail.discount,
                 daysLeft: productDetail.daysLeft || 0,
+                stores: productDetail.stores || [],   // include lot-level price detail
               };
             }
           });
@@ -187,16 +204,36 @@ const CustomerCart = () => {
         if (!isMounted) return;
 
         // Merge fresh prices with cart items
+        // IMPORTANT: Use the price for the specific lotCode in the cart, not bestPrice
         const updatedCart = stored.map(item => {
           const fresh = freshPricesMap[item.id];
           if (fresh) {
-            return {
-              ...item,
-              salePrice: fresh.salePrice,
-              originalPrice: fresh.originalPrice,
-              discount: fresh.discount,
-              daysLeft: fresh.daysLeft,
-            };
+            // Try to find the exact lot stored in the cart item
+            const cartLotCode = item.lotCode || item.lot_code;
+            const cartStoreId = item.storeId || item.store_id;
+            const matchingLot = cartLotCode && fresh.stores
+              ? fresh.stores.find(s => s.lotCode === cartLotCode)
+              : null;
+
+            if (matchingLot) {
+              // Found the exact lot — use its price & discount
+              return {
+                ...item,
+                salePrice: matchingLot.salePrice,
+                originalPrice: fresh.originalPrice,
+                discount: matchingLot.discount,
+                daysLeft: matchingLot.daysLeft,
+              };
+            } else {
+              // Lot not found (may have been sold out) — fall back to bestPrice
+              return {
+                ...item,
+                salePrice: fresh.salePrice,
+                originalPrice: fresh.originalPrice,
+                discount: fresh.discount,
+                daysLeft: fresh.daysLeft,
+              };
+            }
           }
           return item;
         });
@@ -225,11 +262,14 @@ const CustomerCart = () => {
     const handleUpdate = () => {
       if (isMounted) {
         const stored = getCart();
-        setCart(stored);
-        // Reset selected items - NOT selected by default
-        const initial = {};
-        stored.forEach(item => { initial[item.id] = false; }); // customer must select manually
-        setSelectedItems(initial);
+        // Normalize on external update too
+        const normalized = stored.map(item => ({
+          ...item,
+          salePrice: item.salePrice || item.bestPrice || 0,
+          discount: item.discount !== undefined ? item.discount : (item.bestDiscount || 0),
+          originalPrice: item.originalPrice || item.base_price || 0
+        }));
+        setCart(normalized);
       }
     };
     window.addEventListener('seims-cart-updated', handleUpdate);
@@ -283,7 +323,8 @@ const CustomerCart = () => {
       const validationItems = selectedCartItems.map(item => ({
         productId: item.id,
         quantity: item.quantity,
-        storeId: item.storeId || item.store_id
+        storeId: item.storeId || item.store_id,
+        lotCode: item.lotCode || item.lot_code
       }));
 
       const validation = await validateCartStock(validationItems);
@@ -316,7 +357,7 @@ const CustomerCart = () => {
         });
         // Xóa sản phẩm khỏi giỏ hàng
         const cartNow = getCart();
-        const remainingCart = cartNow.filter(item => !selectedItems[item.id]);
+        const remainingCart = cartNow.filter(item => !selectedItems[getCartItemKey(item)]);
         saveCart(remainingCart);
         window.dispatchEvent(new Event('seims-cart-updated'));
       }, 1500);
@@ -358,7 +399,7 @@ const CustomerCart = () => {
   const groupList = Object.values(storeGroups);
 
   // Get selected items only
-  const selectedCartItems = cart.filter(item => selectedItems[item.id]);
+  const selectedCartItems = cart.filter(item => selectedItems[getCartItemKey(item)]);
 
   const subtotal = selectedCartItems.reduce((sum, item) => {
     const price = item.salePrice || item.bestPrice || 0;
@@ -421,7 +462,7 @@ const CustomerCart = () => {
                   <label className="cart-select-all" style={{ cursor: 'pointer' }}>
                     <input
                       type="checkbox"
-                      checked={cart.length > 0 && cart.every(item => selectedItems[item.id])}
+                      checked={cart.length > 0 && cart.every(item => selectedItems[getCartItemKey(item)])}
                       onChange={toggleSelectAll}
                       style={{ width: '18px', height: '18px', accentColor: 'var(--seims-teal)' }}
                     />
@@ -444,7 +485,7 @@ const CustomerCart = () => {
                       <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
                         <input
                           type="checkbox"
-                          checked={group.items.every(item => selectedItems[item.id])}
+                          checked={group.items.length > 0 && group.items.every(item => selectedItems[getCartItemKey(item)])}
                           onChange={() => toggleSelectStore(group.storeId, group.items)}
                           style={{ width: '18px', height: '18px', accentColor: 'var(--seims-teal)' }}
                         />
@@ -460,12 +501,12 @@ const CustomerCart = () => {
 
                     {/* Items in this store */}
                     {group.items.map((item) => (
-                      <div key={item.id} className={`cart-item ${!selectedItems[item.id] ? 'cart-item-unselected' : ''}`}>
+                      <div key={`${item.id}-${item.lotCode || item.lot_code}`} className={`cart-item ${!selectedItems[getCartItemKey(item)] ? 'cart-item-unselected' : ''}`}>
                         <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
                           <input
                             type="checkbox"
-                            checked={!!selectedItems[item.id]}
-                            onChange={() => toggleSelectItem(item.id)}
+                            checked={!!selectedItems[getCartItemKey(item)]}
+                            onChange={() => toggleSelectItem(item)}
                             style={{ width: '18px', height: '18px', accentColor: 'var(--seims-teal)' }}
                           />
                         </label>

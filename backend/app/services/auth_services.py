@@ -2,6 +2,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
+import os
 
 from app.core.security import get_password_hash, verify_password, create_access_token
 from app.models.store import Store
@@ -21,6 +22,10 @@ MAX_FAILED_LOGIN_ATTEMPTS = 5
 LOCKED_ACCOUNT_DETAIL = (
 	"Tài khoản đã bị khóa do đăng nhập sai qua 5 lần. "
 	"Vui lòng liên hệ admin qua email seimshotro@gmail.com."
+)
+ADMIN_LOCKED_ACCOUNT_DETAIL = (
+	"Tài khoản của bạn đã bị khóa. "
+	"Vui lòng liên hệ admin qua email seimshotro@gmail.com để biết thêm chi tiết."
 )
 
 
@@ -110,9 +115,12 @@ def login_user(db: Session, payload: LoginRequest) -> tuple[User, str]:
 			detail="Thông tin đăng nhập không chính xác.",
 		)
 	if not user.is_active:
+		# Distinguish between manual lock and failed login attempts lock
+		attempts = int(user.failed_login_attempts or 0)
+		msg = LOCKED_ACCOUNT_DETAIL if attempts >= MAX_FAILED_LOGIN_ATTEMPTS else ADMIN_LOCKED_ACCOUNT_DETAIL
 		raise HTTPException(
 			status_code=status.HTTP_423_LOCKED,
-			detail=LOCKED_ACCOUNT_DETAIL,
+			detail=msg,
 		)
 
 	if not verify_password(payload.password, user.password_hash):
@@ -159,7 +167,7 @@ def forgot_password(db: Session, email: str, frontend_reset_url: str = None) -> 
 		
 		# Generate reset URL (default to frontend app)
 		if frontend_reset_url is None:
-			frontend_reset_url = "http://localhost:5173"  # Default to local frontend
+			frontend_reset_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
 		
 		reset_link = f"{frontend_reset_url}/forgot-password?token={user.reset_token}"
 		

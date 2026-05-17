@@ -169,7 +169,7 @@ def _get_or_create_order_group(
 		if product_cache and product_id in product_cache:
 			product = product_cache[product_id]
 		else:
-			product = db.query(Product.base_price, Product.name, Product.image_url).filter(
+			product = db.query(Product.base_price, Product.name, Product.image_url, Product.supermarket_id).filter(
 				Product.id == product_id
 			).first()
 			if product_cache is not None:
@@ -177,7 +177,7 @@ def _get_or_create_order_group(
 
 		if product:
 			base_price = float(product.base_price or 0)
-			sale_price, _ = _calculate_discount(base_price, lot.expiry_date, None, product_id, None)
+			sale_price, _ = _calculate_discount(base_price, lot.expiry_date, product.supermarket_id, product_id, db)
 			unit_price = int(sale_price)
 			total_amount += Decimal(str(unit_price * quantity))
 
@@ -192,6 +192,8 @@ def _get_or_create_order_group(
 				"name": product.name,
 				"quantity": quantity,
 				"unitPrice": float(unit_price),
+				"originalPrice": base_price,
+				"discount": int(base_price - unit_price) if base_price > unit_price else 0,
 				"imageUrl": product.image_url
 			})
 
@@ -560,20 +562,8 @@ def _increment_coupon_usage(db: Session, coupon_id: int) -> bool:
 
 def _calculate_discount(base_price: float, expiry_date: date, supermarket_id: int = None, product_id: int = None, db: Session = None) -> tuple[float, float]:
 	if db is None or supermarket_id is None:
-		today = date.today()
-		days_left = (expiry_date - today).days
-		if days_left < 0:
-			return base_price, 0
-		elif days_left <= 1:
-			discount_percent = 70
-		elif days_left <= 3:
-			discount_percent = 50
-		elif days_left <= 7:
-			discount_percent = 30
-		else:
-			discount_percent = 0
-		sale_price = base_price * (1 - discount_percent / 100)
-		return round(sale_price, 0), discount_percent
+		# Return 0% discount if context is missing, avoiding hardcoded fallback
+		return round(base_price, 0), 0
 	
 	result = discount_policy_service.calculate_discount(
 		db, 
@@ -671,7 +661,7 @@ def deposit_money(db: Session, user_id: int, amount: float) -> dict:
 	wallet_service.add_transaction(
 		db, entity_type='user', entity_id=user_id,
 		amount=amount, transaction_type='deposit',
-		description=f"Nạp tiền vào ví (Dự án tốt nghiệp - Giả lập)",
+		description=f"Nạp tiền vào ví",
 		reference_id=None, reference_type='manual'
 	)
 	db.commit()
@@ -695,7 +685,8 @@ def list_customer_products(
 	search: str = None,
 	customer_lat: float = None,
 	customer_lng: float = None,
-	radius_km: float = 10.0
+	radius_km: float = 10.0,
+	sort_price: str = None  # 'asc' or 'desc'
 ) -> dict:
 	base_query = db.query(
 		Product.id, Product.sku, Product.name, Product.base_price, Product.image_url,
@@ -711,7 +702,8 @@ def list_customer_products(
 	 .filter(
 		 InventoryLot.qty_on_hand > 0, 
 		 InventoryLot.expiry_date >= date.today(),
-		 User.is_active == 1
+		 User.is_active == 1,
+		 Store.supermarket_id == Product.supermarket_id
 	 )
 
 	if supermarket_id:
@@ -765,6 +757,12 @@ def list_customer_products(
 			"lotCode": row.lot_code,
 		})
 
+	# Sort by salePrice if requested
+	if sort_price == 'asc':
+		items.sort(key=lambda x: x['salePrice'])
+	elif sort_price == 'desc':
+		items.sort(key=lambda x: x['salePrice'], reverse=True)
+
 	return {"items": items}
 
 
@@ -800,6 +798,7 @@ def get_customer_product_detail(db: Session, product_id: int, customer_lat: floa
 		InventoryLot.expiry_date,
 		InventoryLot.qty_on_hand,
 		InventoryLot.qty_reserved,
+		InventoryLot.manufacturing_date,
 		Store.name.label('store_name'),
 		Store.location.label('store_address'),
 		Store.latitude,
@@ -809,7 +808,8 @@ def get_customer_product_detail(db: Session, product_id: int, customer_lat: floa
 	).filter(
 		InventoryLot.product_id == product_id,
 		InventoryLot.qty_on_hand > 0,
-		InventoryLot.expiry_date >= date.today()
+		InventoryLot.expiry_date >= date.today(),
+		Store.supermarket_id == row["supermarket_id"]
 	).order_by(
 		InventoryLot.expiry_date.asc()
 	).all()
@@ -839,6 +839,7 @@ def get_customer_product_detail(db: Session, product_id: int, customer_lat: floa
 			"salePrice": sale_price,
 			"discount": discount_percent,
 			"daysLeft": days_left,
+			"manufacturingDate": inv.manufacturing_date.strftime("%Y-%m-%d") if inv.manufacturing_date else None,
 		})
 		total_stock += available_qty
 
@@ -1310,13 +1311,13 @@ def create_customer_order(
 		lot.qty_reserved = lot.qty_reserved + quantity
 
 		# Use ORM for Product query
-		product = db.query(Product.base_price).filter(
+		product = db.query(Product.base_price, Product.supermarket_id).filter(
 			Product.id == product_id
 		).first()
 
 		if product:
 			base_price = float(product.base_price or 0)
-			sale_price, _ = _calculate_discount(base_price, lot.expiry_date, None, product_id, None)
+			sale_price, _ = _calculate_discount(base_price, lot.expiry_date, product.supermarket_id, product_id, db)
 			unit_price = int(sale_price)
 			total_amount += Decimal(str(unit_price * quantity))
 			
@@ -1337,11 +1338,13 @@ def create_customer_order(
 	
 	if coupon_id:
 		coupon_validation = _validate_and_calculate_coupon(db, coupon_id, store_id, total_amount)
-		if coupon_validation.get("valid"):
-			applied_coupon_id = coupon_validation.get("coupon_id")
-			applied_discount_amount = coupon_validation.get("discount_amount", Decimal("0"))
-			applied_coupon_code = coupon_validation.get("coupon_code")
-			final_amount = max(Decimal("0"), total_amount - applied_discount_amount)
+		if not coupon_validation.get("valid"):
+			raise HTTPException(status_code=400, detail=coupon_validation.get("error", "Mã coupon không hợp lệ"))
+		
+		applied_coupon_id = coupon_validation.get("coupon_id")
+		applied_discount_amount = coupon_validation.get("discount_amount", Decimal("0"))
+		applied_coupon_code = coupon_validation.get("coupon_code")
+		final_amount = max(Decimal("0"), total_amount - applied_discount_amount)
 	
 	new_order = Order(
 		store_id=store_id,

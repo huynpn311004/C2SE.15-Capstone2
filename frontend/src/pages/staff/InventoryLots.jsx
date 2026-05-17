@@ -167,6 +167,33 @@ export default function InventoryLots() {
       return
     }
 
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const mfgDate = editForm.manufacturingDate ? new Date(editForm.manufacturingDate) : null
+    const expDate = new Date(editForm.expiryDate)
+
+    if (mfgDate) {
+      mfgDate.setHours(0, 0, 0, 0)
+      if (mfgDate > today) {
+        setError('Ngày sản xuất không được ở tương lai.')
+        return
+      }
+      if (mfgDate.getFullYear() < 2000 || mfgDate.getFullYear() > 2100) {
+        setError('Năm sản xuất không hợp lệ (2000-2100).')
+        return
+      }
+    }
+
+    if (expDate.getFullYear() < 2000 || expDate.getFullYear() > 2100) {
+      setError('Năm hết hạn không hợp lệ (2000-2100).')
+      return
+    }
+
+    if (mfgDate && expDate <= mfgDate) {
+      setError('Ngày hết hạn phải sau ngày sản xuất.')
+      return
+    }
+
     try {
       setIsSubmitting(true)
       await updateInventoryLot(selectedLot.id, {
@@ -250,6 +277,38 @@ export default function InventoryLots() {
     }
     if (!createForm.expiryDate) {
       setError('Ngày hết hạn không được để trống.')
+      return
+    }
+
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const mfgDate = createForm.manufacturingDate ? new Date(createForm.manufacturingDate) : null
+    const expDate = new Date(createForm.expiryDate)
+
+    if (mfgDate) {
+      mfgDate.setHours(0, 0, 0, 0)
+      if (mfgDate > today) {
+        setError('Ngày sản xuất không được ở tương lai.')
+        return
+      }
+      if (mfgDate.getFullYear() < 2000 || mfgDate.getFullYear() > 2100) {
+        setError('Năm sản xuất không hợp lệ (2000-2100).')
+        return
+      }
+    }
+
+    if (expDate.getFullYear() < 2000 || expDate.getFullYear() > 2100) {
+      setError('Năm hết hạn không hợp lệ (2000-2100).')
+      return
+    }
+
+    if (mfgDate && expDate <= mfgDate) {
+      setError('Ngày hết hạn phải sau ngày sản xuất.')
+      return
+    }
+
+    if (expDate < today) {
+      setError('Ngày hết hạn không được ở quá khứ khi tạo lô mới.')
       return
     }
 

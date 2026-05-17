@@ -3,10 +3,14 @@ import SystemAdminLayout from '../../components/layout/SystemAdminLayout'
 import { deleteAdminUser, fetchAdminUsers, toggleAdminUserLock } from '../../services/adminApi'
 import './UserManagement.css'
 
-/**
- * Trang Quản lý Người dùng
- * System Admin quản lý toàn bộ người dùng: lock/unlock account
- */
+const removeAccents = (str) => {
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+}
+
 export default function UserManagement() {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -15,6 +19,7 @@ export default function UserManagement() {
 
   const [filterRole, setFilterRole] = useState('all')
   const [filterStatus, setFilterStatus] = useState('all')
+  const [searchTerm, setSearchTerm] = useState('')
   const [selectedUser, setSelectedUser] = useState(null)
   const [showDetailModal, setShowDetailModal] = useState(false)
 
@@ -47,7 +52,13 @@ export default function UserManagement() {
   const filteredUsers = users.filter(user => {
     const roleMatch = filterRole === 'all' || user.role === filterRole
     const statusMatch = filterStatus === 'all' || user.status === filterStatus
-    return roleMatch && statusMatch
+    const search = removeAccents(searchTerm.toLowerCase())
+    const searchMatch = !searchTerm ||
+      removeAccents(user.fullName.toLowerCase()).includes(search) ||
+      removeAccents(user.username.toLowerCase()).includes(search) ||
+      removeAccents(user.email.toLowerCase()).includes(search)
+
+    return roleMatch && statusMatch && searchMatch
   })
 
   async function handleToggleLock(id) {
@@ -139,6 +150,19 @@ export default function UserManagement() {
               <option value="inactive">Bị khóa</option>
             </select>
           </div>
+          <div className="users-search-wrapper">
+            <svg className="users-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.35-4.35" />
+            </svg>
+            <input
+              type="text"
+              className="users-search-input"
+              placeholder="Tìm kiếm người dùng..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
           <div className="filter-info">
             Hiển thị {filteredUsers.length} / {users.length} người dùng
           </div>
@@ -190,14 +214,14 @@ export default function UserManagement() {
                             {user.status === 'active' ? (
                               <>
                                 <svg className="users-icon" viewBox="0 0 24 24" fill="currentColor">
-                                  <path d="M17 9h-1V7a4 4 0 1 0-8 0v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm-7-2a2 2 0 1 1 4 0v2h-4V7Zm7 12H7v-8h10v8Z"/>
+                                  <path d="M17 9h-1V7a4 4 0 1 0-8 0v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm-7-2a2 2 0 1 1 4 0v2h-4V7Zm7 12H7v-8h10v8Z" />
                                 </svg>
                                 Khóa
                               </>
                             ) : (
                               <>
                                 <svg className="users-icon" viewBox="0 0 24 24" fill="currentColor">
-                                  <path d="M17 9h-7V7a3 3 0 0 1 5.8-1.2l1.9-.6A5 5 0 0 0 8 7v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm0 10H7v-8h10v8Z"/>
+                                  <path d="M17 9h-7V7a3 3 0 0 1 5.8-1.2l1.9-.6A5 5 0 0 0 8 7v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm0 10H7v-8h10v8Z" />
                                 </svg>
                                 Mở khóa
                               </>
@@ -209,7 +233,7 @@ export default function UserManagement() {
                             title="Xóa người dùng"
                           >
                             <svg className="users-icon" viewBox="0 0 24 24" fill="currentColor">
-                              <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                              <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
                             </svg>
                             Xóa
                           </button>

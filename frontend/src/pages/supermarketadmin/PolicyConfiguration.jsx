@@ -167,57 +167,88 @@ export default function PolicyConfiguration() {
   async function handleSubmit(e) {
     e.preventDefault()
 
-    const minDays = parseInt(form.minDaysLeft)
-    const maxDays = parseInt(form.maxDaysLeft)
-    const discount = parseFloat(form.discountPercent)
-
-    if (!form.name.trim()) {
-      showToast('Tên chính sách không được trống')
-      return
-    }
-    if (isNaN(minDays) || minDays < 0) {
-      showToast('Số ngày tối thiểu không hợp lệ')
-      return
-    }
-    if (isNaN(maxDays) || maxDays < minDays) {
-      showToast('Số ngày tối đa phải lớn hơn hoặc bằng số ngày tối thiểu')
-      return
-    }
-    if (isNaN(discount) || discount < 0 || discount > 100) {
-      showToast('Phần trăm giảm giá phải từ 0 đến 100')
-      return
-    }
-
-    if (form.applyType === 'category' && !form.categoryId) {
-      showToast('Hãy chọn danh mục')
-      return
-    }
-    if (form.applyType === 'product' && !form.productId) {
-      showToast('Hãy chọn sản phẩm')
-      return
-    }
+    // 1. Prepare and Validate Data
+    let isTemplate = form.applyType === 'all' && form.useTemplate731;
+    let finalPayloads = []; // For template mode (3 policies)
+    let singlePayload = null; // For standard mode (1 policy)
 
     try {
-      const payload = {
-        name: form.name.trim(),
-        minDaysLeft: minDays,
-        maxDaysLeft: maxDays,
-        discountPercent: discount,
-        categoryId: form.applyType === 'category' ? parseInt(form.categoryId) : null,
-        productId: form.applyType === 'product' ? parseInt(form.productId) : null,
+      if (isTemplate) {
+        // Collect template data
+        const levels = [
+          { d: parseInt(form.d7 || '7'), p: parseFloat(form.p7 || '20') },
+          { d: parseInt(form.d3 || '3'), p: parseFloat(form.p3 || '50') },
+          { d: parseInt(form.d1 || '1'), p: parseFloat(form.p1 || '80') }
+        ].sort((a, b) => b.d - a.d); // Ensure order: 10 > 5 > 2
+
+        // Validation for template
+        if (levels.some(l => isNaN(l.d) || isNaN(l.p) || l.d < 0 || l.p < 0)) {
+          showToast('Vui lòng nhập đầy đủ thông số hợp lệ cho mẫu');
+          return;
+        }
+        if (levels[0].d <= levels[1].d || levels[1].d <= levels[2].d) {
+          showToast('Mốc ngày phải giảm dần (Mốc 1 > Mốc 2 > Mốc 3)');
+          return;
+        }
+
+        // Prepare 3 payloads
+        finalPayloads = [
+          { name: `Giảm giá (${levels[1].d + 1}-${levels[0].d} ngày)`, minDaysLeft: levels[1].d + 1, maxDaysLeft: levels[0].d, discountPercent: levels[0].p, categoryId: null, productId: null },
+          { name: `Giảm giá (${levels[2].d + 1}-${levels[1].d} ngày)`, minDaysLeft: levels[2].d + 1, maxDaysLeft: levels[1].d, discountPercent: levels[1].p, categoryId: null, productId: null },
+          { name: `Giảm giá (0-${levels[2].d} ngày)`, minDaysLeft: 0, maxDaysLeft: levels[2].d, discountPercent: levels[2].p, categoryId: null, productId: null }
+        ];
+      } else {
+        // Validation for standard
+        const minDays = parseInt(form.minDaysLeft)
+        const maxDays = parseInt(form.maxDaysLeft)
+        const discount = parseFloat(form.discountPercent)
+
+        if (!form.name.trim()) return showToast('Tên chính sách không được trống');
+        if (isNaN(minDays) || isNaN(maxDays) || isNaN(discount)) return showToast('Vui lòng nhập số hợp lệ');
+        if (maxDays < minDays) return showToast('Ngày tối đa phải >= ngày tối thiểu');
+        
+        if (form.applyType === 'category' && !form.categoryId) return showToast('Hãy chọn danh mục');
+        if (form.applyType === 'product' && !form.productId) return showToast('Hãy chọn sản phẩm');
+
+        singlePayload = {
+          name: form.name.trim(),
+          minDaysLeft: minDays,
+          maxDaysLeft: maxDays,
+          discountPercent: discount,
+          categoryId: form.applyType === 'category' ? parseInt(form.categoryId) : null,
+          productId: form.applyType === 'product' ? parseInt(form.productId) : null,
+        };
       }
 
-      if (editMode && selectedPolicy) {
-        await updateDiscountPolicy(selectedPolicy.id, payload)
-        showToast('Cập nhật chính sách thành công!')
+      // 2. Execute API Calls
+      setLoading(true)
+      if (isTemplate) {
+        // Delete old global policies
+        const globalPolicies = policies.filter(p => !p.productId && !p.categoryName)
+        for (const p of globalPolicies) {
+          await deleteDiscountPolicy(p.id)
+        }
+        // Create 3 new ones
+        for (const payload of finalPayloads) {
+          await createDiscountPolicy(payload)
+        }
+        showToast('Đã thiết lập bộ chiến lược giảm giá thành công!')
       } else {
-        await createDiscountPolicy(payload)
-        showToast('Tạo chính sách mới thành công!')
+        if (editMode && selectedPolicy) {
+          await updateDiscountPolicy(selectedPolicy.id, singlePayload)
+          showToast('Cập nhật chính sách thành công!')
+        } else {
+          await createDiscountPolicy(singlePayload)
+          showToast('Tạo chính sách mới thành công!')
+        }
       }
+
       await loadPolicies()
       setTimeout(closeModal, 1200)
     } catch (err) {
-      showToast(err.message || 'Đã xảy ra lỗi')
+      showToast('Lỗi: ' + (err.response?.data?.detail || err.message))
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -239,6 +270,67 @@ export default function PolicyConfiguration() {
       await loadPolicies()
     } catch (err) {
       showToast(err.message || 'Không thể xóa chính sách')
+    }
+  }
+
+  async function handleApplyQuickStrategy() {
+    const p7 = parseFloat(document.getElementById('q7')?.value)
+    const p3 = parseFloat(document.getElementById('q3')?.value)
+    const p1 = parseFloat(document.getElementById('q1')?.value)
+
+    if (isNaN(p7) || isNaN(p3) || isNaN(p1)) {
+      showToast('Vui lòng nhập đầy đủ các mức giảm giá')
+      return
+    }
+
+    if (!window.confirm('Hệ thống sẽ thay thế các chính sách chung hiện tại bằng bộ quy tắc 7-3-1 ngày mới. Bạn có chắc chắn?')) return
+
+    try {
+      setLoading(true)
+      
+      // 1. Delete existing global policies to avoid overlap errors
+      const globalPolicies = policies.filter(p => !p.productId && !p.categoryName)
+      for (const p of globalPolicies) {
+        await deleteDiscountPolicy(p.id)
+      }
+
+      // 2. Create new 3 levels
+      // Level 1: 4-7 days
+      await createDiscountPolicy({
+        name: 'Giảm giá tự động (Còn 4-7 ngày)',
+        minDaysLeft: 4,
+        maxDaysLeft: 7,
+        discountPercent: p7,
+        categoryId: null,
+        productId: null
+      })
+
+      // Level 2: 2-3 days
+      await createDiscountPolicy({
+        name: 'Giảm giá tự động (Còn 2-3 ngày)',
+        minDaysLeft: 2,
+        maxDaysLeft: 3,
+        discountPercent: p3,
+        categoryId: null,
+        productId: null
+      })
+
+      // Level 3: 0-1 days
+      await createDiscountPolicy({
+        name: 'Giảm giá tự động (Còn 0-1 ngày)',
+        minDaysLeft: 0,
+        maxDaysLeft: 1,
+        discountPercent: p1,
+        categoryId: null,
+        productId: null
+      })
+
+      showToast('Đã thiết lập chiến lược giảm giá 7-3-1 thành công!')
+      await loadPolicies()
+    } catch (err) {
+      showToast('Lỗi khi thiết lập chiến lược: ' + (err.response?.data?.detail || err.message))
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -411,6 +503,64 @@ export default function PolicyConfiguration() {
                     </div>
                   </div>
 
+                  {form.applyType === 'all' && (
+                    <div className="sapolicy-form-field full-width">
+                      <div className="template-toggle-wrap">
+                        <label className="sapolicy-checkbox-label">
+                          <input 
+                            type="checkbox" 
+                            checked={form.useTemplate731} 
+                            onChange={(e) => setForm(prev => ({...prev, useTemplate731: e.target.checked}))} 
+                          />
+                          <span>Sử dụng mẫu giảm giá nhanh</span>
+                        </label>
+                      </div>
+                      
+                      {form.useTemplate731 && (
+                        <div className="template-flexible-grid">
+                          <div className="template-row header">
+                            <span>Mốc thời gian (Ngày còn lại)</span>
+                            <span>Mức giảm giá (%)</span>
+                          </div>
+                          <div className="template-row">
+                            <div className="template-input-group">
+                              <span className="prefix">Dưới</span>
+                              <input type="number" name="d7" value={form.d7 || '7'} onChange={handleChange} className="sapolicy-input small" />
+                              <span className="suffix">ngày</span>
+                            </div>
+                            <div className="template-input-group">
+                              <input type="number" name="p7" value={form.p7 || '20'} onChange={handleChange} className="sapolicy-input small" />
+                              <span className="suffix">%</span>
+                            </div>
+                          </div>
+                          <div className="template-row">
+                            <div className="template-input-group">
+                              <span className="prefix">Dưới</span>
+                              <input type="number" name="d3" value={form.d3 || '3'} onChange={handleChange} className="sapolicy-input small" />
+                              <span className="suffix">ngày</span>
+                            </div>
+                            <div className="template-input-group">
+                              <input type="number" name="p3" value={form.p3 || '50'} onChange={handleChange} className="sapolicy-input small" />
+                              <span className="suffix">%</span>
+                            </div>
+                          </div>
+                          <div className="template-row">
+                            <div className="template-input-group">
+                              <span className="prefix">Dưới</span>
+                              <input type="number" name="d1" value={form.d1 || '1'} onChange={handleChange} className="sapolicy-input small" />
+                              <span className="suffix">ngày</span>
+                            </div>
+                            <div className="template-input-group">
+                              <input type="number" name="p1" value={form.p1 || '80'} onChange={handleChange} className="sapolicy-input small" />
+                              <span className="suffix">%</span>
+                            </div>
+                          </div>
+                          <p className="template-hint">* Hệ thống sẽ tự động chia khoảng ngày nối tiếp nhau dựa trên các mốc bạn nhập.</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {form.applyType === 'category' && (
                     <div className="sapolicy-form-field full-width">
                       <label>Chọn Danh Mục *</label>
@@ -451,48 +601,52 @@ export default function PolicyConfiguration() {
                     </div>
                   )}
 
-                  <div className="sapolicy-form-field">
-                    <label>Phần trăm giảm giá (%) *</label>
-                    <input
-                      type="number"
-                      name="discountPercent"
-                      value={form.discountPercent}
-                      onChange={handleChange}
-                      placeholder="VD: 30"
-                      className="sapolicy-input"
-                      min="0"
-                      max="100"
-                      required
-                    />
-                  </div>
+                  {!form.useTemplate731 && (
+                    <>
+                      <div className="sapolicy-form-field">
+                        <label>Phần trăm giảm giá (%) *</label>
+                        <input
+                          type="number"
+                          name="discountPercent"
+                          value={form.discountPercent}
+                          onChange={handleChange}
+                          placeholder="VD: 30"
+                          className="sapolicy-input"
+                          min="0"
+                          max="100"
+                          required
+                        />
+                      </div>
 
-                  <div className="sapolicy-form-field">
-                    <label>Số ngày tối thiểu *</label>
-                    <input
-                      type="number"
-                      name="minDaysLeft"
-                      value={form.minDaysLeft}
-                      onChange={handleChange}
-                      placeholder="VD: 1"
-                      className="sapolicy-input"
-                      min="0"
-                      required
-                    />
-                  </div>
+                      <div className="sapolicy-form-field">
+                        <label>Số ngày tối thiểu *</label>
+                        <input
+                          type="number"
+                          name="minDaysLeft"
+                          value={form.minDaysLeft}
+                          onChange={handleChange}
+                          placeholder="VD: 1"
+                          className="sapolicy-input"
+                          min="0"
+                          required
+                        />
+                      </div>
 
-                  <div className="sapolicy-form-field">
-                    <label>Số ngày tối đa *</label>
-                    <input
-                      type="number"
-                      name="maxDaysLeft"
-                      value={form.maxDaysLeft}
-                      onChange={handleChange}
-                      placeholder="VD: 7"
-                      className="sapolicy-input"
-                      min="0"
-                      required
-                    />
-                  </div>
+                      <div className="sapolicy-form-field">
+                        <label>Số ngày tối đa *</label>
+                        <input
+                          type="number"
+                          name="maxDaysLeft"
+                          value={form.maxDaysLeft}
+                          onChange={handleChange}
+                          placeholder="VD: 7"
+                          className="sapolicy-input"
+                          min="0"
+                          required
+                        />
+                      </div>
+                    </>
+                  )}
 
                 </div>
               </div>

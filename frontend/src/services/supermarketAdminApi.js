@@ -155,11 +155,13 @@ export async function fetchExpiringProducts(days = 7, storeId = null) {
   return response.data
 }
 
-export async function fetchDonationMonitoring(statusFilter = 'all') {
+export async function fetchDonationMonitoring(statusFilter = 'all', storeId = null) {
   requireSupermarketAdmin()
-  const response = await API.get('/supermarket-admin/donations', {
-    params: { status_filter: statusFilter },
-  })
+  const params = { status_filter: statusFilter }
+  if (storeId) {
+    params.store_id = storeId
+  }
+  const response = await API.get('/supermarket-admin/donations', { params })
   return response.data.items || []
 }
 

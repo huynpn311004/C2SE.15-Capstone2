@@ -49,15 +49,44 @@ def _parse_date_input(value) -> date:
     if isinstance(value, datetime):
         return value.date()
     if isinstance(value, str):
-        stripped = value.strip()
+        stripped = value.strip().replace(" ", "")
         if not stripped:
-            raise ValueError("Ngay het han trong")
-        for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
+            # If mandatory expiry date is missing, we could either raise error or set a far date.
+            # Usually for inventory, expiry is mandatory.
+            raise ValueError("Ngày tháng không được để trống")
+        
+        # Try various common formats
+        for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%m/%d/%Y", "%Y/%m/%d", "%Y.%m.%d", "%d.%m.%Y"):
             try:
                 return datetime.strptime(stripped, fmt).date()
             except ValueError:
                 continue
-    raise ValueError("Ngay het han khong hop le")
+    
+    # If it's a number (Excel date serial), but openpyxl usually handles this
+    try:
+        if isinstance(value, (int, float)):
+             # Excel base date is 1899-12-30
+             return date(1899, 12, 30) + timedelta(days=int(value))
+    except:
+        pass
+
+    raise ValueError(f"Định dạng ngày '{value}' không hợp lệ (Dùng DD/MM/YYYY hoặc YYYY-MM-DD)")
+
+
+def _validate_lot_dates(mfg_date: date | None, exp_date: date):
+    today = date.today()
+    
+    if mfg_date:
+        if mfg_date > today:
+            raise ValueError(f"Ngày sản xuất ({mfg_date}) không được ở tương lai.")
+        if mfg_date.year < 2000 or mfg_date.year > 2100:
+            raise ValueError(f"Năm sản xuất ({mfg_date.year}) không hợp lệ (2000-2100).")
+            
+    if exp_date.year < 2000 or exp_date.year > 2100:
+        raise ValueError(f"Năm hết hạn ({exp_date.year}) không hợp lệ (2000-2100).")
+        
+    if mfg_date and exp_date <= mfg_date:
+        raise ValueError(f"Ngày hết hạn ({exp_date}) phải sau ngày sản xuất ({mfg_date}).")
 
 
 def _normalize_header(header: object) -> str:
@@ -374,13 +403,25 @@ def _upsert_inventory_lot(
 def _extract_rows_from_xlsx(file_bytes: bytes) -> list[dict[str, object]]:
     workbook = load_workbook(filename=BytesIO(file_bytes), data_only=True)
     sheet = workbook.active
-    rows = list(sheet.iter_rows(values_only=True))
-    if not rows:
+    all_rows = list(sheet.iter_rows(values_only=True))
+    if not all_rows:
         return []
 
-    headers = [_normalize_header(h) for h in rows[0]]
+    # Smart header detection: Find the first row that looks like a header (contains keywords)
+    header_idx = 0
+    mandatory_keywords = {"ten", "name", "ma", "sku", "lo", "qty", "luong", "gia", "price"}
+    
+    for i, row in enumerate(all_rows[:10]):  # Look in first 10 rows
+        normalized_cells = [_normalize_header(c) for c in row if c is not None]
+        # If any cell matches our known keywords, this is likely the header row
+        if any(any(kw in c for kw in mandatory_keywords) for c in normalized_cells):
+            header_idx = i
+            break
+
+    headers = [_normalize_header(h) for h in all_rows[header_idx]]
     data_rows: list[dict[str, object]] = []
-    for row in rows[1:]:
+    
+    for row in all_rows[header_idx + 1:]:
         if not row or all(cell is None or str(cell).strip() == "" for cell in row):
             continue
         item: dict[str, object] = {}
@@ -708,7 +749,7 @@ def _create_delivery_for_donation_request(db: Session, donation_request_id: int,
         delivery_partner_id=partner.id,
         receiver_name=request_row.charity_name,
         receiver_phone=request_row.charity_phone,
-        receiver_address=request_row.charity_address or "Chua co dia chi",
+        receiver_address=request_row.charity_address or "Chưa có địa chỉ",
         status="assigned"
     )
     
@@ -890,14 +931,19 @@ def staff_category_stats(db: Session, store_id: int) -> dict:
     return {"items": items}
 
 
-def list_categories(db: Session, supermarket_id: int) -> dict:
-    rows = db.query(
+def list_categories(db: Session, supermarket_id: int, search: str | None = None) -> dict:
+    query = db.query(
         Category.id,
         Category.name,
         func.count(Product.id).label('product_count')
     ).outerjoin(
         Product, and_(Product.category_id == Category.id, Product.supermarket_id == supermarket_id)
-    ).group_by(
+    )
+
+    if search:
+        query = query.filter(Category.name.ilike(f"%{search}%"))
+
+    rows = query.group_by(
         Category.id, Category.name
     ).order_by(
         Category.name.asc()
@@ -1911,8 +1957,11 @@ def list_inventory_lots(db: Session, store_id: int, status_filter: str = "all") 
         Product.supermarket_id
     ).join(
         Product, Product.id == InventoryLot.product_id
+    ).join(
+        Store, Store.id == InventoryLot.store_id
     ).filter(
-        InventoryLot.store_id == store_id
+        InventoryLot.store_id == store_id,
+        Store.supermarket_id == Product.supermarket_id
     ).order_by(
         InventoryLot.expiry_date.asc(), InventoryLot.id.desc()
     ).all()
@@ -1977,6 +2026,7 @@ def create_inventory_lot(db: Session, store_id: int, supermarket_id: int, lot_co
         expiry_date = _parse_date_input(expiry_date)
         if manufacturing_date:
             manufacturing_date = _parse_date_input(manufacturing_date)
+        _validate_lot_dates(manufacturing_date, expiry_date)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
@@ -2009,6 +2059,7 @@ def update_inventory_lot(db: Session, lot_id: int, store_id: int, supermarket_id
         expiry_date = _parse_date_input(expiry_date)
         if manufacturing_date:
             manufacturing_date = _parse_date_input(manufacturing_date)
+        _validate_lot_dates(manufacturing_date, expiry_date)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
@@ -2194,26 +2245,47 @@ async def import_inventory_lots_from_excel(db: Session, store_id: int, supermark
 
     try:
         for idx, row in enumerate(rows, start=2):
-            lot_code_raw = _pick_field(row, "lot_code", "lotcode", "ma_lo", "ma_lo_hang")
-            product_name_raw = _pick_field(row, "product_name", "product", "name", "ten_san_pham", "san_pham")
-            quantity_raw = _pick_field(row, "quantity", "qty", "so_luong")
-            expiry_raw = _pick_field(row, "expiry_date", "expiry", "ngay_het_han", "han_su_dung")
-            status_raw = _pick_field(row, "status", "trang_thai")
-            sku_raw = _pick_field(row, "sku", "ma_sku")
-            base_price_raw = _pick_field(row, "base_price", "price", "don_gia", "gia")
-            category_raw = _pick_field(row, "category", "category_name", "danh_muc")
+            lot_code_raw = _pick_field(row, "lot_code", "lotcode", "ma_lo", "ma_lo_hang", "malo")
+            product_name_raw = _pick_field(row, "product_name", "product", "name", "ten_san_pham", "san_pham", "tensp")
+            quantity_raw = _pick_field(row, "quantity", "qty", "so_luong", "soluong", "sl")
+            expiry_raw = _pick_field(row, "expiry_date", "expiry", "ngay_het_han", "han_su_dung", "hsd")
+            status_raw = _pick_field(row, "status", "trang_thai", "tinhtrang")
+            sku_raw = _pick_field(row, "sku", "ma_sku", "masku")
+            base_price_raw = _pick_field(row, "base_price", "price", "don_gia", "gia", "dongia")
+            category_raw = _pick_field(row, "category", "category_name", "danh_muc", "danhmuc")
 
             try:
                 lot_code = str(lot_code_raw or "").strip()
                 product_name = str(product_name_raw or "").strip()
-                if not lot_code or not product_name:
-                    raise ValueError("Thieu ma lo hoac ten san pham")
+                
+                if not product_name:
+                    continue # Skip empty rows without product name
+                
+                # Auto-generate lot code if missing
+                if not lot_code:
+                    lot_code = f"LOT-{datetime.now().strftime('%Y%m%d')}-{uuid4().hex[:6].upper()}"
 
-                quantity = int(quantity_raw)
+                # Clean and parse quantity
+                quantity = 0
+                try:
+                    if quantity_raw is not None:
+                        # Handle potential float/string formats from Excel
+                        q_str = str(quantity_raw).split('.')[0].replace(',', '').replace(' ', '')
+                        quantity = int(q_str)
+                except:
+                    quantity = 0
+                
                 if quantity < 0:
-                    raise ValueError("So luong phai >= 0")
+                    quantity = 0
 
+                mfg_raw = _pick_field(row, "manufacturing_date", "mfg", "ngay_san_xuat", "nsx")
                 expiry_date = _parse_date_input(expiry_raw)
+                mfg_date = None
+                if mfg_raw:
+                    mfg_date = _parse_date_input(mfg_raw)
+                
+                _validate_lot_dates(mfg_date, expiry_date)
+
                 product_id, product_action = _upsert_product_from_import(
                     db,
                     supermarket_id=supermarket_id,
@@ -2237,6 +2309,7 @@ async def import_inventory_lots_from_excel(db: Session, store_id: int, supermark
                     expiry_date=expiry_date,
                     manual_status=status_raw,
                     product_id=product_id,
+                    manufacturing_date=mfg_date,
                 )
 
                 if lot_action == "created":
@@ -2292,32 +2365,36 @@ async def import_products_from_excel(db: Session, store_id: int, supermarket_id:
 
     try:
         for idx, row in enumerate(rows, start=2):
-            product_name_raw = _pick_field(row, "product_name", "product", "name", "ten_san_pham", "san_pham")
-            sku_raw = _pick_field(row, "sku", "ma_sku")
-            base_price_raw = _pick_field(row, "base_price", "price", "don_gia", "gia")
-            category_raw = _pick_field(row, "category", "category_name", "danh_muc")
+            product_name_raw = _pick_field(row, "product_name", "product", "name", "ten_san_pham", "san_pham", "tensp")
+            sku_raw = _pick_field(row, "sku", "ma_sku", "masku")
+            base_price_raw = _pick_field(row, "base_price", "price", "don_gia", "gia", "dongia")
+            category_raw = _pick_field(row, "category", "category_name", "danh_muc", "danhmuc")
 
-            lot_code_raw = _pick_field(row, "lot_code", "lotcode", "ma_lo", "ma_lo_hang")
-            quantity_raw = _pick_field(row, "quantity", "qty", "so_luong")
-            expiry_raw = _pick_field(row, "expiry_date", "expiry", "ngay_het_han", "han_su_dung")
-            status_raw = _pick_field(row, "status", "trang_thai")
+            lot_code_raw = _pick_field(row, "lot_code", "lotcode", "ma_lo", "ma_lo_hang", "malo")
+            quantity_raw = _pick_field(row, "quantity", "qty", "so_luong", "soluong", "sl")
+            expiry_raw = _pick_field(row, "expiry_date", "expiry", "ngay_het_han", "han_su_dung", "hsd")
+            status_raw = _pick_field(row, "status", "trang_thai", "tinhtrang")
 
             try:
+                product_name = str(product_name_raw or "").strip()
+                if not product_name:
+                    continue # Skip empty rows
+
                 product_id, product_action = _upsert_product_from_import(
                     db,
                     supermarket_id=supermarket_id,
-                    product_name_raw=product_name_raw,
+                    product_name_raw=product_name,
                     sku_raw=sku_raw,
                     base_price_raw=base_price_raw,
                     category_name_raw=category_raw,
                 )
-                product_name = str(product_name_raw or "").strip()
 
                 if product_action == "created":
                     products_created += 1
                 else:
                     products_updated += 1
 
+                # Optional Lot creation if data is present
                 has_lot_data = any(
                     value not in (None, "")
                     for value in (lot_code_raw, quantity_raw, expiry_raw)
@@ -2325,11 +2402,16 @@ async def import_products_from_excel(db: Session, store_id: int, supermarket_id:
                 if has_lot_data:
                     lot_code = str(lot_code_raw or "").strip()
                     if not lot_code:
-                        raise ValueError("Thieu ma lo de tao ton kho")
+                        lot_code = f"LOT-{datetime.now().strftime('%Y%m%d')}-{uuid4().hex[:6].upper()}"
 
-                    quantity = int(quantity_raw)
-                    if quantity < 0:
-                        raise ValueError("So luong phai >= 0")
+                    # Clean and parse quantity
+                    quantity = 0
+                    try:
+                        if quantity_raw is not None:
+                            q_str = str(quantity_raw).split('.')[0].replace(',', '').replace(' ', '')
+                            quantity = int(q_str)
+                    except:
+                        quantity = 0
 
                     expiry_date = _parse_date_input(expiry_raw)
 

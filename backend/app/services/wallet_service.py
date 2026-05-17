@@ -58,7 +58,7 @@ def add_transaction(db: Session, entity_type: str, entity_id: int, amount: Any, 
             new_balance = current_balance + decimal_amount
             setattr(target, balance_attr, new_balance)
             logger.info(f"Balance UPDATED (ADD): {current_balance} -> {new_balance}")
-        elif transaction_type in ('payment', 'withdrawal', 'order_settlement'):
+        elif transaction_type in ('payment', 'withdrawal', 'order_settlement', 'commission'):
             new_balance = current_balance - decimal_amount
             setattr(target, balance_attr, new_balance)
             logger.info(f"Balance UPDATED (SUB): {current_balance} -> {new_balance}")

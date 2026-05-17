@@ -6,18 +6,16 @@ from app.services.geocoding_service import calculate_distance, geocode_address
 SHIPPING_TIERS = [
     (5, 15000),    # 0-5km:  15.000đ
     (10, 25000),   # 5-10km: 25.000đ
-    (15, 40000),   # 10-15km: 40.000đ
 ]
 
-WARNING_DISTANCE_KM = 10.0     # Bắt đầu cảnh báo từ 10km
-MAX_DELIVERY_DISTANCE_KM = 15.0  # Chặn hoàn toàn > 15km
-FREE_SHIPPING_THRESHOLD = 999999999  # Vô hiệu hóa miễn phí ship (đặt ngưỡng cực cao)
+MAX_DELIVERY_DISTANCE_KM = 10.0  # Chặn hoàn toàn > 10km để đồng bộ với hiển thị sản phẩm
+WARNING_DISTANCE_KM = 5.0       # Cảnh báo khu vực xa
+FREE_SHIPPING_THRESHOLD = 999999999  # Vô hiệu hóa miễn phí ship
 
 
 def calculate_shipping_fee(distance_km: float, order_amount: float = 0) -> dict:
     distance_km = round(distance_km, 2)
 
-    # --- Vùng Chặn: > 15km ---
     if distance_km > MAX_DELIVERY_DISTANCE_KM:
         return {
             "fee": None,

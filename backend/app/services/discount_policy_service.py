@@ -416,6 +416,8 @@ def calculate_discount(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ngày hết hạn không hợp lệ")
 
     days_left = (expiry - date.today()).days
+    days_left = max(0, days_left)
+    policy_days_left = max(1, days_left)
     
     # 1. PRODUCT-SPECIFIC policies
     if product_id:
@@ -425,8 +427,8 @@ def calculate_discount(
         ).filter(
             DiscountPolicy.product_id == product_id,
             DiscountPolicy.is_active == True,
-            DiscountPolicy.min_days_left <= days_left,
-            DiscountPolicy.max_days_left >= days_left
+            DiscountPolicy.min_days_left <= policy_days_left,
+            DiscountPolicy.max_days_left >= policy_days_left
         ).all()
         if product_policies:
             policy = product_policies[0]
@@ -453,8 +455,8 @@ def calculate_discount(
             ).filter(
                 DiscountPolicy.category_id == category_id,
                 DiscountPolicy.is_active == True,
-                DiscountPolicy.min_days_left <= days_left,
-                DiscountPolicy.max_days_left >= days_left
+                DiscountPolicy.min_days_left <= policy_days_left,
+                DiscountPolicy.max_days_left >= policy_days_left
             ).all()
             if category_policies:
                 policy = category_policies[0]
@@ -479,8 +481,8 @@ def calculate_discount(
             DiscountPolicy.category_id.is_(None),
             DiscountPolicy.product_id.is_(None),
             DiscountPolicy.is_active == True,
-            DiscountPolicy.min_days_left <= days_left,
-            DiscountPolicy.max_days_left >= days_left
+            DiscountPolicy.min_days_left <= policy_days_left,
+            DiscountPolicy.max_days_left >= policy_days_left
         ).all()
         if supermarket_policies:
             policy = supermarket_policies[0]

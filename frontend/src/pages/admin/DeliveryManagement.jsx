@@ -10,10 +10,15 @@ import {
 } from '../../services/adminApi'
 import './DeliveryManagement.css'
 
-/**
- * Trang Quản lý Delivery Partner
- * System Admin quản lý thông tin đối tác giao hàng
- */
+const removeAccents = (str) => {
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+}
+
+
 export default function DeliveryManagement() {
   const getTodayDate = () => {
     const today = new Date()
@@ -50,6 +55,7 @@ export default function DeliveryManagement() {
     requestDate: getTodayDate(),
     activityStatus: 'active',
   })
+  const [searchTerm, setSearchTerm] = useState('')
 
   async function loadDeliveries() {
     try {
@@ -77,7 +83,16 @@ export default function DeliveryManagement() {
     }
   }, [success, error])
 
-  const filteredDeliveries = deliveryPartners
+  const filteredDeliveries = deliveryPartners.filter((delivery) => {
+    const search = removeAccents(searchTerm.toLowerCase())
+    return (
+      removeAccents(delivery.manager.toLowerCase()).includes(search) ||
+      removeAccents(delivery.email.toLowerCase()).includes(search) ||
+      removeAccents(delivery.phone.toLowerCase()).includes(search) ||
+      removeAccents(delivery.vehicleType.toLowerCase()).includes(search) ||
+      removeAccents(delivery.licensePlate.toLowerCase()).includes(search)
+    )
+  })
 
   async function handleToggleLockDelivery(id) {
     try {
@@ -346,6 +361,19 @@ export default function DeliveryManagement() {
           >
             Tạo tài khoản
           </button>
+          <div className="delivery-search-wrapper">
+            <svg className="delivery-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.35-4.35" />
+            </svg>
+            <input
+              type="text"
+              className="delivery-search-input"
+              placeholder="Tìm kiếm đối tác..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
           <div className="delivery-toolbar-info">
             Hiển thị {filteredDeliveries.length} đối tác giao hàng
           </div>
@@ -388,7 +416,7 @@ export default function DeliveryManagement() {
                             title="Chỉnh sửa"
                           >
                             <svg className="delivery-btn-icon" viewBox="0 0 24 24" fill="currentColor">
-                              <path d="m3 17.25 8.06-8.06 2.75 2.75L5.75 20H3v-2.75Zm13.71-9.04 1.04-1.04a1 1 0 0 0 0-1.41l-1.55-1.55a1 1 0 0 0-1.41 0l-1.04 1.04 2.96 2.96Z"/>
+                              <path d="m3 17.25 8.06-8.06 2.75 2.75L5.75 20H3v-2.75Zm13.71-9.04 1.04-1.04a1 1 0 0 0 0-1.41l-1.55-1.55a1 1 0 0 0-1.41 0l-1.04 1.04 2.96 2.96Z" />
                             </svg>
                             Sửa
                           </button>
@@ -400,14 +428,14 @@ export default function DeliveryManagement() {
                             {delivery.isLocked ? (
                               <>
                                 <svg className="delivery-btn-icon" viewBox="0 0 24 24" fill="currentColor">
-                                  <path d="M17 9h-7V7a3 3 0 0 1 5.8-1.2l1.9-.6A5 5 0 0 0 8 7v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm0 10H7v-8h10v8Z"/>
+                                  <path d="M17 9h-7V7a3 3 0 0 1 5.8-1.2l1.9-.6A5 5 0 0 0 8 7v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm0 10H7v-8h10v8Z" />
                                 </svg>
                                 Mở khóa
                               </>
                             ) : (
                               <>
                                 <svg className="delivery-btn-icon" viewBox="0 0 24 24" fill="currentColor">
-                                  <path d="M17 9h-1V7a4 4 0 1 0-8 0v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm-7-2a2 2 0 1 1 4 0v2h-4V7Zm7 12H7v-8h10v8Z"/>
+                                  <path d="M17 9h-1V7a4 4 0 1 0-8 0v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm-7-2a2 2 0 1 1 4 0v2h-4V7Zm7 12H7v-8h10v8Z" />
                                 </svg>
                                 Khóa
                               </>
@@ -419,7 +447,7 @@ export default function DeliveryManagement() {
                             title="Xóa đối tác"
                           >
                             <svg className="delivery-btn-icon" viewBox="0 0 24 24" fill="currentColor">
-                              <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                              <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
                             </svg>
                             Xóa
                           </button>

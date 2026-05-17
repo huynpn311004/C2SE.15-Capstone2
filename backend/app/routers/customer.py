@@ -124,9 +124,10 @@ def list_products(
 	search: str = Query(default=None),
 	latitude: float = Query(default=None),
 	longitude: float = Query(default=None),
+	sort_price: str = Query(default=None, description="'asc' for low to high, 'desc' for high to low"),
 	db: Session = Depends(get_db),
 ):
-	return list_customer_products(db, supermarket_id, store_id, category_id, search, latitude, longitude)
+	return list_customer_products(db, supermarket_id, store_id, category_id, search, latitude, longitude, sort_price=sort_price)
 
 
 @router.get("/products/{product_id}", response_model=ProductDetailResponse)

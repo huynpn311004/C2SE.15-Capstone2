@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { getProductImageUrl } from '../../services/staffApi';
-import { fetchCustomerProductDetail, createMultiStoreOrder, fetchAvailableCoupons, confirmCustomerOrder, estimateShipping, initiatePayment, fetchCustomerSetting } from '../../services/customerApi';
+import { fetchCustomerProductDetail, createMultiStoreOrder, fetchAvailableCoupons, confirmCustomerOrder, cancelCustomerOrder, estimateShipping, initiatePayment, fetchCustomerSetting } from '../../services/customerApi';
 import { LocationModal } from '../../components/map';
 import { getCart, clearCart } from '../../services/cartUtils';
 import './CustomerCheckout.css';
@@ -345,7 +345,7 @@ const CustomerCheckout = () => {
           newShippingData[storeId] = result;
         } catch (err) {
           console.warn(`Shipping estimate failed for store ${storeId}:`, err);
-          newShippingData[storeId] = { fee: 0, zone: 'normal', deliverable: true, message: 'Miễn phí vận chuyển', distanceKm: 0 };
+          newShippingData[storeId] = { fee: 15000, zone: 'normal', deliverable: true, message: 'Phí vận chuyển cơ bản: 15.000đ', distanceKm: 0 };
         }
       }
 
@@ -402,11 +402,22 @@ const CustomerCheckout = () => {
     : totalShippingFee;
   const finalTotal = safeProductSubtotal - couponDiscount + effectiveShippingFee;
 
-  const totalSavings = cart.reduce((sum, item) => {
-    const original = item.originalPrice || 0;
-    const sale = item.salePrice || item.bestPrice || 0;
-    return sum + (original - sale) * item.quantity;
-  }, 0);
+  // Calculate total savings from product-level discounts (expiry discounts)
+  const expirySavings = (isMultiStore && orderGroups.length > 0)
+    ? orderGroups.reduce((sum, g) =>
+      sum + g.items.reduce((itemSum, item) =>
+        itemSum + (Math.max(0, (item.originalPrice || item.unitPrice) - item.unitPrice) * item.quantity), 0
+      ), 0)
+    : (isMultiStore && cartItems.length > 0 ? cartItems : cart).reduce((sum, item) => {
+      const original = item.originalPrice || (item.salePrice || item.bestPrice || 0);
+      const sale = item.salePrice || item.bestPrice || 0;
+      return sum + Math.max(0, original - sale) * item.quantity;
+    }, 0);
+
+  // Original subtotal before any discounts
+  const originalSubtotal = safeProductSubtotal + expirySavings;
+
+  const totalSavings = expirySavings + couponDiscount;
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -556,6 +567,36 @@ const CustomerCheckout = () => {
       setSubmitting(false);
     }
   };
+
+  const handleCancelOrder = async () => {
+    try {
+      setSubmitting(true);
+
+      // 1. If multi-store orders already exist, cancel all of them
+      if (isMultiStore && orderGroups.length > 0) {
+        const cancelPromises = orderGroups.map(group => cancelCustomerOrder(group.orderId));
+        await Promise.all(cancelPromises);
+        setToast({ visible: true, message: 'Đã hủy đơn hàng và giải phóng giữ chỗ kho.' });
+      }
+      // 2. If single legacy order exists, cancel it
+      else if (reservedOrderId) {
+        await cancelCustomerOrder(reservedOrderId);
+        setToast({ visible: true, message: 'Đã hủy đơn hàng và giải phóng giữ chỗ kho.' });
+      }
+
+      // Small delay to show toast before navigating
+      setTimeout(() => {
+        setToast(prev => ({ ...prev, visible: false }));
+        navigate('/customer/cart');
+      }, 1500);
+    } catch (err) {
+      console.error('Failed to cancel order:', err);
+      // Even if API fails, still go back to cart to let user adjust
+      navigate('/customer/cart');
+    } finally {
+      setSubmitting(false);
+    }
+  };
   if (loading) {
     return (
       <div className="customer-page" style={{ justifyContent: 'center', alignItems: 'center' }}>
@@ -572,7 +613,7 @@ const CustomerCheckout = () => {
         {/* Order Summary */}
         <div className="customer-products-section customer-checkout-summary-section">
           <div className="customer-section-header">
-            <div>
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%' }}>
               <h3 className="customer-section-title">Đơn hàng của bạn</h3>
             </div>
           </div>
@@ -582,8 +623,10 @@ const CustomerCheckout = () => {
               <div className="customer-checkout-empty">
                 <p>Giỏ hàng trống</p>
                 <button
-                  onClick={() => navigate('/customer/home')}
-                  className="customer-checkout-empty-btn"
+                  onClick={handleCancelOrder}
+                  className="customer-checkout-back-btn"
+                  type="button"
+                  disabled={submitting}
                 >
                   Quay lại trang chủ
                 </button>
@@ -613,6 +656,12 @@ const CustomerCheckout = () => {
                         <div className="customer-checkout-item-info">
                           <p className="customer-checkout-item-name">{item.name}</p>
                           <p className="customer-checkout-item-qty">Số lượng: x{item.quantity}</p>
+                          {item.originalPrice > item.unitPrice && (
+                            <p className="customer-checkout-item-discount-info">
+                              <span className="checkout-original-price">{(item.originalPrice * item.quantity).toLocaleString()}đ</span>
+                              <span className="checkout-discount-badge">-{Math.round((1 - item.unitPrice / item.originalPrice) * 100)}%</span>
+                            </p>
+                          )}
                         </div>
                         <p className="customer-checkout-item-price">
                           {(item.unitPrice * item.quantity).toLocaleString()}đ
@@ -658,6 +707,12 @@ const CustomerCheckout = () => {
                               <div className="customer-checkout-item-info">
                                 <p className="customer-checkout-item-name">{item.name}</p>
                                 <p className="customer-checkout-item-qty">Số lượng: x{item.quantity}</p>
+                                {item.originalPrice > (item.salePrice || item.bestPrice) && (
+                                  <p className="customer-checkout-item-discount-info">
+                                    <span className="checkout-original-price">{(item.originalPrice * item.quantity).toLocaleString()}đ</span>
+                                    <span className="checkout-discount-badge">-{item.discount || 0}%</span>
+                                  </p>
+                                )}
                               </div>
                               <p className="customer-checkout-item-price">
                                 {((item.salePrice || item.bestPrice || 0) * item.quantity).toLocaleString()}đ
@@ -707,9 +762,15 @@ const CustomerCheckout = () => {
                   <div className="customer-checkout-totals-row">
                     <span className="customer-checkout-totals-label">Tạm tính</span>
                     <span className="customer-checkout-totals-value">
-                      {safeProductSubtotal.toLocaleString()}đ
+                      {originalSubtotal.toLocaleString()}đ
                     </span>
                   </div>
+                  {expirySavings > 0 && (
+                    <div className="customer-checkout-totals-row" style={{ color: 'var(--seims-warning)' }}>
+                      <span className="customer-checkout-totals-label">Giảm giá sản phẩm</span>
+                      <span className="customer-checkout-totals-value">-{expirySavings.toLocaleString()}đ</span>
+                    </div>
+                  )}
                   {couponDiscount > 0 && (
                     <div className="customer-checkout-totals-row" style={{ color: 'var(--seims-success)' }}>
                       <span className="customer-checkout-totals-label">Mã ưu đãi ({selectedCoupon?.code})</span>
@@ -722,20 +783,19 @@ const CustomerCheckout = () => {
                       {shippingLoading ? 'Đang tính...' : hasBlockedStore ? 'Không hỗ trợ' : effectiveShippingFee > 0 ? `${effectiveShippingFee.toLocaleString()}đ` : 'Miễn phí'}
                     </span>
                   </div>
+                  {totalSavings > 0 && (
+                    <div className="customer-checkout-savings" style={{ marginTop: '0.5rem', marginBottom: '0.25rem' }}>
+                      <span className="customer-checkout-totals-label" style={{ color: 'var(--seims-warning)', fontWeight: 700 }}>Tổng tiết kiệm</span>
+                      <span className="customer-checkout-totals-value" style={{ color: 'var(--seims-warning)', fontWeight: 800 }}>-{totalSavings.toLocaleString()}đ</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Shipping warnings */}
                 {hasBlockedStore && (
                   <div style={{ background: '#fff3f3', border: '1px solid #ff4d4f', borderRadius: '8px', padding: '0.75rem 1rem', marginBottom: '0.75rem' }}>
                     <p style={{ color: '#ff4d4f', fontWeight: 600, fontSize: '0.85rem', margin: 0 }}>
-                      ⚠️ Một số cửa hàng nằm ngoài phạm vi giao hàng (&gt;15km). Vui lòng thay đổi địa chỉ.
-                    </p>
-                  </div>
-                )}
-                {hasWarningStore && !hasBlockedStore && (
-                  <div style={{ background: '#fffbe6', border: '1px solid #faad14', borderRadius: '8px', padding: '0.75rem 1rem', marginBottom: '0.75rem' }}>
-                    <p style={{ color: '#d48806', fontWeight: 500, fontSize: '0.85rem', margin: 0 }}>
-                      ⚡ Khoảng cách giao hàng xa (10-15km). Thời gian giao hàng có thể lâu hơn.
+                      Một số cửa hàng nằm ngoài phạm vi giao hàng (&gt;10km). Vui lòng thay đổi địa chỉ.
                     </p>
                   </div>
                 )}
@@ -892,13 +952,23 @@ const CustomerCheckout = () => {
               </ul>
             </div>
 
-            <button
-              type="submit"
-              className="customer-checkout-submit"
-              disabled={(cart.length === 0 && orderGroups.length === 0 && itemsForOrder.length === 0) || submitting || hasBlockedStore || shippingLoading || (paymentMethod === 'wallet' && walletBalance < finalTotal)}
-            >
-              {submitting ? 'Đang xử lý...' : shippingLoading ? 'Đang tính phí ship...' : hasBlockedStore ? 'Ngoài phạm vi giao hàng' : (paymentMethod === 'wallet' && walletBalance < finalTotal) ? 'Số dư ví không đủ' : (paymentMethod === 'vnpay' ? 'Thanh toán ngay' : 'Đặt hàng ngay')}
-            </button>
+            <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+              <button
+                type="button"
+                className="customer-checkout-cancel-btn"
+                onClick={handleCancelOrder}
+                disabled={submitting}
+              >
+                Hủy đơn
+              </button>
+              <button
+                type="submit"
+                className="customer-checkout-submit"
+                disabled={(cart.length === 0 && orderGroups.length === 0 && itemsForOrder.length === 0) || submitting || hasBlockedStore || shippingLoading || (paymentMethod === 'wallet' && walletBalance < finalTotal)}
+              >
+                {submitting ? 'Đang xử lý...' : shippingLoading ? 'Đang tính phí ship...' : hasBlockedStore ? 'Ngoài phạm vi giao hàng' : (paymentMethod === 'wallet' && walletBalance < finalTotal) ? 'Số dư ví không đủ' : (paymentMethod === 'vnpay' ? 'Thanh toán ngay' : 'Đặt hàng ngay')}
+              </button>
+            </div>
           </form>
         </div>
       </div>

@@ -41,6 +41,9 @@ export default function DeliveryHistory() {
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState({ visible: false, message: '' })
   const [filter, setFilter] = useState('all')
+  const [searchTerm, setSearchTerm] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+
 
   const showToast = (msg) => {
     setToast({ visible: true, message: msg })
@@ -51,8 +54,8 @@ export default function DeliveryHistory() {
     try {
       setLoading(true)
 
-      // Load history with filter
-      const historyData = await fetchDeliveryHistory(filter)
+      // Load history with filter and search
+      const historyData = await fetchDeliveryHistory(filter, debouncedSearch)
       setCompletedOrders(historyData.items || [])
 
       // Load stats
@@ -71,8 +74,15 @@ export default function DeliveryHistory() {
   }
 
   useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchTerm)
+    }, 500)
+    return () => clearTimeout(handler)
+  }, [searchTerm])
+
+  useEffect(() => {
     loadData()
-  }, [filter])
+  }, [filter, debouncedSearch])
 
   function formatCurrency(amount) {
     if (amount === null || amount === undefined) return '0đ'
@@ -98,8 +108,29 @@ export default function DeliveryHistory() {
         {/* Page Header */}
         <div className="dp-page-header">
           <div className="dp-header-left">
-            <h2 className="dp-page-title">Lịch Sử Giao Hàng</h2>
-            <span className="dp-order-count">{completedOrders.length} đơn</span>
+            <div className="dp-search-wrapper">
+              <div className="dp-search-icon">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                  <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
+                </svg>
+              </div>
+              <input
+                type="text"
+                className="dp-search-input"
+                placeholder="Tìm mã đơn, tên shop, khách hàng..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+              {searchTerm && (
+                <button 
+                  className="dp-search-clear" 
+                  onClick={() => setSearchTerm('')}
+                  type="button"
+                >
+                  ×
+                </button>
+              )}
+            </div>
           </div>
           <div className="dp-earnings-card">
             <div className="dp-earnings-icon">

@@ -19,7 +19,7 @@ frontend/*.local
 *.log
 *.pyneat.bak
 
-backend\uploads\products\
+backend/uploads/products/
 redmine.md
 
 REVIEW.md

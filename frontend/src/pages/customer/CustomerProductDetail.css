@@ -47,21 +47,20 @@
 /* Image */
 .customer-product-detail-image {
   flex: 1 1 300px;
-  background: linear-gradient(135deg, #f0fdfa 0%, #e6fffa 100%);
+  background: #ffffff;
   border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 320px;
+  min-height: 380px;
   border: 1px solid var(--seims-border);
   overflow: hidden;
 }
 
 .customer-product-detail-image img {
   max-width: 100%;
-  max-height: 320px;
+  max-height: 380px;
   object-fit: contain;
-  padding: 1rem;
 }
 
 /* Info */
@@ -123,18 +122,50 @@
   font-weight: 600;
 }
 
-/* Expiry */
-.customer-product-detail-expiry {
+/* Expiry & Dates */
+.customer-product-detail-dates {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
   padding: 0.875rem 1rem;
-  background: rgba(245, 158, 11, 0.1);
-  border: 1px solid rgba(245, 158, 11, 0.2);
+  background: var(--seims-bg);
+  border: 1px solid var(--seims-border);
+  border-radius: 10px;
+}
+
+.customer-date-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.88rem;
+}
+
+.date-label {
+  color: var(--seims-muted);
+  font-weight: 500;
+}
+
+.date-value {
+  color: var(--seims-ink);
+  font-weight: 700;
+}
+
+.customer-product-detail-expiry {
+  padding: 0.75rem 1rem;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.15);
   border-radius: 8px;
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-weight: 600;
+  font-weight: 500;
   font-size: 0.9rem;
-  color: var(--seims-warning);
+  color: #b45309; /* Deep orange */
+}
+
+.customer-product-detail-expiry strong {
+  color: #ea580c;
+  font-weight: 800;
 }
 
 /* Add Button */

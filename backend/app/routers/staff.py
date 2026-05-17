@@ -120,10 +120,11 @@ def staff_category_stats(
 @router.get("/categories", response_model=CategoriesListResponse)
 def list_categories(
 	current_user: User = Depends(get_current_user),
+	search: str = Query(default=None),
 	db: Session = Depends(get_db),
 ):
     scope = staff_service._get_staff_scope(db, current_user.id)
-    return staff_service.list_categories(db, scope["supermarket_id"])
+    return staff_service.list_categories(db, scope["supermarket_id"], search)
 
 
 @router.post("/categories")

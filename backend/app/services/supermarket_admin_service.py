@@ -660,7 +660,7 @@ def get_dashboard_summary(db: Session, user_id: int, period: str = "daily") -> d
         func.count(Order.id).label("total_orders"),
         # Chỉ tính doanh thu từ đơn đã giao thành công
         func.coalesce(
-            func.sum(case((Order.status == "completed", Order.total_amount), else_=0)), 0
+            func.sum(case((Order.status == "completed", Order.total_amount - Order.shipping_fee), else_=0)), 0
         ).label("total_revenue"),
         func.coalesce(
             func.sum(func.cast(case((Order.status == "completed", 1), else_=0), Integer)), 0
@@ -684,7 +684,7 @@ def get_dashboard_summary(db: Session, user_id: int, period: str = "daily") -> d
     ).scalar() or 0
 
     prev_revenue = db.query(
-        func.coalesce(func.sum(case((Order.status == "completed", Order.total_amount), else_=0)), 0)
+        func.coalesce(func.sum(case((Order.status == "completed", Order.total_amount - Order.shipping_fee), else_=0)), 0)
     ).filter(
         Order.store_id.in_(store_ids),
         Order.created_at >= prev_from,
@@ -720,7 +720,7 @@ def get_dashboard_summary(db: Session, user_id: int, period: str = "daily") -> d
         s_metric = db.query(
             func.count(Order.id).label("cnt"),
             func.coalesce(
-                func.sum(case((Order.status == "completed", Order.total_amount), else_=0)), 0
+                func.sum(case((Order.status == "completed", Order.total_amount - Order.shipping_fee), else_=0)), 0
             ).label("rev")
         ).filter(
             Order.store_id == s.id,
@@ -905,7 +905,7 @@ def get_wallet_transactions(db: Session, user_id: int, limit: int = 50, store_id
 
 
 # ========== Donation Monitoring ==========
-def list_donation_monitoring(db: Session, user_id: int, status_filter: str = "all") -> dict:
+def list_donation_monitoring(db: Session, user_id: int, status_filter: str = "all", store_id: int | None = None) -> dict:
     from app.models.charity_organization import CharityOrganization
 
     supermarket_id = _get_supermarket_scope(db, user_id)
@@ -932,6 +932,9 @@ def list_donation_monitoring(db: Session, user_id: int, status_filter: str = "al
 
     if status_filter != "all":
         q = q.filter(DonationRequest.status == status_filter.upper())
+
+    if store_id:
+        q = q.filter(Store.id == store_id)
 
     q = q.group_by(
         DonationRequest.id,

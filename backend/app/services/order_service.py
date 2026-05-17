@@ -24,8 +24,8 @@ from app.services.customer_service import _validate_and_calculate_coupon, _incre
 # =======================
 def parse_item(item):
     if isinstance(item, dict):
-        return item.get("productId"), int(item.get("quantity", 0))
-    return getattr(item, "productId", None), int(getattr(item, "quantity", 0))
+        return item.get("productId"), int(item.get("quantity", 0)), item.get("lotCode") or item.get("lot_code")
+    return getattr(item, "productId", None), int(getattr(item, "quantity", 0)), getattr(item, "lotCode", getattr(item, "lot_code", None))
 
 
 # =======================
@@ -60,7 +60,7 @@ def create_customer_order(
 
         # ===== VALIDATE + PREPARE =====
         for item in items:
-            pid, qty = parse_item(item)
+            pid, qty, lot_code = parse_item(item)
 
             if not pid or qty <= 0:
                 continue
@@ -69,19 +69,18 @@ def create_customer_order(
             if not product:
                 raise ValueError(f"Product {pid} not found")
 
-            # LẤY LOT THEO FEFO (Sắp hết hạn lấy trước)
-            lot = (
-                db.query(InventoryLot)
-                .filter(
-                    InventoryLot.product_id == pid,
-                    InventoryLot.store_id == store_id,
-                    (InventoryLot.qty_on_hand - func.coalesce(InventoryLot.qty_reserved, 0)) >= qty,
-                    InventoryLot.expiry_date >= datetime.now().date() # Chỉ lấy hàng chưa hết hạn
-                )
-                .order_by(InventoryLot.expiry_date.asc())
-                .with_for_update()
-                .first()
+            # LẤY LOT THEO FEFO HOẶC THEO LOT_CODE CỤ THỂ
+            query = db.query(InventoryLot).filter(
+                InventoryLot.product_id == pid,
+                InventoryLot.store_id == store_id,
+                (InventoryLot.qty_on_hand - func.coalesce(InventoryLot.qty_reserved, 0)) >= qty,
+                InventoryLot.expiry_date >= datetime.now().date()
             )
+
+            if lot_code:
+                query = query.filter(InventoryLot.lot_code == lot_code)
+            
+            lot = query.order_by(InventoryLot.expiry_date.asc()).with_for_update().first()
 
             if not lot:
                 raise ValueError(f"Not enough stock for product {pid}")
@@ -111,8 +110,17 @@ def create_customer_order(
         applied_discount_amount = allocated_discount
         if coupon_id and applied_discount_amount == 0:
             coupon_info = _validate_and_calculate_coupon(db, coupon_id, store_id, total_amount)
-            if coupon_info.get("valid"):
-                applied_discount_amount = coupon_info.get("discount_amount", Decimal("0"))
+            if not coupon_info.get("valid"):
+                raise ValueError(coupon_info.get("error", "Mã coupon không hợp lệ"))
+            applied_discount_amount = coupon_info.get("discount_amount", Decimal("0"))
+
+        if applied_discount_amount > total_amount:
+            import logging
+            logging.getLogger(__name__).warning(
+                f"[COUPON] allocated_discount ({applied_discount_amount}) > total_amount "
+                f"({total_amount}) tại store {store_id}. Clamp lại bằng total_amount."
+            )
+            applied_discount_amount = total_amount
 
         if not order_items_data:
             raise ValueError("No valid items")
@@ -255,10 +263,31 @@ def create_multi_store_order(
     for store_id, group_items in store_map.items():
         store_subtotal = Decimal("0")
         for item in group_items:
-            pid, qty = parse_item(item)
-            product = db.query(Product.base_price).filter(Product.id == pid).first()
+            pid, qty, lot_code = parse_item(item)
+            product = db.query(Product).filter(Product.id == pid).first()
             if product:
-                store_subtotal += Decimal(str(product.base_price or 0)) * qty
+                query = db.query(InventoryLot).filter(
+                    InventoryLot.product_id == pid,
+                    InventoryLot.store_id == store_id,
+                    InventoryLot.expiry_date >= datetime.now().date()
+                )
+                if lot_code:
+                    query = query.filter(InventoryLot.lot_code == lot_code)
+                lot = query.order_by(InventoryLot.expiry_date.asc()).first()
+                
+                if lot:
+                    dr = calculate_discount(
+                        db,
+                        base_price=float(product.base_price or 0),
+                        expiry_date=lot.expiry_date.strftime("%Y-%m-%d"),
+                        supermarket_id=product.supermarket_id,
+                        product_id=pid
+                    )
+                    sale_price = Decimal(str(dr.get("finalPrice", product.base_price or 0)))
+                else:
+                    sale_price = Decimal(str(product.base_price or 0))
+                
+                store_subtotal += sale_price * qty
         store_subtotals[store_id] = store_subtotal
         total_cart_subtotal += store_subtotal
 
@@ -285,7 +314,9 @@ def create_multi_store_order(
         else:
             if total_cart_subtotal > 0:
                 ratio = store_subtotals[store_id] / total_cart_subtotal
-                store_allocated_discount = (total_coupon_discount * ratio).quantize(Decimal("0"))
+                store_allocated_discount = (total_coupon_discount * ratio).quantize(
+                    Decimal("1"), rounding="ROUND_FLOOR"
+                )
             else:
                 store_allocated_discount = Decimal("0")
         
@@ -315,7 +346,7 @@ def create_multi_store_order(
 
         items_response = []
         for item in group_items:
-            pid, qty = parse_item(item)
+            pid, qty, _ = parse_item(item)
 
             product = db.query(Product).filter(Product.id == pid).first()
 
@@ -456,27 +487,21 @@ def cancel_customer_order(db: Session, order_id: int, customer_id: int):
                     refund_amount = order_amount - (ship_fee * Decimal('0.8'))
                     product_amount = order_amount - ship_fee
 
-                    # Hoàn tiền cho Shipper
-                    if dp.wallet_balance is None: dp.wallet_balance = Decimal('0')
-                    dp_balance = Decimal(str(dp.wallet_balance))
-                    dp.wallet_balance = dp_balance + refund_amount
-
-                    # Trừ lại tiền của Siêu thị (Chỉ trừ tiền hàng, vì họ chỉ nhận tiền hàng)
-                    if supermarket.wallet_balance is None: supermarket.wallet_balance = Decimal('0')
-                    sm_balance = Decimal(str(supermarket.wallet_balance))
-                    supermarket.wallet_balance = sm_balance - product_amount
-
-                    # Ghi log hoàn tiền
-                    db.add(WalletTransaction(
-                        entity_type='shipper', entity_id=dp.id, amount=refund_amount,
+                    from app.services import wallet_service
+                    # Hoàn tiền cho Shipper (Tiền hàng + 20% Ship)
+                    wallet_service.add_transaction(
+                        db, entity_type='shipper', entity_id=dp.id, amount=refund_amount,
                         transaction_type='refund', reference_id=order.id, reference_type='order',
                         description=f"Hoàn tiền đơn COD #{order.id} do đơn bị hủy"
-                    ))
-                    db.add(WalletTransaction(
-                        entity_type='supermarket', entity_id=supermarket.id, amount=-product_amount,
-                        transaction_type='refund', reference_id=order.id, reference_type='order',
+                    )
+
+                    # Trừ lại tiền của Siêu thị (Chỉ trừ tiền hàng)
+                    # Lưu ý: Dùng transaction_type='withdrawal' để thực hiện phép trừ trong wallet_service
+                    wallet_service.add_transaction(
+                        db, entity_type='supermarket', entity_id=supermarket.id, amount=product_amount,
+                        transaction_type='withdrawal', reference_id=order.id, reference_type='order',
                         description=f"Khấu trừ tiền hàng đơn COD #{order.id} do đơn bị hủy"
-                    ))
+                    )
 
         # 2. MỚI: Nếu đơn VNPay hoặc Ví đã thanh toán (payment_status == 'paid') -> Hoàn tiền vào ví Customer
         elif (order.payment_method or "").lower() in ["vnpay", "wallet"] and order.payment_status == "paid":

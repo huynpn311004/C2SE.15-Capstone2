@@ -206,9 +206,12 @@ export async function deleteDonationOffer(offerId) {
   return response.data
 }
 
-export async function fetchCategories() {
+export async function fetchCategories(search = '') {
   requireStaff()
-  const response = await API.get('/staff/categories')
+  const params = {}
+  if (search) params.search = search
+
+  const response = await API.get('/staff/categories', { params })
   return response.data.items || []
 }
 
